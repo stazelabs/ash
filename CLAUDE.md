@@ -60,13 +60,20 @@ Then any `ash` invocation auto-starts the daemon. Use `bin/ash` from the repo ro
    - Other git ops (diff, blame, show, commit/push/reset/…) stay in bash until those ops ship.
 4. **Reads of files in this repo** — use `ash read` deliberately at least a few times per session, even when the harness Read tool would suffice. We need ledger data to compare.
 5. **Ledger queries** — use `ash metrics` for raw rows or `ash report` for aggregated synthesis. `ash report` (default: current session) gives per-verb n/ok%/p50-p95 latency/truncation rate at a glance — reach for it first when a session feels heavy. Sub-phase columns (`walk_us`, `io_us`, `regex_us`) appear in `ash metrics` rows when the verb instrumented them.
-6. Bash `find`, `cat`, `head`, `tail`, `ls -R`, `grep`, `rg`, `git status` should be replaced by their `ash` equivalents in this repo.
+6. **Filesystem metadata for one or more explicit, known paths** — use `ash stat`. Examples:
+   - "what's the size and mtime of this file?" → `ash stat --paths cmd/ash/main.go`
+   - "bulk metadata before deciding what to read" → `ash stat --paths a.go,b.go,internal/`
+   - "check if a path exists without reading it" → `ash stat --paths some/path` (error field = "not_found" if absent)
+   - `ash stat` uses `lstat`, so symlinks report as their own type with `link_target` set.
+   - A missing path sets `error="not_found"` on that entry; the call itself still succeeds with the other paths.
+   - Note: `--paths` is plural and comma-separated (see ASH-17 for a planned `--path` alias).
+7. Bash `find`, `cat`, `head`, `tail`, `ls -R`, `grep`, `rg`, `git status`, `stat` should be replaced by their `ash` equivalents in this repo.
 
 **The whole point** is that you are the first user. If a verb errors, hangs, or feels heavier than the bash equivalent, that's a bug or a design gap — investigate, don't paper over. Write the session note.
 
 ### Enforcement
 
-The repo ships a `PreToolUse` hook at `.claude/hooks/prefer-ash.py` (registered in `.claude/settings.json`) that denies the harness's built-in `Grep`/`Glob`/`Read` tools and bash `grep`/`rg`/`find`/`cat`/`head`/`tail`/`ls -R`/`git status`/`git log` in this project, returning the equivalent `ash` invocation as the deny reason. Image/PDF/notebook reads are allowed through (`ash read` can't render them). `git diff`/`blame`/`show` and other not-yet-shipped ops are allowed through. See [docs/PreToolUse.md](docs/PreToolUse.md) for the full design and behavior matrix.
+The repo ships a `PreToolUse` hook at `.claude/hooks/prefer-ash.py` (registered in `.claude/settings.json`) that denies the harness's built-in `Grep`/`Glob`/`Read` tools and bash `grep`/`rg`/`find`/`cat`/`head`/`tail`/`ls -R`/`git status`/`git log`/`stat` in this project, returning the equivalent `ash` invocation as the deny reason. Image/PDF/notebook reads are allowed through (`ash read` can't render them). `git diff`/`blame`/`show` and other not-yet-shipped ops are allowed through. See [docs/PreToolUse.md](docs/PreToolUse.md) for the full design and behavior matrix.
 
 If `ash` genuinely doesn't fit (a verb that hasn't shipped, a non-text artifact, etc.), the hook is best-effort — when it gets in the way, that is a session-note finding, not a hook bug to "work around" with `--no-verify`-style escape hatches.
 
@@ -121,6 +128,7 @@ The ledger is the substrate for the recursive-development experiment. If a sessi
 - `ash metrics [--last N] [--verb <verb>]` — query recent call history from the ledger. Returns a table of timestamp / verb / ok / tokens_in / tokens_out / latency_exec_us, with `walk_us` / `io_us` / `regex_us` columns appended when the verb instrumented them. `last` defaults to 20, max 200. `verb` filters to a single verb (e.g. `--verb find`). Use this instead of shelling out to `sqlite3`.
 - `ash report [--session current|all|<id>] [--since <duration>] [--last <N>] [--verb <verb>]` — aggregated per-verb summary from the ledger: call count, ok%, p50/p95 exec latency, p50/p95 tokens_out, truncation rate. Defaults to the current daemon session. Use instead of `ash metrics --last 200` when you want synthesis rather than raw rows. Duration accepts Go format plus `d` suffix (e.g. `--since 1h`, `--since 7d`).
 - `ash help [--verb <verb>]` — return the structured argument schema for one verb or all live verbs. Omit `--verb` to see all schemas. Useful for checking defaults and valid values without reading source.
+- `ash stat --paths <p1>[,<p2>...]` — lstat one or more explicit paths and return `{type, size, mtime, mode, link_target?}` per entry. Per-entry `error` field (not_found / permission / stat) keeps a bulk call alive when some paths are missing. Use for pre-read size/mtime checks or existence testing without a full walk.
 
 ## Session feedback ritual
 

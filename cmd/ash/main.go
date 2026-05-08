@@ -149,6 +149,7 @@ verbs (phase 1, work in progress):
   metrics [--last N] [--verb <verb>]                   (default last=20)
   report  [--session current|all|<id>] [--since <dur>] (default session=current)
           [--last N] [--verb <verb>]
+  stat    --paths <p1>[,<p2>...]                        (lstat; per-entry errors)
   help    [--verb <verb>]                               (omit for all verbs)
 
 global flags:

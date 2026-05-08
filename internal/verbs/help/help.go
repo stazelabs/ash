@@ -128,6 +128,13 @@ var registry = []VerbSchema{
 			{Name: "verb", Type: "string", Default: "", Description: "Verb name to describe. Omit to return schemas for all verbs."},
 		},
 	},
+	{
+		Verb:        "stat",
+		Description: "Return filesystem metadata for one or more explicit paths. Uses lstat, so symlinks are reported as their own type. Missing paths produce a per-entry error rather than failing the whole call.",
+		Args: []ArgSchema{
+			{Name: "paths", Type: "string", Required: true, Description: "Comma-separated list of paths to inspect (e.g. 'cmd/ash/main.go,internal/')."},
+		},
+	},
 }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {

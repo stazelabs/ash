@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """PreToolUse hook: deny built-in Grep/Glob and bash grep/find/cat/head/tail/
-ls -R/git status/git log in the ash repo, returning a suggested `ash <verb>`
+ls -R/git status/git log/stat in the ash repo, returning a suggested `ash <verb>`
 invocation.
 
 Read is intentionally NOT denied: the harness Edit/Write tools require a
@@ -32,6 +32,7 @@ NUDGE_TAIL = (
 GREP_LIKE = {"grep", "rg", "egrep", "fgrep"}
 READ_LIKE = {"cat", "head", "tail"}
 FIND_LIKE = {"find"}
+STAT_LIKE = {"stat"}
 
 GIT_REDIRECT = {"status", "log"}
 
@@ -81,6 +82,11 @@ def suggest_find(path: str | None, glob: str | None = None, type_: str | None = 
 
 def suggest_read(path: str | None) -> str:
     return f"ash read --path {shellquote(path)}" if path else "ash read --path <file>"
+
+
+def suggest_stat(paths: list[str]) -> str:
+    joined = ",".join(paths) if paths else "<path>"
+    return f"ash stat --paths {shellquote(joined)}"
 
 
 def handle_grep(tool_input: dict) -> None:
@@ -188,6 +194,13 @@ def handle_bash(tool_input: dict) -> None:
             deny(
                 f"Use ash instead: `{suggest_find(path)}` (recursive `ls -R` is "
                 "redirected to ash find in this repo)."
+            )
+
+        if prog in STAT_LIKE:
+            positional = [a for a in args if not a.startswith("-")]
+            deny(
+                f"Use ash instead: `{suggest_stat(positional)}` (bash `stat` is "
+                "redirected to ash stat in this repo)."
             )
 
         if prog == "git":
