@@ -90,6 +90,12 @@ func main() {
 			rsp.Metrics.TokensIn, rsp.Metrics.TokensOut, rsp.Metrics.TokensMethod,
 			rsp.Metrics.LatencyParseUs, rsp.Metrics.LatencyExecUs, rsp.Metrics.LatencySerializeUs,
 		)
+		if rsp.Metrics.LedgerError != "" {
+			fmt.Fprintf(os.Stderr,
+				"[ash WARNING: ledger record FAILED: %s -- this call's metrics did not persist]\n",
+				rsp.Metrics.LedgerError,
+			)
+		}
 	}
 	if !rsp.OK {
 		os.Exit(1)

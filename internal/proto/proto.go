@@ -51,6 +51,12 @@ type Metrics struct {
 	BytesIn            int    `msgpack:"bytes_in"`
 	BytesOut           int    `msgpack:"bytes_out"`
 	Truncated          bool   `msgpack:"truncated,omitempty"`
+	// LedgerError is set by the daemon when persisting the call to the
+	// instrumentation ledger failed. The verb itself may have succeeded; the
+	// ledger row did not. Empty in the normal case (omitempty drops it from
+	// the wire). This is the project's main "loud failure" signal: a quiet
+	// ledger failure undermines every claim ash makes about itself.
+	LedgerError string `msgpack:"ledger_error,omitempty"`
 }
 
 func WriteFrame(w io.Writer, payload []byte) error {

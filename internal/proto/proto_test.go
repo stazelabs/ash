@@ -112,6 +112,56 @@ func TestResponseRoundTrip_OK(t *testing.T) {
 	}
 }
 
+func TestResponseRoundTrip_LedgerError(t *testing.T) {
+	// The "loud failure" path: the verb succeeded but the ledger row didn't
+	// land. The wire response carries that fact so the client can scream.
+	want := &Response{
+		V:    ProtocolVersion,
+		ID:   42,
+		OK:   true,
+		Data: map[string]any{"content": "x"},
+		Metrics: &Metrics{
+			LatencyParseUs:     1,
+			LatencyExecUs:      1,
+			LatencySerializeUs: 1,
+			TokensIn:           1,
+			TokensOut:          1,
+			TokensMethod:       "real:cl100k_base",
+			BytesIn:            1,
+			BytesOut:           1,
+			LedgerError:        "sql: database is closed",
+		},
+	}
+	encoded, err := EncodeResponse(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := DecodeResponse(encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Metrics == nil || got.Metrics.LedgerError != "sql: database is closed" {
+		t.Errorf("ledger_error did not survive round-trip: %+v", got.Metrics)
+	}
+}
+
+func TestResponseRoundTrip_NoLedgerErrorByDefault(t *testing.T) {
+	// omitempty: in the normal case, the field must not bloat every response.
+	want := &Response{
+		V:       ProtocolVersion,
+		ID:      1,
+		OK:      true,
+		Metrics: &Metrics{TokensOut: 100, TokensMethod: "real:cl100k_base"},
+	}
+	encoded, err := EncodeResponse(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(encoded, []byte("ledger_error")) {
+		t.Errorf("ledger_error key should be omitted when empty; encoded: %x", encoded)
+	}
+}
+
 func TestResponseRoundTrip_Err(t *testing.T) {
 	want := &Response{
 		V:   ProtocolVersion,
