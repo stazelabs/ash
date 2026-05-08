@@ -26,9 +26,25 @@
 package git
 
 import (
+	"strings"
+
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
+
+// gitRunError maps a non-zero git exit into a proto.Error. It recognises the
+// "not a git repository" message and returns the typed not_a_repo code; all
+// other failures become git_failed.
+func gitRunError(path string, stderr []byte) *proto.Error {
+	msg := strings.TrimSpace(string(stderr))
+	if msg == "" {
+		msg = "git exited non-zero"
+	}
+	if strings.Contains(strings.ToLower(msg), "not a git repository") {
+		return &proto.Error{Code: "not_a_repo", Msg: path + " is not inside a git repository"}
+	}
+	return &proto.Error{Code: "git_failed", Msg: msg}
+}
 
 // Result is the wire envelope. Op is always set; the populated payload
 // depends on which op was requested. Future ops add their own pointer

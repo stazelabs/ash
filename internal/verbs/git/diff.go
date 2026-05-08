@@ -3,14 +3,12 @@ package git
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/stazelabs/ash/internal/proto"
+	"github.com/stazelabs/ash/internal/runner"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
 
@@ -45,19 +43,14 @@ type DiffFile struct {
 	Patch      string `msgpack:"patch,omitempty"`
 }
 
-// runDiff dispatches to the stat-only or full-patch runner.
 func runDiff(a *Args, tr *proto.Tracer) (*DiffResult, *proto.Error) {
-	gitBin, err := exec.LookPath("git")
-	if err != nil {
-		return nil, &proto.Error{Code: "git_not_found", Msg: "git binary not on PATH; ash git requires system git"}
-	}
 	if a.StatOnly {
-		return runDiffStat(gitBin, a, tr)
+		return runDiffStat(a, tr)
 	}
-	return runDiffFull(gitBin, a, tr)
+	return runDiffFull(a, tr)
 }
 
-func buildDiffCmd(gitBin string, extra []string, a *Args) *exec.Cmd {
+func buildDiffArgs(extra []string, a *Args) []string {
 	args := []string{"-C", a.Path, "diff"}
 	args = append(args, extra...)
 	if a.Staged {
@@ -71,59 +64,33 @@ func buildDiffCmd(gitBin string, extra []string, a *Args) *exec.Cmd {
 	if a.Pathspec != "" {
 		args = append(args, "--", a.Pathspec)
 	}
-	return exec.Command(gitBin, args...)
+	return args
 }
 
 // runDiffStat runs `git diff --numstat` for token-cheap per-file counts.
-func runDiffStat(gitBin string, a *Args, tr *proto.Tracer) (*DiffResult, *proto.Error) {
-	cmd := buildDiffCmd(gitBin, []string{"--numstat"}, a)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	ioStart := time.Now()
-	runErr := cmd.Run()
-	tr.AddIO(time.Since(ioStart))
-
-	if runErr != nil {
-		return nil, diffRunError(a.Path, runErr, stderr.String())
+func runDiffStat(a *Args, tr *proto.Tracer) (*DiffResult, *proto.Error) {
+	res, perr := runner.Run("git", buildDiffArgs([]string{"--numstat"}, a), runner.Opts{Tracer: tr})
+	if perr != nil {
+		return nil, perr
 	}
-	return parseDiffNumstat(stdout.Bytes())
+	if res.ExitCode != 0 {
+		return nil, gitRunError(a.Path, res.Stderr)
+	}
+	return parseDiffNumstat(res.Stdout)
 }
 
 // runDiffFull runs `git diff --unified=N --no-color` and parses the
 // unified diff into per-file DiffFile records.
-func runDiffFull(gitBin string, a *Args, tr *proto.Tracer) (*DiffResult, *proto.Error) {
+func runDiffFull(a *Args, tr *proto.Tracer) (*DiffResult, *proto.Error) {
 	extra := []string{"--no-color", fmt.Sprintf("--unified=%d", a.Context)}
-	cmd := buildDiffCmd(gitBin, extra, a)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	ioStart := time.Now()
-	runErr := cmd.Run()
-	tr.AddIO(time.Since(ioStart))
-
-	if runErr != nil {
-		return nil, diffRunError(a.Path, runErr, stderr.String())
+	res, perr := runner.Run("git", buildDiffArgs(extra, a), runner.Opts{Tracer: tr})
+	if perr != nil {
+		return nil, perr
 	}
-	return parseDiffUnified(stdout.Bytes(), a.LimitBytes)
-}
-
-// diffRunError converts a git subprocess error into a proto.Error.
-func diffRunError(path string, runErr error, stderrMsg string) *proto.Error {
-	var exitErr *exec.ExitError
-	if errors.As(runErr, &exitErr) {
-		msg := strings.TrimSpace(stderrMsg)
-		if msg == "" {
-			msg = exitErr.Error()
-		}
-		if strings.Contains(strings.ToLower(msg), "not a git repository") {
-			return &proto.Error{Code: "not_a_repo", Msg: path + " is not inside a git repository"}
-		}
-		return &proto.Error{Code: "git_failed", Msg: msg}
+	if res.ExitCode != 0 {
+		return nil, gitRunError(a.Path, res.Stderr)
 	}
-	return &proto.Error{Code: "git_failed", Msg: runErr.Error()}
+	return parseDiffUnified(res.Stdout, a.LimitBytes)
 }
 
 // parseDiffNumstat parses `git diff --numstat` output.

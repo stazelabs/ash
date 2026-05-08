@@ -3,14 +3,12 @@ package git
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/stazelabs/ash/internal/proto"
+	"github.com/stazelabs/ash/internal/runner"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
 
@@ -45,46 +43,21 @@ type FileChange struct {
 // and parses the output. The exec phase is timed as IO since the cost is
 // dominated by git's own filesystem traversal of the index.
 func runStatus(a *Args, tr *proto.Tracer) (*StatusResult, *proto.Error) {
-	gitBin, err := exec.LookPath("git")
-	if err != nil {
-		return nil, &proto.Error{Code: "git_not_found", Msg: "git binary not on PATH; ash git requires system git"}
-	}
-	args := []string{"-C", a.Path, "status", "--porcelain=v2", "--branch"}
+	gitArgs := []string{"-C", a.Path, "status", "--porcelain=v2", "--branch"}
 	if !a.Untracked {
-		args = append(args, "--untracked-files=no")
+		gitArgs = append(gitArgs, "--untracked-files=no")
 	}
 	if a.Ignored {
-		args = append(args, "--ignored")
+		gitArgs = append(gitArgs, "--ignored")
 	}
-	cmd := exec.Command(gitBin, args...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	ioStart := time.Now()
-	runErr := cmd.Run()
-	tr.AddIO(time.Since(ioStart))
-
-	if runErr != nil {
-		var exitErr *exec.ExitError
-		if errors.As(runErr, &exitErr) {
-			msg := strings.TrimSpace(stderr.String())
-			if msg == "" {
-				msg = exitErr.Error()
-			}
-			if strings.Contains(strings.ToLower(msg), "not a git repository") {
-				return nil, &proto.Error{Code: "not_a_repo", Msg: a.Path + " is not inside a git repository"}
-			}
-			return nil, &proto.Error{Code: "git_failed", Msg: msg}
-		}
-		return nil, &proto.Error{Code: "git_failed", Msg: runErr.Error()}
-	}
-
-	res, perr := parseStatus(stdout.Bytes())
+	res, perr := runner.Run("git", gitArgs, runner.Opts{Tracer: tr})
 	if perr != nil {
 		return nil, perr
 	}
-	return res, nil
+	if res.ExitCode != 0 {
+		return nil, gitRunError(a.Path, res.Stderr)
+	}
+	return parseStatus(res.Stdout)
 }
 
 // parseStatus is a pure function over porcelain-v2 bytes so we can unit

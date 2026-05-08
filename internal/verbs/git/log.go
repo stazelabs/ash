@@ -2,14 +2,13 @@ package git
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/stazelabs/ash/internal/proto"
+	"github.com/stazelabs/ash/internal/runner"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
 
@@ -63,74 +62,53 @@ type Commit struct {
 	Parents        []string `msgpack:"parents,omitempty"`
 }
 
-// runLog shells out to `git log` with a stable machine-readable format
-// and parses the output. The exec phase is timed as IO.
 func runLog(a *Args, tr *proto.Tracer) (*LogResult, *proto.Error) {
-	gitBin, err := exec.LookPath("git")
-	if err != nil {
-		return nil, &proto.Error{Code: "git_not_found", Msg: "git binary not on PATH; ash git requires system git"}
-	}
-
-	args := []string{"-C", a.Path, "log", "-z", "--format=" + logFormat,
+	gitArgs := []string{"-C", a.Path, "log", "-z", "--format=" + logFormat,
 		"-n", strconv.Itoa(a.Limit + 1), // +1 so we can detect truncation cheaply
 	}
 	if a.Author != "" {
-		args = append(args, "--author="+a.Author)
+		gitArgs = append(gitArgs, "--author="+a.Author)
 	}
 	if a.Since != "" {
-		args = append(args, "--since="+a.Since)
+		gitArgs = append(gitArgs, "--since="+a.Since)
 	}
 	if a.Until != "" {
-		args = append(args, "--until="+a.Until)
+		gitArgs = append(gitArgs, "--until="+a.Until)
 	}
 	if a.Range != "" {
-		args = append(args, a.Range)
+		gitArgs = append(gitArgs, a.Range)
 	}
 	if a.Pathspec != "" {
 		// "--" separates rev args from pathspec; required even with one
 		// pathspec, since git might otherwise misread the pathspec as a rev.
-		args = append(args, "--", a.Pathspec)
+		gitArgs = append(gitArgs, "--", a.Pathspec)
 	}
 
-	cmd := exec.Command(gitBin, args...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	ioStart := time.Now()
-	runErr := cmd.Run()
-	tr.AddIO(time.Since(ioStart))
-
-	if runErr != nil {
-		var exitErr *exec.ExitError
-		if errors.As(runErr, &exitErr) {
-			msg := strings.TrimSpace(stderr.String())
-			if msg == "" {
-				msg = exitErr.Error()
-			}
-			lower := strings.ToLower(msg)
-			if strings.Contains(lower, "not a git repository") {
-				return nil, &proto.Error{Code: "not_a_repo", Msg: a.Path + " is not inside a git repository"}
-			}
-			// Empty repo: git log exits 128 with a message containing
-			// "any commits" (variants: "does not yet have any commits",
-			// "does not have any commits yet"). Treat as a successful empty
-			// result rather than an error, since "log of empty repo" is a
-			// normal state agents shouldn't have to special-case.
-			if strings.Contains(lower, "any commits") ||
-				strings.Contains(lower, "bad default revision 'head'") {
-				return &LogResult{Count: 0}, nil
-			}
-			return nil, &proto.Error{Code: "git_failed", Msg: msg}
-		}
-		return nil, &proto.Error{Code: "git_failed", Msg: runErr.Error()}
-	}
-
-	res, perr := parseLog(stdout.Bytes(), a.Limit)
+	res, perr := runner.Run("git", gitArgs, runner.Opts{Tracer: tr})
 	if perr != nil {
 		return nil, perr
 	}
-	return res, nil
+	if res.ExitCode != 0 {
+		msg := strings.TrimSpace(string(res.Stderr))
+		lower := strings.ToLower(msg)
+		if strings.Contains(lower, "not a git repository") {
+			return nil, &proto.Error{Code: "not_a_repo", Msg: a.Path + " is not inside a git repository"}
+		}
+		// Empty repo: git log exits 128 with a message containing
+		// "any commits" (variants: "does not yet have any commits",
+		// "does not have any commits yet"). Treat as a successful empty
+		// result rather than an error, since "log of empty repo" is a
+		// normal state agents shouldn't have to special-case.
+		if strings.Contains(lower, "any commits") ||
+			strings.Contains(lower, "bad default revision 'head'") {
+			return &LogResult{Count: 0}, nil
+		}
+		if msg == "" {
+			msg = fmt.Sprintf("git exited %d", res.ExitCode)
+		}
+		return nil, &proto.Error{Code: "git_failed", Msg: msg}
+	}
+	return parseLog(res.Stdout, a.Limit)
 }
 
 // parseLog is a pure function over the NUL-separated commit stream
