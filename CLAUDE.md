@@ -49,15 +49,20 @@ Then any `ash` invocation auto-starts the daemon. Use `bin/ash` from the repo ro
    - Smart-case is the default: an all-lowercase pattern is matched case-insensitively; any uppercase letter switches to case-sensitive. Override with `--case sensitive` or `--case insensitive`.
    - Binary files (NUL byte in the leading 8 KiB) and files >16 MiB are skipped silently; the response counts them so you know why a hit didn't appear.
    - Same hidden-dir and `.gitignore` defaults as `find`.
-3. **`git status` and `git log` in this repo** — use `ash git --op status|log` instead of bash. Examples:
+3. **`git status`, `git log`, and `git diff` in this repo** — use `ash git --op status|log|diff` instead of bash. Examples:
    - "what's the working-tree state?" → `ash git --op status`
    - "include ignored files (e.g. inspecting `.ash/`)" → `ash git --op status --ignored true`
    - "last 20 commits" → `ash git --op log` (default `--limit 20`)
    - "commits in a range" → `ash git --op log --range HEAD~10..HEAD`
    - "filter by author" → `ash git --op log --author Chris`
    - "by date / by path" → `--since '1 week ago'` / `--pathspec internal/walker/`
-   - Status splits changes into `staged`/`unstaged`/`untracked`/`conflicts`; a file with index AND worktree changes appears in both. Log emits structured `Commit` records (full+short SHA, author/committer name+email+time-as-unix-nanos, parents, subject, body) — the body is preserved with embedded newlines intact.
-   - Other git ops (diff, blame, show, commit/push/reset/…) stay in bash until those ops ship.
+   - "what changed in the working tree?" → `ash git --op diff`
+   - "what's staged?" → `ash git --op diff --staged true`
+   - "diff the last commit" → `ash git --op diff --range HEAD~1..HEAD`
+   - "token-cheap summary before reading a diff" → `ash git --op diff --stat true`
+   - "diff scoped to one package" → `ash git --op diff --pathspec internal/verbs/git`
+   - Status splits changes into `staged`/`unstaged`/`untracked`/`conflicts`. Log emits structured `Commit` records. Diff returns per-file `{path, status, additions, deletions, patch}` with a `limit_bytes` cap (default 256 KiB).
+   - Other git ops (blame, show, commit/push/reset/…) stay in bash until those ops ship.
 4. **Reads of files in this repo** — use `ash read` deliberately at least a few times per session, even when the harness Read tool would suffice. We need ledger data to compare.
 5. **Ledger queries** — use `ash metrics` for raw rows or `ash report` for aggregated synthesis. `ash report` (default: current session) gives per-verb n/ok%/p50-p95 latency/truncation rate at a glance — reach for it first when a session feels heavy. Sub-phase columns (`walk_us`, `io_us`, `regex_us`) appear in `ash metrics` rows when the verb instrumented them.
 6. **Filesystem metadata for one or more explicit, known paths** — use `ash stat`. Examples:
@@ -73,13 +78,13 @@ Then any `ash` invocation auto-starts the daemon. Use `bin/ash` from the repo ro
    - "ensure no accidental overwrite" → add `--create_only true`
    - "write binary/base64 content" → `--encoding base64`
    - Parent dirs are created automatically (`--mkdir true` default).
-8. Bash `find`, `cat`, `head`, `tail`, `ls -R`, `grep`, `rg`, `git status`, `stat` should be replaced by their `ash` equivalents in this repo.
+8. Bash `find`, `cat`, `head`, `tail`, `ls -R`, `grep`, `rg`, `git status`, `git diff`, `stat` should be replaced by their `ash` equivalents in this repo.
 
 **The whole point** is that you are the first user. If a verb errors, hangs, or feels heavier than the bash equivalent, that's a bug or a design gap — investigate, don't paper over. Write the session note.
 
 ### Enforcement
 
-The repo ships a `PreToolUse` hook at `.claude/hooks/prefer-ash.py` (registered in `.claude/settings.json`) that denies the harness's built-in `Grep`/`Glob`/`Read` tools and bash `grep`/`rg`/`find`/`cat`/`head`/`tail`/`ls -R`/`git status`/`git log`/`stat` in this project, returning the equivalent `ash` invocation as the deny reason. Image/PDF/notebook reads are allowed through (`ash read` can't render them). `git diff`/`blame`/`show` and other not-yet-shipped ops are allowed through. See [docs/PreToolUse.md](docs/PreToolUse.md) for the full design and behavior matrix.
+The repo ships a `PreToolUse` hook at `.claude/hooks/prefer-ash.py` (registered in `.claude/settings.json`) that denies the harness's built-in `Grep`/`Glob`/`Read` tools and bash `grep`/`rg`/`find`/`cat`/`head`/`tail`/`ls -R`/`git status`/`git log`/`stat` in this project, returning the equivalent `ash` invocation as the deny reason. Image/PDF/notebook reads are allowed through (`ash read` can't render them). `git blame`/`show` and other not-yet-shipped ops are allowed through. See [docs/PreToolUse.md](docs/PreToolUse.md) for the full design and behavior matrix.
 
 If `ash` genuinely doesn't fit (a verb that hasn't shipped, a non-text artifact, etc.), the hook is best-effort — when it gets in the way, that is a session-note finding, not a hook bug to "work around" with `--no-verify`-style escape hatches.
 
