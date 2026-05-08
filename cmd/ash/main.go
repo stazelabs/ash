@@ -146,7 +146,9 @@ verbs (phase 1, work in progress):
                      ops: status [--untracked true|false] [--ignored true|false]
                           log    [--limit N] [--range <rev>] [--author <s>]
                                  [--since <d>] [--until <d>] [--pathspec <p>]
-  metrics [--last N]  [--verb <verb>]                  (default last=20)
+  metrics [--last N] [--verb <verb>]                   (default last=20)
+  report  [--session current|all|<id>] [--since <dur>] (default session=current)
+          [--last N] [--verb <verb>]
   help    [--verb <verb>]                               (omit for all verbs)
 
 global flags:

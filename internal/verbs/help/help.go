@@ -87,12 +87,18 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "git",
-		Description: "Version control as structured calls. Single verb with --op discriminator. Live ops: status. Shells out to system git.",
+		Description: "Version control as structured calls. Single verb with --op discriminator. Live ops: status, log. Shells out to system git.",
 		Args: []ArgSchema{
-			{Name: "op", Type: "string", Required: true, Values: []string{"status"}, Description: "Subcommand to run. More ops in subsequent ships (log, diff, blame, ...)."},
+			{Name: "op", Type: "string", Required: true, Values: []string{"status", "log"}, Description: "Subcommand to run. More ops in subsequent ships (diff, blame, show, ...)."},
 			{Name: "path", Type: "string", Default: ".", Description: "Repository path (any path inside a git work tree)."},
 			{Name: "untracked", Type: "bool", Default: "true", Description: "[status] include untracked files. Pass false to suppress."},
 			{Name: "ignored", Type: "bool", Default: "false", Description: "[status] include gitignored files."},
+			{Name: "limit", Type: "int", Default: "20", Description: "[log] maximum commits to return. Hard cap is 200."},
+			{Name: "range", Type: "string", Default: "", Description: "[log] git revision range (e.g. 'main..feature' or 'HEAD~10..HEAD')."},
+			{Name: "author", Type: "string", Default: "", Description: "[log] filter commits by author name/email substring."},
+			{Name: "since", Type: "string", Default: "", Description: "[log] only commits after this date (any format git --since accepts, e.g. '1 week ago')."},
+			{Name: "until", Type: "string", Default: "", Description: "[log] only commits before this date."},
+			{Name: "pathspec", Type: "string", Default: "", Description: "[log] only commits affecting this path (single path, passed after `--`)."},
 		},
 	},
 	{
@@ -101,6 +107,16 @@ var registry = []VerbSchema{
 		Args: []ArgSchema{
 			{Name: "last", Type: "int", Default: "20", Description: "Number of most-recent calls to return. Maximum is 200."},
 			{Name: "verb", Type: "string", Default: "", Description: "Filter results to calls for a specific verb (e.g. 'find')."},
+		},
+	},
+	{
+		Verb:        "report",
+		Description: "Aggregate per-verb summary across ledger calls: n, ok%, p50/p95 latency, p50/p95 tokens_out, trunc%.",
+		Args: []ArgSchema{
+			{Name: "session", Type: "string", Default: "current", Description: "Session scope: 'current' (this daemon session), 'all', or an explicit session ID."},
+			{Name: "since", Type: "string", Default: "", Description: "Time window, e.g. '15m', '1h', '24h', '7d'. Supports Go duration syntax plus 'd' for days."},
+			{Name: "last", Type: "int", Default: "", Description: "Row cap applied after session/since filters. Maximum is 5000."},
+			{Name: "verb", Type: "string", Default: "", Description: "Restrict aggregation to calls for a specific verb."},
 		},
 	},
 	{

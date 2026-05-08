@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -169,6 +170,89 @@ type Call struct {
 	WalkUs  int64
 	IOUs    int64
 	RegexUs int64
+}
+
+// QueryOpts filters for QueryWindow.
+type QueryOpts struct {
+	// SessionID restricts to a specific session. Empty means no filter.
+	// Use the sentinel value "current" to mean the Ledger's own session.
+	SessionID string
+	// Since restricts to calls with ts >= Since (zero means no filter).
+	Since time.Time
+	// VerbFilter restricts to calls for a specific verb (empty = no filter).
+	VerbFilter string
+	// Limit caps the number of rows returned (0 = use DefaultWindowLimit).
+	Limit int
+}
+
+const DefaultWindowLimit = 5000
+
+// QueryWindow returns calls matching opts in reverse chronological order.
+func (l *Ledger) QueryWindow(opts QueryOpts) ([]Call, error) {
+	limit := opts.Limit
+	if limit <= 0 {
+		limit = DefaultWindowLimit
+	}
+
+	sid := opts.SessionID
+	if sid == "current" {
+		sid = l.sessionID
+	}
+
+	// Build WHERE clauses dynamically.
+	where := []string{}
+	args := []any{}
+	if sid != "" {
+		where = append(where, "session_id = ?")
+		args = append(args, sid)
+	}
+	if !opts.Since.IsZero() {
+		where = append(where, "ts >= ?")
+		args = append(args, opts.Since.UnixNano())
+	}
+	if opts.VerbFilter != "" {
+		where = append(where, "verb = ?")
+		args = append(args, opts.VerbFilter)
+	}
+	args = append(args, limit)
+
+	clause := ""
+	if len(where) > 0 {
+		clause = "WHERE " + strings.Join(where, " AND ") + " "
+	}
+
+	rows, err := l.db.Query(`
+		SELECT ts, verb, ok, err_code,
+		       latency_parse_us, latency_exec_us, latency_serialize_us,
+		       tokens_in, tokens_out, tokens_method,
+		       bytes_in, bytes_out, truncated,
+		       walk_us, io_us, regex_us
+		FROM calls `+clause+`ORDER BY id DESC LIMIT ?`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var calls []Call
+	for rows.Next() {
+		var c Call
+		var ts int64
+		var okInt, truncInt int
+		if err := rows.Scan(
+			&ts, &c.Verb, &okInt, &c.ErrCode,
+			&c.LatencyParseUs, &c.LatencyExecUs, &c.LatencySerializeUs,
+			&c.TokensIn, &c.TokensOut, &c.TokensMethod,
+			&c.BytesIn, &c.BytesOut, &truncInt,
+			&c.WalkUs, &c.IOUs, &c.RegexUs,
+		); err != nil {
+			return nil, err
+		}
+		c.Timestamp = time.Unix(0, ts)
+		c.OK = okInt != 0
+		c.Truncated = truncInt != 0
+		calls = append(calls, c)
+	}
+	return calls, rows.Err()
 }
 
 // QueryRecent returns up to n calls in reverse chronological order.
