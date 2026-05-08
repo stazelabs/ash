@@ -19,7 +19,7 @@ func repoRoot(b *testing.B) string {
 func noopVisit(Entry) (Action, error) { return Continue, nil }
 
 // BenchmarkWalkRepo_NoGlob walks the whole repo with no glob constraint
-// (gitignore-respecting). Mirrors `ash find --path .`.
+// (gitignore-respecting). Mirrors `ash find --path .` minus WantInfo.
 func BenchmarkWalkRepo_NoGlob(b *testing.B) {
 	root := repoRoot(b)
 	opts := Options{RespectGitignore: true}
@@ -62,6 +62,33 @@ func BenchmarkWalkRepo_NoGitignore(b *testing.B) {
 func BenchmarkWalkRepo_NoFilters(b *testing.B) {
 	root := repoRoot(b)
 	opts := Options{}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := Walk(root, opts, noopVisit); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// BenchmarkWalkRepo_FindShape mirrors what `ash find` actually runs:
+// WantInfo:true so Entry.Info is populated. Use this to measure the
+// per-Lstat cost the find verb pays on every walk.
+func BenchmarkWalkRepo_FindShape(b *testing.B) {
+	root := repoRoot(b)
+	opts := Options{Glob: "**/*.go", RespectGitignore: true, WantInfo: true}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := Walk(root, opts, noopVisit); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// BenchmarkWalkRepo_GrepShape mirrors what `ash grep` runs after ASH-37:
+// WantInfo:false; grep does its own Open+Fstat per file in searchOne.
+func BenchmarkWalkRepo_GrepShape(b *testing.B) {
+	root := repoRoot(b)
+	opts := Options{Glob: "**/*.go", RespectGitignore: true}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		if err := Walk(root, opts, noopVisit); err != nil {

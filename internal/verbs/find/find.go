@@ -136,6 +136,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		MaxDepth:         a.MaxDepth,
 		IncludeHidden:    a.IncludeHidden,
 		RespectGitignore: a.RespectGitignore,
+		WantInfo:         true,
 	}, func(e walker.Entry) (walker.Action, error) {
 		if !typeMatches(a.Type, e.Type) {
 			return walker.Continue, nil

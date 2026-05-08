@@ -37,6 +37,7 @@ type Options struct {
 	MaxDepth         int    // 0 = unlimited; 1 = direct children only
 	IncludeHidden    bool   // false skips dirs starting with "."; leaf dotfiles are always findable
 	RespectGitignore bool   // true loads .gitignore at root and applies its rules
+	WantInfo         bool   // true populates Entry.Info via d.Info() (one Lstat per entry); leave false if visitor only needs Path/Type
 }
 
 // Entry is what the walker hands to the visitor for each accepted entry.
@@ -160,10 +161,14 @@ func Walk(root string, opts Options, visit Visitor) error {
 			typ = "file"
 		}
 
-		// d.Info() can fail if the entry vanished mid-walk. Visitors that
-		// need size/mtime guard against nil; visitors that don't care are
-		// unaffected.
-		info, _ := d.Info()
+		// d.Info() triggers an Lstat on Darwin and is paid per accepted
+		// entry. Visitors that only need Path/Type leave WantInfo false
+		// and skip the cost. Visitors that opt in still guard against
+		// nil Info, which can happen if the entry vanished mid-walk.
+		var info fs.FileInfo
+		if opts.WantInfo {
+			info, _ = d.Info()
+		}
 
 		// Path-form-mirrors-input: hand the visitor the exact form a
 		// caller would have asked for.

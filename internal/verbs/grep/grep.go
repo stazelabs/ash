@@ -32,6 +32,7 @@ package grep
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"regexp"
@@ -192,7 +193,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 
 	if !info.IsDir() {
 		// Single-file search; path filters and gitignore are skipped.
-		st.searchOne(a.Path, info)
+		st.searchOne(a.Path)
 	} else {
 		walkStart := time.Now()
 		walkErr := walker.Walk(a.Path, walker.Options{
@@ -202,13 +203,12 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 			IncludeHidden:    a.IncludeHidden,
 			RespectGitignore: a.RespectGitignore,
 		}, func(e walker.Entry) (walker.Action, error) {
-			// grep only searches regular files. Dirs are descended (handled by
-			// the walker), symlinks are never followed, and Info() failures
-			// drop the entry rather than aborting the walk.
-			if e.Type != "file" || e.Info == nil {
+			// grep only searches regular files. Dirs are descended by the
+			// walker; symlinks are never followed.
+			if e.Type != "file" {
 				return walker.Continue, nil
 			}
-			if st.searchOne(e.Path, e.Info) {
+			if st.searchOne(e.Path) {
 				return walker.Stop, nil
 			}
 			return walker.Continue, nil
@@ -282,18 +282,33 @@ type state struct {
 }
 
 // searchOne reads, screens, and searches a single file. Returns true if the
-// caller should stop walking entirely (global limit reached).
-func (s *state) searchOne(path string, fi fs.FileInfo) bool {
-	if fi.Size() > maxFileSize {
-		s.res.FilesSkippedLarge++
-		return false
-	}
+// caller should stop walking entirely (global limit reached). Opens the file
+// and fstats from the open fd rather than depending on a pre-walk Lstat —
+// the walker leaves WantInfo false for grep so it doesn't pay per-entry
+// stat cost on dirs and pre-rejected entries.
+func (s *state) searchOne(path string) bool {
 	ioStart := time.Now()
-	body, err := os.ReadFile(path)
-	s.tr.AddIO(time.Since(ioStart))
+	f, err := os.Open(path)
 	if err != nil {
 		// Unreadable files are silently skipped, matching ripgrep's default.
 		// Permission and transient errors don't abort the whole search.
+		s.tr.AddIO(time.Since(ioStart))
+		return false
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		s.tr.AddIO(time.Since(ioStart))
+		return false
+	}
+	if fi.Size() > maxFileSize {
+		s.res.FilesSkippedLarge++
+		s.tr.AddIO(time.Since(ioStart))
+		return false
+	}
+	body, err := io.ReadAll(f)
+	s.tr.AddIO(time.Since(ioStart))
+	if err != nil {
 		return false
 	}
 	s.res.FilesScanned++
