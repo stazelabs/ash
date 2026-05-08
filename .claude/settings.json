@@ -2,11 +2,11 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Grep|Glob|Bash",
+        "matcher": "Grep|Glob|Bash|Edit|Write|Read",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/prefer-ash.py\""
+            "command": "\"$CLAUDE_PROJECT_DIR/bin/ash\" hook"
           }
         ]
       }

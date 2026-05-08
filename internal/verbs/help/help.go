@@ -145,6 +145,21 @@ var registry = []VerbSchema{
 		},
 	},
 	{
+		Verb:        "hook",
+		Description: "Claude Code PreToolUse decision engine. Reads a hook payload from stdin (when invoked as `ash hook` from the harness) and returns a deny/allow decision steering the agent toward ash equivalents. Daemon-side dispatch uses tool_name and tool-specific fields directly. Not normally invoked manually.",
+		Args: []ArgSchema{
+			{Name: "tool_name", Type: "string", Description: "Harness tool the agent attempted (e.g. Grep, Bash, Edit, Write, Read)."},
+			{Name: "command", Type: "string", Description: "[Bash] command line."},
+			{Name: "pattern", Type: "string", Description: "[Grep] regex / [Glob] pattern."},
+			{Name: "path", Type: "string", Description: "[Grep/Glob] search root or [Read fallback] path."},
+			{Name: "glob", Type: "string", Description: "[Grep] file glob filter."},
+			{Name: "file_path", Type: "string", Description: "[Read/Edit/Write] target file path (harness key)."},
+			{Name: "old_string", Type: "string", Description: "[Edit] text to replace."},
+			{Name: "new_string", Type: "string", Description: "[Edit] replacement text."},
+			{Name: "content", Type: "string", Description: "[Write] new file content."},
+		},
+	},
+	{
 		Verb:        "stat",
 		Description: "Return filesystem metadata for one or more explicit paths. Uses lstat, so symlinks are reported as their own type. Missing paths produce a per-entry error rather than failing the whole call.",
 		Args: []ArgSchema{

@@ -31,6 +31,18 @@ func main() {
 	}
 
 	verb := os.Args[1]
+
+	// `ash hook` is a client-only fast path for the Claude Code PreToolUse
+	// hook. It reads the harness payload from stdin, computes the decision
+	// in-process, writes the Claude-format response to stdout, and best-
+	// effort fires a normal ash request to the daemon for ledger
+	// instrumentation. It never auto-starts the daemon — hook latency is
+	// on the agent's critical path.
+	if verb == "hook" {
+		runHook()
+		return
+	}
+
 	format, remaining := extractFormat(os.Args[2:])
 	args, err := parseFlags(remaining)
 	if err != nil {
@@ -166,6 +178,7 @@ verbs (phase 2):
   stat    --paths <p1>[,<p2>...]                        (lstat; per-entry errors)
   bench   [--verb <verb>] [--case <name>] [--limit N]   (ash vs bash comparison)
   help    [--verb <verb>]                               (omit for all verbs)
+  hook                                                  (PreToolUse hook; reads payload from stdin — see docs/PreToolUse.md)
 
 note: pass - as a value to read that arg from stdin (e.g. --content -)
 

@@ -1,0 +1,626 @@
+// Package hook implements the `hook` verb: a Claude Code PreToolUse decision
+// engine that denies harness tool calls (Grep/Glob/Edit/Write/Read/Bash) and
+// returns the equivalent ash invocation as the deny reason.
+//
+// Unlike every other ash verb, `hook` runs both client-side and daemon-side:
+//
+//   - **Client-side** (cmd/ash, special-cased in main.go): reads the Claude
+//     hook payload from stdin, calls Decide, writes the Claude decision JSON
+//     to stdout, then best-effort fires a normal ash request to the daemon
+//     for ledger instrumentation. The decision path never blocks on the
+//     daemon — auto-start is intentionally skipped to keep hook latency low.
+//
+//   - **Daemon-side** (registered in internal/verbs/verbs.go like any other
+//     verb): re-runs the same Decide over the same Args so the ledger row
+//     records the canonical decision. Client and daemon agree by
+//     construction; both call decideFromArgs.
+//
+// Decision rules port the previous python implementation
+// (.claude/hooks/prefer-ash.py) one-for-one, plus newly-added Write and
+// Read denials now that ash write/edit are live.
+//
+// Soft-fail: any decoding error or unrecognized tool falls through to
+// "allow". The hook should steer agents, never break their tool calls.
+package hook
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"path/filepath"
+	"regexp"
+	"strings"
+
+	"github.com/stazelabs/ash/internal/proto"
+	"github.com/stazelabs/ash/internal/verbs/argutil"
+)
+
+// Args is the daemon-side typed view of the Claude hook payload. The
+// client extracts these fields from stdin and sends them in proto.Request
+// args; ParseArgs reconstructs them on the daemon.
+//
+// Fields are tool-specific and most are optional — different tool_name
+// values populate different subsets. Decide tolerates missing fields per
+// tool's expected shape.
+type Args struct {
+	ToolName  string `msgpack:"tool_name"`
+	Pattern   string `msgpack:"pattern,omitempty"`    // Grep/Glob
+	Path      string `msgpack:"path,omitempty"`       // Grep/Glob (and harness Read in some shapes)
+	Glob      string `msgpack:"glob,omitempty"`       // Grep
+	Command   string `msgpack:"command,omitempty"`    // Bash
+	FilePath  string `msgpack:"file_path,omitempty"`  // Read/Edit/Write (harness key)
+	OldString string `msgpack:"old_string,omitempty"` // Edit
+	NewString string `msgpack:"new_string,omitempty"` // Edit
+	Content   string `msgpack:"content,omitempty"`    // Write
+}
+
+// Result is the structured decision. The client renders this as Claude
+// hook JSON for stdout; the daemon uses it as the verb result so tokens
+// and ledger row reflect what was decided.
+type Result struct {
+	Decision    string `msgpack:"decision"`               // "allow" | "deny"
+	ToolName    string `msgpack:"tool_name,omitempty"`    // echoed for ledger queryability
+	MatchedRule string `msgpack:"matched_rule,omitempty"` // e.g. "Grep", "Bash:grep", "Read:.png-allow"
+	Suggested   string `msgpack:"suggested,omitempty"`    // the ash invocation, when denied
+	Reason      string `msgpack:"reason,omitempty"`       // human-readable deny reason (matches what Claude shows)
+}
+
+const nudgeTail = `See CLAUDE.md "When to prefer ash over bash". If ash genuinely falls short, run it anyway and write a session note in docs/session-notes/.`
+
+// Read is denied for source-text files but allowed for image/PDF/notebook
+// formats that ash read can't render meaningfully.
+var allowedReadExts = map[string]bool{
+	".png":  true,
+	".jpg":  true,
+	".jpeg": true,
+	".gif":  true,
+	".webp": true,
+	".pdf":  true,
+	".ipynb": true,
+}
+
+// ExtractArgs parses a Claude PreToolUse hook payload (stdin JSON) into
+// (wire-args map, typed Args). The map is what the client sends to the
+// daemon as proto.Request.Args; the Args is what Decide consumes
+// directly. Returns nil/nil/error only on malformed JSON — soft-fail
+// behavior (allow) is the caller's responsibility.
+func ExtractArgs(payload []byte) (map[string]any, *Args, error) {
+	var raw struct {
+		ToolName  string         `json:"tool_name"`
+		ToolInput map[string]any `json:"tool_input"`
+	}
+	if err := json.Unmarshal(payload, &raw); err != nil {
+		return nil, nil, err
+	}
+	a := &Args{ToolName: raw.ToolName}
+	getStr := func(k string) string {
+		if v, ok := raw.ToolInput[k]; ok {
+			if s, ok := v.(string); ok {
+				return s
+			}
+		}
+		return ""
+	}
+	a.Pattern = getStr("pattern")
+	a.Path = getStr("path")
+	a.Glob = getStr("glob")
+	if a.Glob == "" {
+		a.Glob = getStr("include") // Grep historically used "include"
+	}
+	a.Command = getStr("command")
+	a.FilePath = getStr("file_path")
+	a.OldString = getStr("old_string")
+	a.NewString = getStr("new_string")
+	a.Content = getStr("content")
+
+	wire := map[string]any{"tool_name": a.ToolName}
+	if a.Pattern != "" {
+		wire["pattern"] = a.Pattern
+	}
+	if a.Path != "" {
+		wire["path"] = a.Path
+	}
+	if a.Glob != "" {
+		wire["glob"] = a.Glob
+	}
+	if a.Command != "" {
+		wire["command"] = a.Command
+	}
+	if a.FilePath != "" {
+		wire["file_path"] = a.FilePath
+	}
+	if a.OldString != "" {
+		wire["old_string"] = a.OldString
+	}
+	if a.NewString != "" {
+		wire["new_string"] = a.NewString
+	}
+	if a.Content != "" {
+		wire["content"] = a.Content
+	}
+	return wire, a, nil
+}
+
+// ParseArgs is the daemon-side wire decoder. Every field is optional: a
+// hook payload can deny on tool_name alone (e.g. Grep) without any
+// tool-specific args present.
+func ParseArgs(in map[string]any) (*Args, *proto.Error) {
+	a := &Args{}
+	var perr *proto.Error
+	if a.ToolName, perr = argutil.OptionalString(in, "tool_name", ""); perr != nil {
+		return nil, perr
+	}
+	if a.Pattern, perr = argutil.OptionalString(in, "pattern", ""); perr != nil {
+		return nil, perr
+	}
+	if a.Path, perr = argutil.OptionalString(in, "path", ""); perr != nil {
+		return nil, perr
+	}
+	if a.Glob, perr = argutil.OptionalString(in, "glob", ""); perr != nil {
+		return nil, perr
+	}
+	if a.Command, perr = argutil.OptionalString(in, "command", ""); perr != nil {
+		return nil, perr
+	}
+	if a.FilePath, perr = argutil.OptionalString(in, "file_path", ""); perr != nil {
+		return nil, perr
+	}
+	if a.OldString, perr = argutil.OptionalString(in, "old_string", ""); perr != nil {
+		return nil, perr
+	}
+	if a.NewString, perr = argutil.OptionalString(in, "new_string", ""); perr != nil {
+		return nil, perr
+	}
+	if a.Content, perr = argutil.OptionalString(in, "content", ""); perr != nil {
+		return nil, perr
+	}
+	return a, nil
+}
+
+// Run is the daemon-side runner. It wraps Decide with the standard verb
+// signature so the registry in internal/verbs/verbs.go can dispatch it
+// like any other verb. The tracer is unused — there are no
+// instrumentable sub-phases.
+func Run(a *Args, _ *proto.Tracer) (*Result, *proto.Error) {
+	return Decide(a), nil
+}
+
+// Decide is the pure decision engine, shared by client and daemon. It
+// never returns an error: unrecognized tool names and missing fields
+// fall through to "allow". The hook steers, never breaks.
+func Decide(a *Args) *Result {
+	switch a.ToolName {
+	case "Grep":
+		return denyResult(a.ToolName, "Grep",
+			"Use ash instead: `"+suggestGrep(a.Pattern, a.Path, a.Glob)+"`.")
+	case "Glob":
+		return denyResult(a.ToolName, "Glob",
+			"Use ash instead: `"+suggestFind(a.Path, a.Pattern, "file")+"`.")
+	case "Edit":
+		path := pickPath(a.FilePath, a.Path)
+		return denyResult(a.ToolName, "Edit",
+			"Use ash instead: `"+suggestEdit(path, a.OldString, a.NewString)+"`.")
+	case "Write":
+		path := pickPath(a.FilePath, a.Path)
+		return denyResult(a.ToolName, "Write",
+			"Use ash instead: `"+suggestWrite(path)+"`.")
+	case "Read":
+		path := pickPath(a.FilePath, a.Path)
+		ext := strings.ToLower(filepath.Ext(path))
+		if allowedReadExts[ext] {
+			return &Result{Decision: "allow", ToolName: a.ToolName, MatchedRule: "Read:" + ext + "-allow"}
+		}
+		return denyResult(a.ToolName, "Read",
+			"Use ash instead: `"+suggestRead(path)+"`.")
+	case "Bash":
+		return decideBash(a.Command)
+	}
+	return &Result{Decision: "allow", ToolName: a.ToolName}
+}
+
+func denyResult(toolName, rule, reason string) *Result {
+	r := &Result{
+		Decision:    "deny",
+		ToolName:    toolName,
+		MatchedRule: rule,
+		Reason:      reason + " " + nudgeTail,
+	}
+	r.Suggested = extractSuggested(reason)
+	return r
+}
+
+// extractSuggested pulls the backtick-wrapped ash invocation out of a
+// "Use ash instead: `ash …`." reason for separate ledger queryability.
+// Best-effort; missing backticks just leave Suggested empty.
+func extractSuggested(reason string) string {
+	first := strings.IndexByte(reason, '`')
+	if first < 0 {
+		return ""
+	}
+	last := strings.IndexByte(reason[first+1:], '`')
+	if last < 0 {
+		return ""
+	}
+	return reason[first+1 : first+1+last]
+}
+
+// PrettyResponse renders a one-line summary used both for terminal
+// display (rare — clients almost always emit Claude JSON instead) and
+// for daemon-side token counting on the ledger row.
+func PrettyResponse(_ *proto.Request, rsp *proto.Response) string {
+	if !rsp.OK {
+		return proto.PrettyResponseHeader(rsp)
+	}
+	r, ok := decodeResult(rsp.Data)
+	if !ok {
+		return "ok\n<unrecognized hook result>"
+	}
+	if r.Decision == "deny" {
+		if r.Suggested != "" {
+			return fmt.Sprintf("deny %s [%s] -> %s", r.ToolName, r.MatchedRule, r.Suggested)
+		}
+		return fmt.Sprintf("deny %s [%s]", r.ToolName, r.MatchedRule)
+	}
+	if r.MatchedRule != "" {
+		return fmt.Sprintf("allow %s [%s]", r.ToolName, r.MatchedRule)
+	}
+	return fmt.Sprintf("allow %s", r.ToolName)
+}
+
+// EncodeClaudeDecision renders the Result as the Claude PreToolUse hook
+// JSON shape. Returns nil for "allow" — the harness treats no-output as
+// pass-through, which is what we want. HTML escaping is disabled so
+// placeholders like `<text>` round-trip without < noise.
+func EncodeClaudeDecision(r *Result) ([]byte, error) {
+	if r == nil || r.Decision != "deny" {
+		return nil, nil
+	}
+	out := map[string]any{
+		"hookSpecificOutput": map[string]any{
+			"hookEventName":            "PreToolUse",
+			"permissionDecision":       "deny",
+			"permissionDecisionReason": r.Reason,
+		},
+	}
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(out); err != nil {
+		return nil, err
+	}
+	// json.Encoder.Encode appends a trailing newline; strip it for parity
+	// with json.Marshal.
+	b := buf.Bytes()
+	return bytes.TrimRight(b, "\n"), nil
+}
+
+// -- suggestion builders ---------------------------------------------------
+
+func suggestGrep(pattern, path, glob string) string {
+	parts := []string{"ash grep"}
+	if pattern != "" {
+		parts = append(parts, "--pattern "+shellquote(pattern))
+	}
+	if path != "" {
+		parts = append(parts, "--path "+shellquote(path))
+	} else {
+		parts = append(parts, "--path .")
+	}
+	if glob != "" {
+		parts = append(parts, "--glob "+shellquote(glob))
+	}
+	return strings.Join(parts, " ")
+}
+
+func suggestFind(path, glob, type_ string) string {
+	parts := []string{"ash find"}
+	if path != "" {
+		parts = append(parts, "--path "+shellquote(path))
+	} else {
+		parts = append(parts, "--path .")
+	}
+	if glob != "" {
+		parts = append(parts, "--glob "+shellquote(glob))
+	}
+	if type_ != "" {
+		parts = append(parts, "--type "+type_)
+	}
+	return strings.Join(parts, " ")
+}
+
+func suggestRead(path string) string {
+	if path == "" {
+		return "ash read --path <file>"
+	}
+	return "ash read --path " + shellquote(path)
+}
+
+func suggestEdit(path, old, new string) string {
+	if path == "" {
+		path = "<file>"
+	}
+	if old == "" {
+		return "ash edit --path " + shellquote(path) + " --old_string <text> --new_string <replacement>"
+	}
+	return "ash edit --path " + shellquote(path) +
+		" --old_string " + shellquote(old) +
+		" --new_string " + shellquote(new)
+}
+
+func suggestWrite(path string) string {
+	if path == "" {
+		path = "<file>"
+	}
+	return "ash write --path " + shellquote(path) + " --content <text>"
+}
+
+func suggestStat(paths []string) string {
+	if len(paths) == 0 {
+		return "ash stat --paths <path>"
+	}
+	return "ash stat --paths " + shellquote(strings.Join(paths, ","))
+}
+
+// pickPath returns the first non-empty path candidate. Harness uses
+// "file_path" for Read/Edit/Write but some payloads use "path"; checking
+// both keeps us robust to either shape.
+func pickPath(candidates ...string) string {
+	for _, c := range candidates {
+		if c != "" {
+			return c
+		}
+	}
+	return ""
+}
+
+// -- bash command analysis -------------------------------------------------
+
+var bashSplitRe = regexp.MustCompile(`\|\||&&|;|\|`)
+
+// segments splits a bash command on shell separators. Matches the python
+// _BASH_SPLIT_RE behavior: shallow split, no syntactic awareness of
+// quotes or subshells. Sufficient for catching agent-issued chained
+// commands like `git status; git log`.
+func segments(command string) []string {
+	parts := bashSplitRe.Split(command, -1)
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// firstToken returns the first program in a bash segment after stripping
+// leading VAR=value assignments and env/command/exec/time/nice prefixes.
+// Tokenization is whitespace-based (no quote awareness); this matches the
+// python helper's behavior.
+func firstToken(segment string) (prog string, args []string) {
+	toks := tokenize(segment)
+	for {
+		if len(toks) == 0 {
+			return "", nil
+		}
+		// Skip leading VAR=value assignments.
+		if isAssignment(toks[0]) {
+			toks = toks[1:]
+			continue
+		}
+		// Skip env/command/exec/time/nice prefixes.
+		if isPrefixWord(toks[0]) {
+			toks = toks[1:]
+			// After env, more VAR=val may appear.
+			for len(toks) > 0 && isAssignment(toks[0]) {
+				toks = toks[1:]
+			}
+			continue
+		}
+		break
+	}
+	if len(toks) == 0 {
+		return "", nil
+	}
+	prog = filepath.Base(toks[0]) // /usr/bin/grep -> grep
+	args = toks[1:]
+	return prog, args
+}
+
+func tokenize(s string) []string {
+	// Naïve whitespace split — good enough for the patterns the agent
+	// actually emits. The python uses shlex.split with a fallback to
+	// .split() on errors; we just always do whitespace.
+	return strings.Fields(s)
+}
+
+func isAssignment(tok string) bool {
+	eq := strings.IndexByte(tok, '=')
+	if eq <= 0 {
+		return false
+	}
+	for i, ch := range tok[:eq] {
+		if ch == '_' {
+			continue
+		}
+		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') {
+			continue
+		}
+		if i > 0 && ch >= '0' && ch <= '9' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+var prefixWords = map[string]bool{
+	"env":     true,
+	"command": true,
+	"exec":    true,
+	"time":    true,
+	"nice":    true,
+}
+
+func isPrefixWord(tok string) bool { return prefixWords[tok] }
+
+var grepLike = map[string]bool{"grep": true, "rg": true, "egrep": true, "fgrep": true}
+var readLike = map[string]bool{"cat": true, "head": true, "tail": true}
+var gitRedirect = map[string]bool{"status": true, "log": true}
+
+func decideBash(command string) *Result {
+	if strings.TrimSpace(command) == "" {
+		return &Result{Decision: "allow", ToolName: "Bash"}
+	}
+	for _, seg := range segments(command) {
+		prog, args := firstToken(seg)
+		if prog == "" {
+			continue
+		}
+		if grepLike[prog] {
+			pos := positionalArgs(args)
+			var pattern, path string
+			if len(pos) >= 1 {
+				pattern = pos[0]
+			}
+			if len(pos) >= 2 {
+				path = pos[1]
+			} else {
+				path = "."
+			}
+			reason := fmt.Sprintf("Use ash instead: `%s` (bash `%s` is redirected to ash grep in this repo).",
+				suggestGrep(pattern, path, ""), prog)
+			return denyResult("Bash", "Bash:"+prog, reason)
+		}
+		if prog == "find" {
+			pos := positionalArgs(args)
+			path := "."
+			if len(pos) >= 1 {
+				path = pos[0]
+			}
+			glob := ""
+			for i, a := range args {
+				if (a == "-name" || a == "-iname") && i+1 < len(args) {
+					glob = args[i+1]
+					break
+				}
+			}
+			reason := fmt.Sprintf("Use ash instead: `%s` (bash `find` is redirected to ash find in this repo).",
+				suggestFind(path, glob, ""))
+			return denyResult("Bash", "Bash:find", reason)
+		}
+		if readLike[prog] {
+			pos := positionalArgs(args)
+			path := ""
+			if len(pos) >= 1 {
+				path = pos[0]
+			}
+			reason := fmt.Sprintf("Use ash instead: `%s` (bash `%s` is redirected to ash read in this repo).",
+				suggestRead(path), prog)
+			return denyResult("Bash", "Bash:"+prog, reason)
+		}
+		if prog == "ls" && lsIsRecursive(args) {
+			pos := positionalArgs(args)
+			path := "."
+			if len(pos) >= 1 {
+				path = pos[0]
+			}
+			reason := fmt.Sprintf("Use ash instead: `%s` (recursive `ls -R` is redirected to ash find in this repo).",
+				suggestFind(path, "", ""))
+			return denyResult("Bash", "Bash:ls-R", reason)
+		}
+		if prog == "stat" {
+			pos := positionalArgs(args)
+			reason := fmt.Sprintf("Use ash instead: `%s` (bash `stat` is redirected to ash stat in this repo).",
+				suggestStat(pos))
+			return denyResult("Bash", "Bash:stat", reason)
+		}
+		if prog == "git" {
+			sub := gitSubcommand(args)
+			if gitRedirect[sub] {
+				reason := fmt.Sprintf("Use ash instead: `ash git --op %s` (bash `git %s` is redirected to the ash git verb in this repo).",
+					sub, sub)
+				return denyResult("Bash", "Bash:git-"+sub, reason)
+			}
+		}
+		// Other programs (go, gh, mv, rm, …) pass through.
+	}
+	return &Result{Decision: "allow", ToolName: "Bash"}
+}
+
+func positionalArgs(args []string) []string {
+	out := make([]string, 0, len(args))
+	for _, a := range args {
+		if !strings.HasPrefix(a, "-") {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+func lsIsRecursive(args []string) bool {
+	for _, a := range args {
+		if a == "--recursive" {
+			return true
+		}
+		if strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") {
+			if strings.ContainsRune(a[1:], 'R') {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func gitSubcommand(args []string) string {
+	for _, a := range args {
+		if strings.HasPrefix(a, "-") {
+			continue
+		}
+		return a
+	}
+	return ""
+}
+
+// -- shell quoting (port of python shlex.quote) -----------------------------
+
+var safeShellRe = regexp.MustCompile(`^[A-Za-z0-9_@%+=:,./-]+$`)
+
+func shellquote(s string) string {
+	if s == "" {
+		return "''"
+	}
+	if safeShellRe.MatchString(s) {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'"'"'`) + "'"
+}
+
+// -- result decoding for pretty-rendering ----------------------------------
+
+func decodeResult(data any) (*Result, bool) {
+	if r, ok := data.(*Result); ok {
+		return r, true
+	}
+	m, ok := data.(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	r := &Result{}
+	if v, ok := m["decision"].(string); ok {
+		r.Decision = v
+	}
+	if v, ok := m["tool_name"].(string); ok {
+		r.ToolName = v
+	}
+	if v, ok := m["matched_rule"].(string); ok {
+		r.MatchedRule = v
+	}
+	if v, ok := m["suggested"].(string); ok {
+		r.Suggested = v
+	}
+	if v, ok := m["reason"].(string); ok {
+		r.Reason = v
+	}
+	return r, true
+}

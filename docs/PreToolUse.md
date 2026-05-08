@@ -1,4 +1,4 @@
-# PreToolUse hook — forcing agents onto `ash` verbs
+# PreToolUse hook — `ash hook`
 
 ## Context
 
@@ -10,118 +10,96 @@ The fix is a `PreToolUse` hook that intercepts the offending tool calls and deni
 
 ## Approach
 
-One small Python script behind a single `PreToolUse` matcher. The script reads the hook payload from stdin, decides per-tool whether to deny, and emits the structured `hookSpecificOutput` JSON when it wants to block. Exits 0 with no output when the call should be allowed through.
+The hook is implemented as the `ash hook` verb — the only client-only verb in ash. It runs the deny decision in-process for low latency, then best-effort fires a normal ash request to the daemon to record a ledger row. Two reasons for folding it into ash:
 
-Why Python over bash+jq: the hook needs to parse JSON, dispatch on tool name, do per-tool argument extraction, and tokenize bash commands across `|`/`&&`/`;`. Python 3 is a reasonable assumption on any dev box working on this repo (we already require Go), and it keeps the script readable. No third-party deps.
+1. **Latency.** The hook runs on every `Grep`/`Glob`/`Bash`/`Edit`/`Write`/`Read` call. A single-binary Go fast path is faster than spawning a Python interpreter on each invocation, and importantly never blocks on the daemon — auto-start is intentionally skipped to keep hook latency on the agent's critical path low.
+2. **Ledger queryability.** Hook denials are the highest-fidelity friction signal in the project. Routing them through the ledger turns the hook from a fence into a research instrument: `ash report --verb hook` aggregates which rules are firing, which transitions agents are fighting, and how often.
 
-Why one script, not three: easier to maintain; the matcher fires for any of the three tools and the script branches internally.
+### Architecture
+
+`ash hook` is the only verb in the codebase that runs **client-side**. Every other verb round-trips to `ashd`. The flow:
+
+1. `cmd/ash/main.go` special-cases `verb == "hook"` immediately after parsing argv (before `dialOrStart`). Hand-off to `runHook` in `cmd/ash/hook.go`.
+2. `runHook` reads the Claude payload from stdin, calls `hook.Decide`, writes the Claude decision JSON to stdout, then dials the daemon with a 5ms timeout and fires the same args as a normal `ash` request — fire-and-forget, no `ReadFrame`. If the daemon isn't up, the ledger row is skipped silently. **The daemon is never auto-started by the hook fire.**
+3. Daemon-side: `hook` is registered as a regular verb (`internal/verbs/verbs.go`). Its `Run` re-runs `hook.Decide` over the same args. Client and daemon agree by construction — both call the same pure function.
+
+Soft-fail is end-to-end: any error in payload parsing, decision, or fire produces "allow" (no Claude output, exit 0). The hook should steer agents, never break their tool calls.
 
 ## Files
 
 ### [.claude/settings.json](../.claude/settings.json)
 
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Grep|Glob|Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/prefer-ash.py\""
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+The matcher is a regex OR of the harness tool names that the hook decides on: `Grep|Glob|Bash|Edit|Write|Read`. The command is `"$CLAUDE_PROJECT_DIR/bin/ash" hook`. `$CLAUDE_PROJECT_DIR` is set by Claude Code when invoking hooks; it gives the command a stable anchor regardless of cwd.
 
-`$CLAUDE_PROJECT_DIR` is set by Claude Code when invoking hooks; it gives the script a stable anchor regardless of cwd. The matcher is a regex OR of the three tool names. (`Read` is intentionally absent — see "Why `Read` isn't denied" below.)
+If `bin/ash` doesn't exist (fresh clone, before `go build`), the hook command fails non-zero and the harness allows the call through. CLAUDE.md already directs `go build` as session step 1.
 
-### [.claude/hooks/prefer-ash.py](../.claude/hooks/prefer-ash.py)
+### [internal/verbs/hook/](../internal/verbs/hook/)
 
-Reads the JSON payload from stdin, dispatches on `tool_name`:
+The Go implementation. Exports:
+
+- `ExtractArgs(payload []byte) (map[string]any, *Args, error)` — client-only helper that parses the Claude JSON into a wire-args map (for the daemon fire) and a typed `Args`.
+- `Decide(*Args) *Result` — pure decision engine, shared by client and daemon. Never returns an error.
+- `ParseArgs` / `Run` — daemon-side wire decoder + runner, mirroring every other verb.
+- `EncodeClaudeDecision(*Result) ([]byte, error)` — renders `Result` as Claude PreToolUse hook JSON; returns nil for allow (no output).
+
+### [cmd/ash/hook.go](../cmd/ash/hook.go)
+
+The client-only fast path: `runHook` ties `ExtractArgs` → `Decide` → `EncodeClaudeDecision` → async ledger fire.
+
+## Decision rules
+
+Dispatched on `tool_name`:
 
 - **`Grep`** → always deny. Suggests `ash grep --pattern <p> --path <d> [--glob …]`.
 - **`Glob`** → always deny. Suggests `ash find --path <d> --glob <p> --type file`.
-- **`Read`** → not handled (allowed through). See "Why `Read` isn't denied" below.
-- **`Bash`** → tokenize the command across `|`/`&&`/`||`/`;`. For each segment, look at the first command word (skipping leading `VAR=value` assignments and `env`/`command`/`exec` prefixes). Deny when:
-  - `grep|rg|egrep|fgrep` → suggest `ash grep`
+- **`Edit`** → always deny. Suggests `ash edit --path <p> --old_string <o> --new_string <n>`.
+- **`Write`** → always deny. Suggests `ash write --path <p> --content <text>`.
+- **`Read`** → deny on text files. Allow on `.png`/`.jpg`/`.jpeg`/`.gif`/`.webp`/`.pdf`/`.ipynb` (file types `ash read` can't render meaningfully).
+- **`Bash`** → tokenize the command across shell separators. For each segment, look at the first command word (skipping leading `VAR=value` assignments and `env`/`command`/`exec`/`time`/`nice` prefixes). Deny when:
+  - `grep`/`rg`/`egrep`/`fgrep` → suggest `ash grep`
   - `find` → suggest `ash find` (extracts `-name`/`-iname` glob if present)
-  - `cat|head|tail` → suggest `ash read`
+  - `cat`/`head`/`tail` → suggest `ash read`
   - `ls -R` (or `--recursive`) → suggest `ash find`
-  - `git status` / `git log` → suggest `ash git --op status|log`
+  - `stat` → suggest `ash stat`
+  - `git status` / `git log` → suggest `ash git --op status` or `ash git --op log`
   - **Allowed git ops** (do not block): `diff`, `blame`, `show`, `add`, `commit`, `push`, `reset`, `rebase`, `checkout`, `branch`, `stash`, `tag`, `fetch`, `pull`, `init`, `remote`, `merge`, `cherry-pick`, `restore`, `switch`. Per `CLAUDE.md`, these stay in bash until the corresponding `ash git --op <name>` ships.
   - Anything else → allow.
 
-The deny payload:
+Suggested invocations are best-effort — the goal is to give the agent a known-good starting point, not a perfect translation.
 
-```json
-{
-  "hookSpecificOutput": {
-    "hookEventName": "PreToolUse",
-    "permissionDecision": "deny",
-    "permissionDecisionReason": "Use ash instead: `ash <verb> ...`. See CLAUDE.md \"When to prefer ash over bash\". If ash genuinely falls short, run it anyway and write a session note in docs/session-notes/."
-  }
-}
-```
+The bash command splitter is **literal** (no shell quoting awareness): a `;` inside a quoted string still splits the command. This matches the previous python implementation's behavior and is sufficient for the patterns agents actually emit; it can occasionally trip on content-bearing arguments. The fix is to feed such content via stdin (`--content -`) rather than weaken the splitter.
 
-Robustness: any unexpected exception during decision-making prints to stderr and exits 0 (allow). The hook should steer, never break.
+## A note on Read denial
 
-The suggested `ash` invocation is best-effort — the goal is to give the agent a known-good starting point, not a perfect translation.
+An earlier iteration of this hook (when it was a Python script) denied `Read` on text files but had to remove that handler: at the time, `ash edit` and `ash write` did not exist, and the harness's `Edit`/`Write` tools refused to act unless they had previously seen a harness `Read` on the same path. Denying `Read` therefore left the agent unable to edit anything without bash workarounds. See [docs/session-notes/2026-05-08-hook-allows-read.md](session-notes/2026-05-08-hook-allows-read.md) for the original incident.
 
-## Behavior matrix
-
-| Caller surface              | Decision | Suggested replacement                          |
-|-----------------------------|----------|------------------------------------------------|
-| `Grep` tool                 | deny     | `ash grep --pattern <p> --path <d> [--glob …]` |
-| `Glob` tool                 | deny     | `ash find --path <d> --glob <p> --type file`   |
-| `Read` tool                 | allow    | (load-bearing for harness Edit/Write — see below) |
-| `Bash`: `grep`/`rg`/…       | deny     | `ash grep …`                                   |
-| `Bash`: `find …`            | deny     | `ash find …`                                   |
-| `Bash`: `cat`/`head`/`tail` | deny     | `ash read …`                                   |
-| `Bash`: `ls -R`             | deny     | `ash find …`                                   |
-| `Bash`: `git status`/`log`  | deny     | `ash git --op status\|log`                     |
-| `Bash`: `git diff`/`blame`/…| allow    | (not yet a verb; CLAUDE.md says stay in bash)  |
-| `Bash`: `go build`/`test`/… | allow    | (whitelisted in CLAUDE.md)                     |
-| `Bash`: anything else       | allow    |                                                |
-
-## Why `Read` isn't denied
-
-The hook originally denied harness `Read` on text files (allow-listing only `.png`/`.jpg`/`.pdf`/`.ipynb`/etc., where `ash read`'s base64 fallback isn't useful). That decision had a hidden interaction with the harness's edit workflow: the `Edit` and `Write` tools both refuse to act unless the harness has previously seen a `Read` on the same path. Denying `Read` therefore made it impossible to edit a Go file without bash workarounds — `tee` heredocs, `python3 -c "open(...).write(...)"`, and similar — which both bypass the ledger and produce uglier diffs than the native `Edit` tool.
-
-Friction-as-feature is good only when the friction has a productive exit. This one didn't: there's no `ash edit`/`ash write` verb yet, so the agent had nowhere to land. We removed the `Read` handler entirely. Bash `cat`/`head`/`tail` denials are kept, so pure-exploration reading still funnels through `ash read` and shows up in the ledger; we just stop blocking the read that the harness needs in order to *edit*.
-
-When `ash edit` and `ash write` ship, this can be revisited and `Read` denial reintroduced symmetrically. See [docs/session-notes/2026-05-08-hook-allows-read.md](session-notes/2026-05-08-hook-allows-read.md) for the original incident.
+`ash edit` and `ash write` are now live, so the harness's edit workflow no longer needs harness `Read` to function. `Read` is denied symmetrically with the rest, with the image/PDF/notebook exemption preserved.
 
 ## What we deliberately did NOT do
 
-- **Auto-rewriting** the call to an `ash` invocation. Block-and-nudge is the chosen design so friction stays visible and feeds session notes.
-- **An escape hatch** (env var or sentinel comment). Per CLAUDE.md's spirit, friction is the feature. If a future use case demands a bypass, add it in a follow-up driven by an actual session note — not preemptively.
-- **Allowlist-style permission denies** in `settings.json` (`"deny": ["Grep"]`). They block without a custom reason and don't cover `Bash`-side leakage. The hook is strictly more flexible.
+- **Auto-rewriting** the call to an `ash` invocation. Block-and-nudge keeps friction visible and feeds session notes. Revisit once `ash report --verb hook` data shows how often agents retry correctly.
+- **An escape hatch** (env var or sentinel comment). Per CLAUDE.md's spirit, friction is the feature. Drive any bypass from a real session note, not preemptively.
+- **Allowlist-style permission denies** in `settings.json`. They block without a custom reason and don't cover `Bash`-side leakage. The hook is strictly more flexible.
 - **Shell aliases.** Don't work for the harness `Bash` tool (non-interactive, no rc) and don't touch `Grep`/`Glob`/`Read` at all.
+- **Generalizing "client-only verb" into a framework.** This is the only verb that needs it; resist the urge to abstract until a second one shows up.
 
 ## Verification
 
-```sh
-# 1. Direct script invocation — Grep should deny.
-python3 .claude/hooks/prefer-ash.py < <(echo '{"tool_name":"Grep","tool_input":{"pattern":"foo","path":"."}}')
+Build first: `go build -o bin/ash ./cmd/ash && go build -o bin/ashd ./cmd/ashd`.
 
-# 2. Read on any file — should allow (no output, exit 0). Read isn't dispatched at all.
-python3 .claude/hooks/prefer-ash.py < <(echo '{"tool_name":"Read","tool_input":{"file_path":"main.go"}}')
+Smoke test the decision engine by piping JSON payloads to `bin/ash hook`:
 
-# 3. Bash `git diff` — should allow.
-python3 .claude/hooks/prefer-ash.py < <(echo '{"tool_name":"Bash","tool_input":{"command":"git diff"}}')
+- Grep payload should produce a Claude deny pointing at `ash grep`.
+- Read on a `.go` file should deny with `ash read --path …` (new behavior).
+- Read on a `.png` file should allow (no output, exit 0).
+- Bash `git diff` should allow.
+- Bash `git status` should deny with `ash git --op status`.
+- Bash `cat foo.go` should still deny with `ash read --path foo.go`.
 
-# 4. Bash `git status` — should deny with `ash git --op status`.
-python3 .claude/hooks/prefer-ash.py < <(echo '{"tool_name":"Bash","tool_input":{"command":"git status"}}')
+Hook latency: `time bin/ash hook < payload.json` should land in single-digit ms cold (the python it replaces is roughly 2x slower on macOS, more on Linux).
 
-# 5. Bash `cat foo.go` — should still deny with `ash read --path foo.go`.
-python3 .claude/hooks/prefer-ash.py < <(echo '{"tool_name":"Bash","tool_input":{"command":"cat foo.go"}}')
-```
+Ledger fire: with `ashd` running, fire a few hook calls. `ash report --verb hook` should show the rows. Stop the daemon — hook still responds at the same speed; new fires silently skip the ledger row. Restart, fires resume.
 
-End-to-end: restart the Claude Code session in this project so the new `settings.json` takes effect (hooks are loaded at session start). In a fresh session, ask Claude to "find all `.go` files under `internal/`" — the `Glob` or `Bash find` attempt should be denied and Claude should retry with `ash find`. Then `ash report --since 1h` should show the corresponding bump in `ash` calls.
+End-to-end: restart the Claude Code session in this project so the new `settings.json` takes effect (hooks are loaded at session start). In a fresh session, ask Claude to "find all `.go` files under `internal/`" — the `Glob` or `Bash find` attempt should be denied and Claude should retry with `ash find`. After a few sessions, `ash report --verb hook` aggregates which rules are firing — the recursive-development signal we want.
 
 If Claude *fights* the hook (repeated bash subshells, creative escapes), that itself is a finding — write the session note rather than weakening the hook.

@@ -17,6 +17,7 @@ import (
 	"github.com/stazelabs/ash/internal/verbs/git"
 	"github.com/stazelabs/ash/internal/verbs/grep"
 	"github.com/stazelabs/ash/internal/verbs/help"
+	"github.com/stazelabs/ash/internal/verbs/hook"
 	"github.com/stazelabs/ash/internal/verbs/metrics"
 	"github.com/stazelabs/ash/internal/verbs/read"
 	"github.com/stazelabs/ash/internal/verbs/report"
@@ -51,6 +52,7 @@ func PrettyHandlers() map[string]Pretty {
 		"metrics": metrics.PrettyResponse,
 		"report":  report.PrettyResponse,
 		"help":    help.PrettyResponse,
+		"hook":    hook.PrettyResponse,
 		"stat":    stat.PrettyResponse,
 		"write":   write.PrettyResponse,
 		"edit":    edit.PrettyResponse,
@@ -150,6 +152,15 @@ func Runners(led *ledger.Ledger) map[string]Runner {
 					return nil, perr
 				}
 				return help.Run(a, tr)
+			},
+		},
+		"hook": {
+			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
+				a, perr := hook.ParseArgs(args)
+				if perr != nil {
+					return nil, perr
+				}
+				return hook.Run(a, tr)
 			},
 		},
 		"stat": {
