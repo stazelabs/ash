@@ -142,6 +142,8 @@ verbs (phase 1, work in progress):
                      [--exclude <pattern>] [--max_depth N]
                      [--include_hidden true|false]
                      [--respect_gitignore true|false]   (default true)
+  git     --op <op> [--path <p>] [op-specific flags]
+                     ops: status [--untracked true|false] [--ignored true|false]
   metrics [--last N]  [--verb <verb>]                  (default last=20)
   help    [--verb <verb>]                               (omit for all verbs)
 

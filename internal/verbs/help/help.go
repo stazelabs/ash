@@ -86,6 +86,16 @@ var registry = []VerbSchema{
 		},
 	},
 	{
+		Verb:        "git",
+		Description: "Version control as structured calls. Single verb with --op discriminator. Live ops: status. Shells out to system git.",
+		Args: []ArgSchema{
+			{Name: "op", Type: "string", Required: true, Values: []string{"status"}, Description: "Subcommand to run. More ops in subsequent ships (log, diff, blame, ...)."},
+			{Name: "path", Type: "string", Default: ".", Description: "Repository path (any path inside a git work tree)."},
+			{Name: "untracked", Type: "bool", Default: "true", Description: "[status] include untracked files. Pass false to suppress."},
+			{Name: "ignored", Type: "bool", Default: "false", Description: "[status] include gitignored files."},
+		},
+	},
+	{
 		Verb:        "metrics",
 		Description: "Query recent call history from the ledger without shelling out to sqlite3.",
 		Args: []ArgSchema{

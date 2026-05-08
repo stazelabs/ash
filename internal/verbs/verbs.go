@@ -11,6 +11,7 @@ import (
 	"github.com/stazelabs/ash/internal/ledger"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/verbs/find"
+	"github.com/stazelabs/ash/internal/verbs/git"
 	"github.com/stazelabs/ash/internal/verbs/grep"
 	"github.com/stazelabs/ash/internal/verbs/help"
 	"github.com/stazelabs/ash/internal/verbs/metrics"
@@ -40,6 +41,7 @@ func PrettyHandlers() map[string]Pretty {
 		"read":    read.PrettyResponse,
 		"find":    find.PrettyResponse,
 		"grep":    grep.PrettyResponse,
+		"git":     git.PrettyResponse,
 		"metrics": metrics.PrettyResponse,
 		"help":    help.PrettyResponse,
 	}
@@ -93,6 +95,15 @@ func Runners(led *ledger.Ledger) map[string]Runner {
 					return r.Truncated
 				}
 				return false
+			},
+		},
+		"git": {
+			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
+				a, perr := git.ParseArgs(args)
+				if perr != nil {
+					return nil, perr
+				}
+				return git.Run(a, tr)
 			},
 		},
 		"metrics": {
