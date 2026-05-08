@@ -59,6 +59,11 @@ func LedgerPath(root string) string {
 	return filepath.Join(root, ".ash", "ledger.db")
 }
 
+// PIDPath returns the daemon PID file path for a project root.
+func PIDPath(root string) string {
+	return filepath.Join(root, ".ash", "ashd.pid")
+}
+
 // LogPath returns the daemon log file path for a project root.
 func LogPath(root string) string {
 	return filepath.Join(root, ".ash", "ashd.log")

@@ -6,6 +6,7 @@
 //	since    string  (optional) - duration window, e.g. "15m", "1h", "24h", "7d"
 //	last     int     (optional) - row cap after session/since filters, max 5000
 //	verb     string  (optional) - restrict to one verb
+//	top      int     (optional) - max hotspot entries in each section, default 5, max 100
 //
 // Produces an aggregated per-verb summary (n, ok%, p50/p95 latency, p50/p95
 // tokens_out, trunc%) rather than individual rows.
@@ -23,12 +24,15 @@ import (
 )
 
 const MaxLast = 5000
+const defaultTopN = 5
+const MaxTopN = 100
 
 type Args struct {
 	Session string // "current", "all", or explicit session ID
 	Since   time.Duration
 	Last    int // 0 = no cap beyond DefaultWindowLimit
 	Verb    string
+	TopN    int // max hotspot entries per section; defaults to defaultTopN
 }
 
 // Scope describes the filters that were applied, for display and JSON.
@@ -79,8 +83,9 @@ type ErrEntry struct {
 
 // TruncHotspot identifies a verb with truncated calls, sorted by count desc.
 type TruncHotspot struct {
-	Verb  string `msgpack:"verb"`
-	Count int    `msgpack:"count"`
+	Verb       string `msgpack:"verb"`
+	Count      int    `msgpack:"count"`
+	SampleArgs string `msgpack:"sample_args,omitempty"` // decoded from first truncated call's args_msgpack
 }
 
 type Result struct {
@@ -115,6 +120,9 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Verb, perr = argutil.OptionalString(in, "verb", ""); perr != nil {
 		return nil, perr
 	}
+	if a.TopN, perr = argutil.OptionalPosInt(in, "top", defaultTopN, MaxTopN); perr != nil {
+		return nil, perr
+	}
 	return a, nil
 }
 
@@ -142,7 +150,18 @@ func RunWithLedger(led *ledger.Ledger, a *Args) (*Result, *proto.Error) {
 	}
 	scope.Verb = a.Verb
 
-	return aggregate(calls, scope), nil
+	result := aggregate(calls, scope)
+
+	// Cap hotspot sections to TopN entries (already sorted by count desc).
+	if a.TopN > 0 {
+		if len(result.TruncHotspots) > a.TopN {
+			result.TruncHotspots = result.TruncHotspots[:a.TopN]
+		}
+		if len(result.ErrHistogram) > a.TopN {
+			result.ErrHistogram = result.ErrHistogram[:a.TopN]
+		}
+	}
+	return result, nil
 }
 
 func aggregate(calls []ledger.Call, scope Scope) *Result {
@@ -177,6 +196,9 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 		byVerb[c.Verb] = append(byVerb[c.Verb], c)
 	}
 
+	// firstTruncArgs captures the ArgsMsgpack of the first truncated call per verb.
+	firstTruncArgs := map[string][]byte{}
+
 	stats := make([]VerbStats, 0, len(order))
 	for _, verb := range order {
 		cs := byVerb[verb]
@@ -190,6 +212,9 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 			}
 			if c.Truncated {
 				vs.TruncatedN++
+				if _, seen := firstTruncArgs[verb]; !seen {
+					firstTruncArgs[verb] = c.ArgsMsgpack
+				}
 			}
 			execUs[i] = c.LatencyExecUs
 			tokOut[i] = int64(c.TokensOut)
@@ -244,7 +269,11 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 	var truncHotspots []TruncHotspot
 	for _, vs := range stats {
 		if vs.TruncatedN > 0 {
-			truncHotspots = append(truncHotspots, TruncHotspot{Verb: vs.Verb, Count: vs.TruncatedN})
+			truncHotspots = append(truncHotspots, TruncHotspot{
+				Verb:       vs.Verb,
+				Count:      vs.TruncatedN,
+				SampleArgs: decodeArgsSummary(firstTruncArgs[vs.Verb]),
+			})
 		}
 	}
 	sort.Slice(truncHotspots, func(i, j int) bool {
@@ -362,7 +391,11 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		}
 		fmt.Fprintf(&b, "\ntruncation (%d truncated):\n", total)
 		for _, th := range r.TruncHotspots {
-			fmt.Fprintf(&b, "  %s \xc3\x97 %d\n", th.Verb, th.Count)
+			if th.SampleArgs != "" {
+				fmt.Fprintf(&b, "  %s \xc3\x97 %d  \xe2\x80\x94 %s\n", th.Verb, th.Count, th.SampleArgs)
+			} else {
+				fmt.Fprintf(&b, "  %s \xc3\x97 %d\n", th.Verb, th.Count)
+			}
 		}
 	}
 
@@ -404,6 +437,32 @@ func fmtUs(us int64) string {
 	default:
 		return fmt.Sprintf("%.1fs", float64(us)/1_000_000)
 	}
+}
+
+// decodeArgsSummary decodes a raw request msgpack blob and returns a compact
+// key=value summary of the args (e.g. "glob=**/*.go path=. limit=256").
+// Returns "" on any error or if no args are present.
+func decodeArgsSummary(blob []byte) string {
+	if len(blob) == 0 {
+		return ""
+	}
+	req, err := proto.DecodeRequest(blob)
+	if err != nil || len(req.Args) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(req.Args))
+	for k := range req.Args {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var parts []string
+	for _, k := range keys {
+		v := fmt.Sprintf("%v", req.Args[k])
+		if v != "" {
+			parts = append(parts, k+"="+v)
+		}
+	}
+	return strings.Join(parts, " ")
 }
 
 func decodeResult(data any) (*Result, bool) {
@@ -537,6 +596,9 @@ func decodeResult(data any) (*Result, bool) {
 			}
 			if v, ok := argutil.ToInt(tm["count"]); ok {
 				th.Count = v
+			}
+			if v, ok := tm["sample_args"].(string); ok {
+				th.SampleArgs = v
 			}
 			r.TruncHotspots = append(r.TruncHotspots, th)
 		}

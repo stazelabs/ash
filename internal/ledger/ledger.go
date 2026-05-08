@@ -226,7 +226,8 @@ func (l *Ledger) QueryWindow(opts QueryOpts) ([]Call, error) {
 		       latency_parse_us, latency_exec_us, latency_serialize_us,
 		       tokens_in, tokens_out, tokens_method,
 		       bytes_in, bytes_out, truncated,
-		       walk_us, io_us, regex_us
+		       walk_us, io_us, regex_us,
+		       args_msgpack
 		FROM calls `+clause+`ORDER BY id DESC LIMIT ?`, args...)
 	if err != nil {
 		return nil, err
@@ -244,6 +245,7 @@ func (l *Ledger) QueryWindow(opts QueryOpts) ([]Call, error) {
 			&c.TokensIn, &c.TokensOut, &c.TokensMethod,
 			&c.BytesIn, &c.BytesOut, &truncInt,
 			&c.WalkUs, &c.IOUs, &c.RegexUs,
+			&c.ArgsMsgpack,
 		); err != nil {
 			return nil, err
 		}

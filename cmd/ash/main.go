@@ -206,6 +206,7 @@ func parseFlags(argv []string) (map[string]any, error) {
 }
 
 func dialOrStart(root, sock string) (net.Conn, error) {
+	killStaleIfNeeded(root, sock)
 	if conn, err := net.DialTimeout("unix", sock, 200*time.Millisecond); err == nil {
 		return conn, nil
 	} else if !isConnRefused(err) && !isENOENT(err) {
@@ -284,6 +285,41 @@ func findAshd() (string, error) {
 		return p, nil
 	}
 	return "", errors.New("ashd binary not found (tried $ASH_DAEMON, sibling of ash, and PATH)")
+}
+
+// killStaleIfNeeded checks whether the ashd binary is newer than the socket
+// file. If so, the running daemon is stale — it sends SIGTERM to the PID from
+// .ash/ashd.pid and removes the socket so the normal auto-start path picks up
+// the fresh binary. Errors are silently ignored: the worst case is we connect
+// to the old daemon and get a mismatch, not a crash.
+func killStaleIfNeeded(root, sock string) {
+	ashdBin, err := findAshd()
+	if err != nil {
+		return
+	}
+	binStat, err := os.Stat(ashdBin)
+	if err != nil {
+		return
+	}
+	sockStat, err := os.Stat(sock)
+	if err != nil {
+		return // socket doesn't exist; daemon not running
+	}
+	if !binStat.ModTime().After(sockStat.ModTime()) {
+		return // binary is not newer than socket; daemon is current
+	}
+	// Binary is newer — read PID file and SIGTERM the old daemon.
+	pidData, err := os.ReadFile(session.PIDPath(root))
+	if err == nil {
+		var pid int
+		if _, err := fmt.Sscan(strings.TrimSpace(string(pidData)), &pid); err == nil && pid > 0 {
+			if proc, err := os.FindProcess(pid); err == nil {
+				_ = proc.Signal(syscall.SIGTERM)
+			}
+		}
+	}
+	// Remove the socket so dialOrStart falls through to startDaemon.
+	_ = os.Remove(sock)
 }
 
 func isConnRefused(err error) bool {

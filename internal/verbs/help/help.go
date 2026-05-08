@@ -118,6 +118,7 @@ var registry = []VerbSchema{
 			{Name: "since", Type: "string", Default: "", Description: "Time window, e.g. '15m', '1h', '24h', '7d'. Supports Go duration syntax plus 'd' for days."},
 			{Name: "last", Type: "int", Default: "", Description: "Row cap applied after session/since filters. Maximum is 5000."},
 			{Name: "verb", Type: "string", Default: "", Description: "Restrict aggregation to calls for a specific verb."},
+			{Name: "top", Type: "int", Default: "5", Description: "Max entries shown in truncation hotspots and error histogram sections. Maximum is 100."},
 		},
 	},
 	{

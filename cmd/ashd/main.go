@@ -5,6 +5,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -72,6 +73,13 @@ func main() {
 		log.Println("ashd: shutting down")
 		listener.Close()
 	}()
+
+	pidPath := session.PIDPath(rootFlag)
+	if err := os.WriteFile(pidPath, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0o644); err != nil {
+		log.Printf("ashd: pid file: %v", err)
+	} else {
+		defer os.Remove(pidPath)
+	}
 
 	log.Printf("ashd ready: root=%s socket=%s session=%s", rootFlag, sockFlag, led.SessionID())
 
