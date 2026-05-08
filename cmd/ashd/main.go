@@ -15,11 +15,7 @@ import (
 	"github.com/stazelabs/ash/internal/ledger"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/session"
-	"github.com/stazelabs/ash/internal/verbs/find"
-	"github.com/stazelabs/ash/internal/verbs/grep"
-	"github.com/stazelabs/ash/internal/verbs/help"
-	"github.com/stazelabs/ash/internal/verbs/metrics"
-	"github.com/stazelabs/ash/internal/verbs/read"
+	"github.com/stazelabs/ash/internal/verbs"
 )
 
 func main() {
@@ -56,6 +52,9 @@ func main() {
 	}
 	defer led.Close()
 
+	runners := verbs.Runners(led)
+	pretty := verbs.PrettyHandlers()
+
 	_ = os.Remove(sockFlag)
 	listener, err := net.Listen("unix", sockFlag)
 	if err != nil {
@@ -81,11 +80,11 @@ func main() {
 		if err != nil {
 			return
 		}
-		go handle(conn, led)
+		go handle(conn, led, runners, pretty)
 	}
 }
 
-func handle(conn net.Conn, led *ledger.Ledger) {
+func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, pretty map[string]verbs.Pretty) {
 	defer conn.Close()
 	for {
 		parseStart := time.Now()
@@ -103,85 +102,19 @@ func handle(conn net.Conn, led *ledger.Ledger) {
 		rsp := &proto.Response{V: proto.ProtocolVersion, ID: req.ID}
 
 		execStart := time.Now()
-		switch req.Verb {
-		case "read":
-			args, perr := read.ParseArgs(req.Args)
-			if perr != nil {
-				rsp.OK = false
-				rsp.Err = perr
-			} else {
-				result, perr := read.Run(args)
-				if perr != nil {
-					rsp.OK = false
-					rsp.Err = perr
-				} else {
-					rsp.OK = true
-					rsp.Data = result
-				}
-			}
-		case "find":
-			args, perr := find.ParseArgs(req.Args)
-			if perr != nil {
-				rsp.OK = false
-				rsp.Err = perr
-			} else {
-				result, perr := find.Run(args)
-				if perr != nil {
-					rsp.OK = false
-					rsp.Err = perr
-				} else {
-					rsp.OK = true
-					rsp.Data = result
-				}
-			}
-		case "grep":
-			args, perr := grep.ParseArgs(req.Args)
-			if perr != nil {
-				rsp.OK = false
-				rsp.Err = perr
-			} else {
-				result, perr := grep.Run(args)
-				if perr != nil {
-					rsp.OK = false
-					rsp.Err = perr
-				} else {
-					rsp.OK = true
-					rsp.Data = result
-				}
-			}
-		case "metrics":
-			margs, perr := metrics.ParseArgs(req.Args)
-			if perr != nil {
-				rsp.OK = false
-				rsp.Err = perr
-			} else {
-				calls, qerr := led.QueryRecent(margs.Last, margs.Verb)
-				if qerr != nil {
-					rsp.OK = false
-					rsp.Err = &proto.Error{Code: "ledger", Msg: qerr.Error()}
-				} else {
-					rsp.OK = true
-					rsp.Data = metrics.ResultFromCalls(calls)
-				}
-			}
-		case "help":
-			hargs, perr := help.ParseArgs(req.Args)
-			if perr != nil {
-				rsp.OK = false
-				rsp.Err = perr
-			} else {
-				result, perr := help.Run(hargs)
-				if perr != nil {
-					rsp.OK = false
-					rsp.Err = perr
-				} else {
-					rsp.OK = true
-					rsp.Data = result
-				}
-			}
-		default:
+		runner, ok := runners[req.Verb]
+		if !ok {
 			rsp.OK = false
 			rsp.Err = &proto.Error{Code: "unknown_verb", Msg: "unknown verb: " + req.Verb}
+		} else {
+			data, perr := runner.Run(req.Args)
+			if perr != nil {
+				rsp.OK = false
+				rsp.Err = perr
+			} else {
+				rsp.OK = true
+				rsp.Data = data
+			}
 		}
 		execUs := time.Since(execStart).Microseconds()
 
@@ -189,20 +122,9 @@ func handle(conn net.Conn, led *ledger.Ledger) {
 		// produce the same canonical text, so tokens_out reflects what the
 		// agent will actually pay for.
 		prettyReq := proto.PrettyRequest(req)
-		var prettyRsp string
-		switch req.Verb {
-		case "read":
-			prettyRsp = read.PrettyResponse(req, rsp)
-		case "find":
-			prettyRsp = find.PrettyResponse(req, rsp)
-		case "grep":
-			prettyRsp = grep.PrettyResponse(req, rsp)
-		case "metrics":
-			prettyRsp = metrics.PrettyResponse(req, rsp)
-		case "help":
-			prettyRsp = help.PrettyResponse(req, rsp)
-		default:
-			prettyRsp = proto.PrettyResponseHeader(rsp)
+		prettyRsp := proto.PrettyResponseHeader(rsp)
+		if p, ok := pretty[req.Verb]; ok {
+			prettyRsp = p(req, rsp)
 		}
 		tokensIn := led.Counter().Count(prettyReq)
 		tokensOut := led.Counter().Count(prettyRsp)
@@ -232,7 +154,7 @@ func handle(conn net.Conn, led *ledger.Ledger) {
 			TokensMethod:       ledger.TokensMethod,
 			BytesIn:            len(reqBuf),
 			BytesOut:           bytesOut,
-			Truncated:          truncatedFromResult(rsp),
+			Truncated:          truncatedFromResult(rsp, runners[req.Verb]),
 		}
 
 		errCode, errMsg := "", ""
@@ -277,20 +199,11 @@ func handle(conn net.Conn, led *ledger.Ledger) {
 	}
 }
 
-func truncatedFromResult(rsp *proto.Response) bool {
-	if !rsp.OK || rsp.Data == nil {
+func truncatedFromResult(rsp *proto.Response, runner verbs.Runner) bool {
+	if !rsp.OK || rsp.Data == nil || runner.Truncated == nil {
 		return false
 	}
-	if r, ok := rsp.Data.(*read.Result); ok {
-		return r.Truncated
-	}
-	if r, ok := rsp.Data.(*find.Result); ok {
-		return r.Truncated
-	}
-	if r, ok := rsp.Data.(*grep.Result); ok {
-		return r.Truncated
-	}
-	return false
+	return runner.Truncated(rsp.Data)
 }
 
 // argsBlob persists the raw msgpack bytes of the request so the ledger can

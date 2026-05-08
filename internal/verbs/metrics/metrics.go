@@ -69,6 +69,17 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	return a, nil
 }
 
+// RunWithLedger executes a metrics query against the open ledger. The
+// daemon is the only caller — the ledger is daemon-owned — so this lives
+// here rather than as a free Run because it can't operate without one.
+func RunWithLedger(led *ledger.Ledger, a *Args) (*Result, *proto.Error) {
+	calls, qerr := led.QueryRecent(a.Last, a.Verb)
+	if qerr != nil {
+		return nil, &proto.Error{Code: "ledger", Msg: qerr.Error()}
+	}
+	return ResultFromCalls(calls), nil
+}
+
 func ResultFromCalls(calls []ledger.Call) *Result {
 	rows := make([]Row, 0, len(calls))
 	for _, c := range calls {

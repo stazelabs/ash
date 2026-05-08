@@ -21,11 +21,7 @@ import (
 
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/session"
-	"github.com/stazelabs/ash/internal/verbs/find"
-	"github.com/stazelabs/ash/internal/verbs/grep"
-	"github.com/stazelabs/ash/internal/verbs/help"
-	"github.com/stazelabs/ash/internal/verbs/metrics"
-	"github.com/stazelabs/ash/internal/verbs/read"
+	"github.com/stazelabs/ash/internal/verbs"
 )
 
 func main() {
@@ -303,19 +299,13 @@ func newID() uint64 {
 	return binary.BigEndian.Uint64(b[:])
 }
 
+// prettyHandlers is built once at process start; renderers are pure and
+// don't need rebuilding per call.
+var prettyHandlers = verbs.PrettyHandlers()
+
 func prettyResponse(verb string, req *proto.Request, rsp *proto.Response) string {
-	switch verb {
-	case "read":
-		return read.PrettyResponse(req, rsp)
-	case "find":
-		return find.PrettyResponse(req, rsp)
-	case "grep":
-		return grep.PrettyResponse(req, rsp)
-	case "metrics":
-		return metrics.PrettyResponse(req, rsp)
-	case "help":
-		return help.PrettyResponse(req, rsp)
-	default:
-		return proto.PrettyResponseHeader(rsp)
+	if p, ok := prettyHandlers[verb]; ok {
+		return p(req, rsp)
 	}
+	return proto.PrettyResponseHeader(rsp)
 }
