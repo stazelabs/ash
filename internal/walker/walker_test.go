@@ -130,6 +130,27 @@ func TestWalk_MaxDepth(t *testing.T) {
 	}
 }
 
+// Regression: with root="." WalkDir hands back bare child paths
+// ("src" not "./src"), so a separator-counting depth calc was
+// off-by-one and let grandchildren ("src/main.go") through MaxDepth=1.
+// Surfaced via the find_shallow bench case.
+func TestWalk_MaxDepthWithDotRoot(t *testing.T) {
+	root := makeTree(t)
+	t.Chdir(root)
+	got := relPaths(collect(t, ".", Options{MaxDepth: 1}))
+	for _, p := range got {
+		if filepath.Dir(p) != "." {
+			t.Errorf("max_depth=1 leak with . root: %s", p)
+		}
+	}
+	if !contains(got, "src") || !contains(got, "vendor") {
+		t.Errorf("expected direct children src and vendor: %v", got)
+	}
+	if contains(got, "src/main.go") || contains(got, "vendor/pkg") {
+		t.Errorf("grandchildren leaked through MaxDepth=1: %v", got)
+	}
+}
+
 func TestWalk_RespectsGitignoreByDefault(t *testing.T) {
 	root := makeTree(t)
 	if err := os.WriteFile(filepath.Join(root, ".gitignore"),

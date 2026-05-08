@@ -90,7 +90,6 @@ func Walk(root string, opts Options, visit Visitor) error {
 		gi = m
 	}
 
-	rootSep := strings.Count(filepath.Clean(root), string(filepath.Separator))
 	rootIsAbs := filepath.IsAbs(root)
 	stop := false
 
@@ -116,8 +115,14 @@ func Walk(root string, opts Options, visit Visitor) error {
 		if !opts.IncludeHidden && d.IsDir() && strings.HasPrefix(base, ".") {
 			return fs.SkipDir
 		}
+		// Depth is computed off the relative path so root="." (where
+		// WalkDir hands back bare "cmd" instead of "./cmd") and absolute
+		// roots agree. Counting separators on the raw callback path is
+		// off-by-one for "." root.
+		rel, _ := filepath.Rel(root, p)
+		relSlash := filepath.ToSlash(rel)
 		if opts.MaxDepth > 0 {
-			depth := strings.Count(filepath.Clean(p), string(filepath.Separator)) - rootSep
+			depth := strings.Count(relSlash, "/") + 1
 			if depth > opts.MaxDepth {
 				if d.IsDir() {
 					return fs.SkipDir
@@ -125,8 +130,6 @@ func Walk(root string, opts Options, visit Visitor) error {
 				return nil
 			}
 		}
-		rel, _ := filepath.Rel(root, p)
-		relSlash := filepath.ToSlash(rel)
 		if gi.Excludes(relSlash, d.IsDir()) {
 			if d.IsDir() {
 				return fs.SkipDir
