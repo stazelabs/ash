@@ -40,6 +40,9 @@ type Row struct {
 	BytesIn       int    `msgpack:"bytes_in"`
 	BytesOut      int    `msgpack:"bytes_out"`
 	Truncated     bool   `msgpack:"truncated,omitempty"`
+	WalkUs        int64  `msgpack:"walk_us,omitempty"`
+	IOUs          int64  `msgpack:"io_us,omitempty"`
+	RegexUs       int64  `msgpack:"regex_us,omitempty"`
 }
 
 type Result struct {
@@ -94,6 +97,9 @@ func ResultFromCalls(calls []ledger.Call) *Result {
 			BytesIn:       c.BytesIn,
 			BytesOut:      c.BytesOut,
 			Truncated:     c.Truncated,
+			WalkUs:        c.WalkUs,
+			IOUs:          c.IOUs,
+			RegexUs:       c.RegexUs,
 		})
 	}
 	return &Result{Rows: rows, Count: len(rows)}
@@ -127,6 +133,18 @@ func writeRow(b *strings.Builder, r Row) {
 	}
 	fmt.Fprintf(b, "%s  %-8s  %s  in=%-5d  out=%-5d  exec_us=%-8d",
 		ts, r.Verb, status, r.TokensIn, r.TokensOut, r.LatencyExecUs)
+	// Sub-phase breakdown — only printed when the verb instrumented at
+	// least one phase. Keeps the row short for help/metrics, surfaces
+	// detail for find/grep/read.
+	if r.WalkUs > 0 {
+		fmt.Fprintf(b, "  walk_us=%-7d", r.WalkUs)
+	}
+	if r.IOUs > 0 {
+		fmt.Fprintf(b, "  io_us=%-7d", r.IOUs)
+	}
+	if r.RegexUs > 0 {
+		fmt.Fprintf(b, "  regex_us=%-5d", r.RegexUs)
+	}
 	if r.ErrCode != "" {
 		fmt.Fprintf(b, "  err=%s", r.ErrCode)
 	}
@@ -197,6 +215,15 @@ func decodeResult(data any) (*Result, bool) {
 			}
 			if v, ok := rm["truncated"].(bool); ok {
 				row.Truncated = v
+			}
+			if v, ok := toInt64(rm["walk_us"]); ok {
+				row.WalkUs = v
+			}
+			if v, ok := toInt64(rm["io_us"]); ok {
+				row.IOUs = v
+			}
+			if v, ok := toInt64(rm["regex_us"]); ok {
+				row.RegexUs = v
 			}
 			r.Rows = append(r.Rows, row)
 		}

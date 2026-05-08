@@ -102,11 +102,15 @@ func main() {
 		fmt.Println(out)
 		if rsp.Metrics != nil {
 			fmt.Fprintf(os.Stderr,
-				"\n[ash metrics: bytes_in=%d bytes_out=%d tokens_in=%d tokens_out=%d (%s) latency_us=%d/%d/%d]\n",
+				"\n[ash metrics: bytes_in=%d bytes_out=%d tokens_in=%d tokens_out=%d (%s) latency_us=%d/%d/%d",
 				rsp.Metrics.BytesIn, rsp.Metrics.BytesOut,
 				rsp.Metrics.TokensIn, rsp.Metrics.TokensOut, rsp.Metrics.TokensMethod,
 				rsp.Metrics.LatencyParseUs, rsp.Metrics.LatencyExecUs, rsp.Metrics.LatencySerializeUs,
 			)
+			if p := rsp.Metrics.Phases; p != nil {
+				fmt.Fprintf(os.Stderr, " phases=walk:%d/io:%d/regex:%d", p.WalkUs, p.IOUs, p.RegexUs)
+			}
+			fmt.Fprintln(os.Stderr, "]")
 			if rsp.Metrics.LedgerError != "" {
 				fmt.Fprintf(os.Stderr,
 					"[ash WARNING: ledger record FAILED: %s -- this call's metrics did not persist]\n",

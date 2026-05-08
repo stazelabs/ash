@@ -114,7 +114,9 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	return a, nil
 }
 
-func Run(a *Args) (*Result, *proto.Error) {
+// Run is signature-compatible with the rest of the verbs. help has no
+// instrumentable sub-phases, so tr is unused.
+func Run(a *Args, _ *proto.Tracer) (*Result, *proto.Error) {
 	if a.Verb == "" {
 		r := &Result{Verbs: registry, Count: len(registry)}
 		return r, nil

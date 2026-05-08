@@ -114,7 +114,7 @@ func TestRun_BasicLiteralCaseSensitive(t *testing.T) {
 		Case:             "sensitive",
 		MaxMatches:       DefaultMaxMatches,
 		RespectGitignore: true,
-	})
+	}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -149,7 +149,7 @@ func TestRun_SmartCaseLowercaseGoesInsensitive(t *testing.T) {
 		Case:             "smart",
 		MaxMatches:       DefaultMaxMatches,
 		RespectGitignore: true,
-	})
+	}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -178,7 +178,7 @@ func TestRun_SmartCaseUppercaseGoesSensitive(t *testing.T) {
 		Case:             "smart",
 		MaxMatches:       DefaultMaxMatches,
 		RespectGitignore: true,
-	})
+	}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -204,7 +204,7 @@ func TestRun_FixedStringEscapesRegexMeta(t *testing.T) {
 	res, perr := Run(&Args{
 		Pattern: "a.b", Path: dir, Glob: DefaultGlob, Case: "sensitive",
 		MaxMatches: DefaultMaxMatches, FixedString: true,
-	})
+	}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -222,7 +222,7 @@ func TestRun_WordBoundary(t *testing.T) {
 	res, perr := Run(&Args{
 		Pattern: "Foo", Path: dir, Glob: DefaultGlob, Case: "sensitive",
 		MaxMatches: DefaultMaxMatches, Word: true,
-	})
+	}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -244,7 +244,7 @@ func TestRun_FilesOnly(t *testing.T) {
 	res, perr := Run(&Args{
 		Pattern: "Foo", Path: root, Glob: DefaultGlob, Case: "insensitive",
 		MaxMatches: DefaultMaxMatches, RespectGitignore: true, FilesOnly: true,
-	})
+	}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -268,7 +268,7 @@ func TestRun_GlobFilter(t *testing.T) {
 	res, perr := Run(&Args{
 		Pattern: "Foo", Path: root, Glob: "**/*.go", Case: "insensitive",
 		MaxMatches: DefaultMaxMatches, RespectGitignore: true,
-	})
+	}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -292,7 +292,7 @@ func TestRun_RespectsGitignoreByDefault(t *testing.T) {
 	res, perr := Run(&Args{
 		Pattern: "Foo", Path: root, Glob: DefaultGlob, Case: "smart",
 		MaxMatches: DefaultMaxMatches, RespectGitignore: true,
-	})
+	}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -313,7 +313,7 @@ func TestRun_OptOutOfGitignore(t *testing.T) {
 	res, perr := Run(&Args{
 		Pattern: "Foo", Path: root, Glob: DefaultGlob, Case: "smart",
 		MaxMatches: DefaultMaxMatches, RespectGitignore: false,
-	})
+	}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -341,7 +341,7 @@ func TestRun_HiddenDirSkippedByDefault(t *testing.T) {
 	res, perr := Run(&Args{
 		Pattern: ".", Path: root, Glob: DefaultGlob, Case: "sensitive",
 		MaxMatches: DefaultMaxMatches, RespectGitignore: true,
-	})
+	}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -358,7 +358,7 @@ func TestRun_BinarySkipped(t *testing.T) {
 	res, perr := Run(&Args{
 		Pattern: "Foo", Path: root, Glob: DefaultGlob, Case: "sensitive",
 		MaxMatches: DefaultMaxMatches, RespectGitignore: true,
-	})
+	}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -381,7 +381,7 @@ func TestRun_LargeFileSkipped(t *testing.T) {
 	res, perr := Run(&Args{
 		Pattern: "Foo", Path: root, Glob: DefaultGlob, Case: "sensitive",
 		MaxMatches: DefaultMaxMatches, RespectGitignore: true,
-	})
+	}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -402,7 +402,7 @@ func TestRun_MaxPerFileCaps(t *testing.T) {
 	res, perr := Run(&Args{
 		Pattern: "Foo", Path: dir, Glob: DefaultGlob, Case: "sensitive",
 		MaxMatches: DefaultMaxMatches, MaxPerFile: 2,
-	})
+	}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -423,7 +423,7 @@ func TestRun_MaxMatchesGlobalTruncates(t *testing.T) {
 	res, perr := Run(&Args{
 		Pattern: "Foo", Path: dir, Glob: DefaultGlob, Case: "sensitive",
 		MaxMatches: 3,
-	})
+	}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -475,7 +475,7 @@ func TestRun_ContextBeforeAfter(t *testing.T) {
 	res, perr := Run(&Args{
 		Pattern: "Match", Path: dir, Glob: DefaultGlob, Case: "sensitive",
 		MaxMatches: DefaultMaxMatches, ContextBefore: 1, ContextAfter: 1,
-	})
+	}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -504,7 +504,7 @@ func TestRun_ContextOverlapDeduplicates(t *testing.T) {
 	res, perr := Run(&Args{
 		Pattern: "Match", Path: dir, Glob: DefaultGlob, Case: "sensitive",
 		MaxMatches: DefaultMaxMatches, ContextBefore: 2, ContextAfter: 2,
-	})
+	}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -533,7 +533,7 @@ func TestRun_SingleFilePathSearchesJustThat(t *testing.T) {
 	res, perr := Run(&Args{
 		Pattern: "Foo", Path: filepath.Join(dir, "f.go"),
 		Glob: DefaultGlob, Case: "sensitive", MaxMatches: DefaultMaxMatches,
-	})
+	}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -547,7 +547,7 @@ func TestRun_NotFound(t *testing.T) {
 	_, perr := Run(&Args{
 		Pattern: "x", Path: "/no/such/path/here",
 		Glob: DefaultGlob, Case: "smart", MaxMatches: 10,
-	})
+	}, nil)
 	if perr == nil || perr.Code != "not_found" {
 		t.Fatalf("expected not_found, got %+v", perr)
 	}
@@ -562,7 +562,7 @@ func TestRun_ColIs1IndexedByteColumn(t *testing.T) {
 	res, perr := Run(&Args{
 		Pattern: "Foo", Path: dir, Glob: DefaultGlob, Case: "sensitive",
 		MaxMatches: DefaultMaxMatches,
-	})
+	}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -617,7 +617,7 @@ func TestParseArgs_RejectsBadCase(t *testing.T) {
 func TestParseArgs_RejectsBadRegex(t *testing.T) {
 	a, _ := ParseArgs(map[string]any{"pattern": "[invalid", "path": "."})
 	// ParseArgs doesn't compile; Run does. So Run should error.
-	_, perr := Run(a)
+	_, perr := Run(a, nil)
 	if perr == nil || perr.Code != "args" {
 		t.Fatalf("expected args error from invalid regex, got %+v", perr)
 	}

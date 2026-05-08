@@ -183,7 +183,9 @@ func toBool(v any) (bool, bool) {
 	return false, false
 }
 
-func Run(a *Args) (*Result, *proto.Error) {
+// Run walks the tree and produces records matching the args. tr may be
+// nil; tests pass nil to skip phase timing.
+func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	info, err := os.Stat(a.Path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -201,6 +203,7 @@ func Run(a *Args) (*Result, *proto.Error) {
 	res := &Result{Records: make([]Record, 0, 32)}
 	limitHit := false
 
+	walkStart := time.Now()
 	walkErr := walker.Walk(a.Path, walker.Options{
 		Glob:             a.Glob,
 		Exclude:          a.Exclude,
@@ -231,6 +234,7 @@ func Run(a *Args) (*Result, *proto.Error) {
 		}
 		return walker.Continue, nil
 	})
+	tr.AddWalk(time.Since(walkStart))
 	if walkErr != nil {
 		return nil, &proto.Error{Code: "walk", Msg: walkErr.Error()}
 	}

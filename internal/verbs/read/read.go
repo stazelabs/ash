@@ -109,8 +109,9 @@ func toInt(v any) (int, bool) {
 }
 
 // Run executes the read. The path is interpreted as-is (relative paths resolve
-// against the daemon's cwd, which is the project root).
-func Run(a *Args) (*Result, *proto.Error) {
+// against the daemon's cwd, which is the project root). tr may be nil; tests
+// pass nil to skip phase timing.
+func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	info, err := os.Stat(a.Path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -125,7 +126,9 @@ func Run(a *Args) (*Result, *proto.Error) {
 		return nil, &proto.Error{Code: "is_dir", Msg: a.Path + " is a directory; use `find` to list, then `read` a file"}
 	}
 
+	ioStart := time.Now()
 	body, err := os.ReadFile(a.Path)
+	tr.AddIO(time.Since(ioStart))
 	if err != nil {
 		return nil, &proto.Error{Code: "read", Msg: err.Error()}
 	}

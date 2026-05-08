@@ -102,12 +102,13 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 		rsp := &proto.Response{V: proto.ProtocolVersion, ID: req.ID}
 
 		execStart := time.Now()
+		tracer := &proto.Tracer{}
 		runner, ok := runners[req.Verb]
 		if !ok {
 			rsp.OK = false
 			rsp.Err = &proto.Error{Code: "unknown_verb", Msg: "unknown verb: " + req.Verb}
 		} else {
-			data, perr := runner.Run(req.Args)
+			data, perr := runner.Run(req.Args, tracer)
 			if perr != nil {
 				rsp.OK = false
 				rsp.Err = perr
@@ -117,6 +118,7 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 			}
 		}
 		execUs := time.Since(execStart).Microseconds()
+		phases := tracer.Snapshot()
 
 		// Pretty-rendered forms drive token counting. Both daemon and client
 		// produce the same canonical text, so tokens_out reflects what the
@@ -156,6 +158,13 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 			BytesOut:           bytesOut,
 			Truncated:          truncatedFromResult(rsp, runners[req.Verb]),
 		}
+		// Phases is attached only when the verb actually instrumented
+		// something. Verbs that don't (help, metrics) leave it nil so the
+		// field omits from the wire entirely.
+		if !phases.IsZero() {
+			ph := phases
+			metrics.Phases = &ph
+		}
 
 		errCode, errMsg := "", ""
 		if rsp.Err != nil {
@@ -179,6 +188,9 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 			BytesIn:            len(reqBuf),
 			BytesOut:           bytesOut,
 			Truncated:          metrics.Truncated,
+			WalkUs:             phases.WalkUs,
+			IOUs:               phases.IOUs,
+			RegexUs:            phases.RegexUs,
 		})
 		if recordErr != nil {
 			log.Printf("ashd: ledger record: %v", recordErr)

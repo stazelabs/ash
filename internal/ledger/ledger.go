@@ -40,12 +40,69 @@ CREATE TABLE IF NOT EXISTS calls (
 	tokens_method TEXT,
 	bytes_in INTEGER NOT NULL,
 	bytes_out INTEGER NOT NULL,
-	truncated INTEGER NOT NULL DEFAULT 0
+	truncated INTEGER NOT NULL DEFAULT 0,
+	walk_us INTEGER NOT NULL DEFAULT 0,
+	io_us INTEGER NOT NULL DEFAULT 0,
+	regex_us INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_calls_session ON calls(session_id);
 CREATE INDEX IF NOT EXISTS idx_calls_verb ON calls(verb);
 CREATE INDEX IF NOT EXISTS idx_calls_ts ON calls(ts);
 `
+
+// migrateSchema brings older ledger DBs (created before the sub-phase
+// columns existed) up to the current shape. CREATE TABLE IF NOT EXISTS
+// won't add columns to an existing table, so each new column needs an
+// explicit ALTER. The function is idempotent: it queries the existing
+// columns first and only adds what's missing.
+func migrateSchema(db *sql.DB) error {
+	cols, err := tableColumns(db, "calls")
+	if err != nil {
+		return fmt.Errorf("ledger: read schema: %w", err)
+	}
+	type col struct {
+		name string
+		decl string
+	}
+	additions := []col{
+		{"walk_us", "INTEGER NOT NULL DEFAULT 0"},
+		{"io_us", "INTEGER NOT NULL DEFAULT 0"},
+		{"regex_us", "INTEGER NOT NULL DEFAULT 0"},
+	}
+	for _, c := range additions {
+		if _, ok := cols[c.name]; ok {
+			continue
+		}
+		if _, err := db.Exec(fmt.Sprintf("ALTER TABLE calls ADD COLUMN %s %s", c.name, c.decl)); err != nil {
+			return fmt.Errorf("ledger: add column %s: %w", c.name, err)
+		}
+	}
+	return nil
+}
+
+func tableColumns(db *sql.DB, table string) (map[string]struct{}, error) {
+	rows, err := db.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	cols := map[string]struct{}{}
+	for rows.Next() {
+		var (
+			cid     int
+			name    string
+			ctype   string
+			notnull int
+			dflt    sql.NullString
+			pk      int
+		)
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return nil, err
+		}
+		cols[name] = struct{}{}
+	}
+	return cols, rows.Err()
+}
 
 type Ledger struct {
 	db        *sql.DB
@@ -64,6 +121,10 @@ func Open(path, projectRoot, clientInfo string) (*Ledger, error) {
 	if _, err := db.Exec(schemaSQL); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("ledger: schema: %w", err)
+	}
+	if err := migrateSchema(db); err != nil {
+		db.Close()
+		return nil, err
 	}
 	sid := newSessionID()
 	if _, err := db.Exec(
@@ -102,6 +163,12 @@ type Call struct {
 	BytesIn            int
 	BytesOut           int
 	Truncated          bool
+	// Sub-phase latencies (microseconds). Optional; verbs that don't
+	// instrument leave them at 0. They overlap by design (walk_us is the
+	// wall time of walker.Walk, which contains visitor IO/regex time).
+	WalkUs  int64
+	IOUs    int64
+	RegexUs int64
 }
 
 // QueryRecent returns up to n calls in reverse chronological order.
@@ -116,7 +183,8 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 			SELECT ts, verb, ok, err_code,
 			       latency_parse_us, latency_exec_us, latency_serialize_us,
 			       tokens_in, tokens_out, tokens_method,
-			       bytes_in, bytes_out, truncated
+			       bytes_in, bytes_out, truncated,
+			       walk_us, io_us, regex_us
 			FROM calls WHERE verb = ?
 			ORDER BY id DESC LIMIT ?`, verbFilter, n)
 	} else {
@@ -124,7 +192,8 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 			SELECT ts, verb, ok, err_code,
 			       latency_parse_us, latency_exec_us, latency_serialize_us,
 			       tokens_in, tokens_out, tokens_method,
-			       bytes_in, bytes_out, truncated
+			       bytes_in, bytes_out, truncated,
+			       walk_us, io_us, regex_us
 			FROM calls ORDER BY id DESC LIMIT ?`, n)
 	}
 	if err != nil {
@@ -142,6 +211,7 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 			&c.LatencyParseUs, &c.LatencyExecUs, &c.LatencySerializeUs,
 			&c.TokensIn, &c.TokensOut, &c.TokensMethod,
 			&c.BytesIn, &c.BytesOut, &truncInt,
+			&c.WalkUs, &c.IOUs, &c.RegexUs,
 		); err != nil {
 			return nil, err
 		}
@@ -159,13 +229,15 @@ func (l *Ledger) Record(c *Call) error {
 		ok, err_code, err_msg,
 		latency_parse_us, latency_exec_us, latency_serialize_us,
 		tokens_in, tokens_out, tokens_method,
-		bytes_in, bytes_out, truncated
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		bytes_in, bytes_out, truncated,
+		walk_us, io_us, regex_us
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		l.sessionID, int64(c.RequestID), c.Timestamp.UnixNano(), c.Verb, c.ArgsMsgpack,
 		boolToInt(c.OK), c.ErrCode, c.ErrMsg,
 		c.LatencyParseUs, c.LatencyExecUs, c.LatencySerializeUs,
 		c.TokensIn, c.TokensOut, c.TokensMethod,
 		c.BytesIn, c.BytesOut, boolToInt(c.Truncated),
+		c.WalkUs, c.IOUs, c.RegexUs,
 	)
 	return err
 }

@@ -120,7 +120,7 @@ func TestRun_TruncationHint(t *testing.T) {
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	res, perr := Run(&Args{Path: path, LimitBytes: 100, RangeKind: "lines"})
+	res, perr := Run(&Args{Path: path, LimitBytes: 100, RangeKind: "lines"}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -136,7 +136,7 @@ func TestRun_TruncationHint(t *testing.T) {
 }
 
 func TestRun_NotFound(t *testing.T) {
-	_, perr := Run(&Args{Path: "/no/such/path/here", LimitBytes: 1024, RangeKind: "lines"})
+	_, perr := Run(&Args{Path: "/no/such/path/here", LimitBytes: 1024, RangeKind: "lines"}, nil)
 	if perr == nil || perr.Code != "not_found" {
 		t.Fatalf("expected not_found error, got %+v", perr)
 	}
@@ -144,7 +144,7 @@ func TestRun_NotFound(t *testing.T) {
 
 func TestRun_DirIsError(t *testing.T) {
 	dir := t.TempDir()
-	_, perr := Run(&Args{Path: dir, LimitBytes: 1024, RangeKind: "lines"})
+	_, perr := Run(&Args{Path: dir, LimitBytes: 1024, RangeKind: "lines"}, nil)
 	if perr == nil || perr.Code != "is_dir" {
 		t.Fatalf("expected is_dir error, got %+v", perr)
 	}

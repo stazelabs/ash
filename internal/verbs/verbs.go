@@ -22,11 +22,13 @@ import (
 type Pretty = func(req *proto.Request, rsp *proto.Response) string
 
 // Runner is a verb's daemon-side execution. Run takes the loosely-typed
-// args from the wire, parses them, and executes; Truncated extracts the
-// truncation flag from the typed result so the wire metrics can record it.
-// Truncated is optional; nil means "this verb has no truncation concept".
+// args from the wire, parses them, and executes; the tracer accumulates
+// sub-phase latency the verb chooses to instrument (nil-safe). Truncated
+// extracts the truncation flag from the typed result so the wire metrics
+// can record it. Truncated is optional; nil means "this verb has no
+// truncation concept".
 type Runner struct {
-	Run       func(args map[string]any) (any, *proto.Error)
+	Run       func(args map[string]any, tr *proto.Tracer) (any, *proto.Error)
 	Truncated func(data any) bool
 }
 
@@ -49,12 +51,12 @@ func PrettyHandlers() map[string]Pretty {
 func Runners(led *ledger.Ledger) map[string]Runner {
 	return map[string]Runner{
 		"read": {
-			Run: func(args map[string]any) (any, *proto.Error) {
+			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
 				a, perr := read.ParseArgs(args)
 				if perr != nil {
 					return nil, perr
 				}
-				return read.Run(a)
+				return read.Run(a, tr)
 			},
 			Truncated: func(d any) bool {
 				if r, ok := d.(*read.Result); ok {
@@ -64,12 +66,12 @@ func Runners(led *ledger.Ledger) map[string]Runner {
 			},
 		},
 		"find": {
-			Run: func(args map[string]any) (any, *proto.Error) {
+			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
 				a, perr := find.ParseArgs(args)
 				if perr != nil {
 					return nil, perr
 				}
-				return find.Run(a)
+				return find.Run(a, tr)
 			},
 			Truncated: func(d any) bool {
 				if r, ok := d.(*find.Result); ok {
@@ -79,12 +81,12 @@ func Runners(led *ledger.Ledger) map[string]Runner {
 			},
 		},
 		"grep": {
-			Run: func(args map[string]any) (any, *proto.Error) {
+			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
 				a, perr := grep.ParseArgs(args)
 				if perr != nil {
 					return nil, perr
 				}
-				return grep.Run(a)
+				return grep.Run(a, tr)
 			},
 			Truncated: func(d any) bool {
 				if r, ok := d.(*grep.Result); ok {
@@ -94,7 +96,7 @@ func Runners(led *ledger.Ledger) map[string]Runner {
 			},
 		},
 		"metrics": {
-			Run: func(args map[string]any) (any, *proto.Error) {
+			Run: func(args map[string]any, _ *proto.Tracer) (any, *proto.Error) {
 				a, perr := metrics.ParseArgs(args)
 				if perr != nil {
 					return nil, perr
@@ -103,12 +105,12 @@ func Runners(led *ledger.Ledger) map[string]Runner {
 			},
 		},
 		"help": {
-			Run: func(args map[string]any) (any, *proto.Error) {
+			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
 				a, perr := help.ParseArgs(args)
 				if perr != nil {
 					return nil, perr
 				}
-				return help.Run(a)
+				return help.Run(a, tr)
 			},
 		},
 	}

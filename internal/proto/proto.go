@@ -57,6 +57,28 @@ type Metrics struct {
 	// the wire). This is the project's main "loud failure" signal: a quiet
 	// ledger failure undermines every claim ash makes about itself.
 	LedgerError string `msgpack:"ledger_error,omitempty" json:"ledger_error,omitempty"`
+	// Phases is the sub-execution latency breakdown reported by the verb's
+	// Tracer. Optional; a verb that doesn't instrument anything leaves it
+	// nil and the field omits from the wire entirely.
+	Phases *Phases `msgpack:"phases,omitempty" json:"phases,omitempty"`
+}
+
+// Phases breaks LatencyExecUs into named subsystems. Fields are
+// microseconds. Phases overlap by design: WalkUs is the wall time spent
+// inside walker.Walk (which itself contains the visitor's IO/regex), so
+// IOUs and RegexUs are typically subsets of WalkUs. The point is to tell
+// the agent "of the exec time, here's how much was each subsystem" not
+// to provide a strict tree decomposition.
+type Phases struct {
+	WalkUs  int64 `msgpack:"walk_us,omitempty"  json:"walk_us,omitempty"`
+	IOUs    int64 `msgpack:"io_us,omitempty"    json:"io_us,omitempty"`
+	RegexUs int64 `msgpack:"regex_us,omitempty" json:"regex_us,omitempty"`
+}
+
+// IsZero reports whether all phases are zero — used by the daemon to
+// decide whether to attach a Phases pointer at all.
+func (p Phases) IsZero() bool {
+	return p.WalkUs == 0 && p.IOUs == 0 && p.RegexUs == 0
 }
 
 func WriteFrame(w io.Writer, payload []byte) error {

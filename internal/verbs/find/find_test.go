@@ -74,7 +74,7 @@ func pathsByType(t *testing.T, r *Result, root, typ string) []string {
 
 func TestRun_DefaultsFindAllNonHidden(t *testing.T) {
 	root := makeTree(t)
-	res, perr := Run(&Args{Path: root, Glob: DefaultGlob, Type: "any", Limit: 100})
+	res, perr := Run(&Args{Path: root, Glob: DefaultGlob, Type: "any", Limit: 100}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -101,7 +101,7 @@ func TestRun_DefaultsFindAllNonHidden(t *testing.T) {
 
 func TestRun_IncludeHiddenRecurses(t *testing.T) {
 	root := makeTree(t)
-	res, perr := Run(&Args{Path: root, Glob: DefaultGlob, Type: "any", Limit: 100, IncludeHidden: true})
+	res, perr := Run(&Args{Path: root, Glob: DefaultGlob, Type: "any", Limit: 100, IncludeHidden: true}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -113,7 +113,7 @@ func TestRun_IncludeHiddenRecurses(t *testing.T) {
 
 func TestRun_GlobFilters(t *testing.T) {
 	root := makeTree(t)
-	res, perr := Run(&Args{Path: root, Glob: "**/*.go", Type: "file", Limit: 100})
+	res, perr := Run(&Args{Path: root, Glob: "**/*.go", Type: "file", Limit: 100}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -126,7 +126,7 @@ func TestRun_GlobFilters(t *testing.T) {
 
 func TestRun_TypeFilter(t *testing.T) {
 	root := makeTree(t)
-	res, perr := Run(&Args{Path: root, Glob: DefaultGlob, Type: "dir", Limit: 100})
+	res, perr := Run(&Args{Path: root, Glob: DefaultGlob, Type: "dir", Limit: 100}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -144,7 +144,7 @@ func TestRun_TypeFilter(t *testing.T) {
 
 func TestRun_MaxDepth(t *testing.T) {
 	root := makeTree(t)
-	res, perr := Run(&Args{Path: root, Glob: DefaultGlob, Type: "any", MaxDepth: 1, Limit: 100})
+	res, perr := Run(&Args{Path: root, Glob: DefaultGlob, Type: "any", MaxDepth: 1, Limit: 100}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -167,7 +167,7 @@ func TestRun_RespectsGitignoreByDefault(t *testing.T) {
 	}
 	// Default args -> RespectGitignore=true. vendor/ disappears, *.go disappears
 	// except for the negated a.go.
-	res, perr := Run(&Args{Path: root, Glob: DefaultGlob, Type: "any", Limit: 100, RespectGitignore: true})
+	res, perr := Run(&Args{Path: root, Glob: DefaultGlob, Type: "any", Limit: 100, RespectGitignore: true}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -193,7 +193,7 @@ func TestRun_OptOutOfGitignore(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte("vendor/\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	res, perr := Run(&Args{Path: root, Glob: DefaultGlob, Type: "any", Limit: 100, RespectGitignore: false})
+	res, perr := Run(&Args{Path: root, Glob: DefaultGlob, Type: "any", Limit: 100, RespectGitignore: false}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -206,7 +206,7 @@ func TestRun_OptOutOfGitignore(t *testing.T) {
 func TestRun_NoGitignoreFileIsNoop(t *testing.T) {
 	root := makeTree(t)
 	// no .gitignore written; default-on should still work fine.
-	res, perr := Run(&Args{Path: root, Glob: DefaultGlob, Type: "any", Limit: 100, RespectGitignore: true})
+	res, perr := Run(&Args{Path: root, Glob: DefaultGlob, Type: "any", Limit: 100, RespectGitignore: true}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -228,7 +228,7 @@ func TestParseArgs_DefaultsRespectGitignoreTrue(t *testing.T) {
 
 func TestRun_Exclude(t *testing.T) {
 	root := makeTree(t)
-	res, perr := Run(&Args{Path: root, Glob: "**/*.go", Type: "file", Exclude: "vendor/**", Limit: 100})
+	res, perr := Run(&Args{Path: root, Glob: "**/*.go", Type: "file", Exclude: "vendor/**", Limit: 100}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -242,7 +242,7 @@ func TestRun_Exclude(t *testing.T) {
 
 func TestRun_LimitTruncatesWithHint(t *testing.T) {
 	root := makeTree(t)
-	res, perr := Run(&Args{Path: root, Glob: DefaultGlob, Type: "any", Limit: 3})
+	res, perr := Run(&Args{Path: root, Glob: DefaultGlob, Type: "any", Limit: 3}, nil)
 	if perr != nil {
 		t.Fatalf("unexpected error: %+v", perr)
 	}
@@ -279,7 +279,7 @@ func TestRun_TruncationHintAtHardCap(t *testing.T) {
 }
 
 func TestRun_NotFound(t *testing.T) {
-	_, perr := Run(&Args{Path: "/no/such/path/here", Glob: "**", Type: "any", Limit: 10})
+	_, perr := Run(&Args{Path: "/no/such/path/here", Glob: "**", Type: "any", Limit: 10}, nil)
 	if perr == nil || perr.Code != "not_found" {
 		t.Fatalf("expected not_found, got %+v", perr)
 	}
@@ -291,7 +291,7 @@ func TestRun_NotADir(t *testing.T) {
 	if err := os.WriteFile(file, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, perr := Run(&Args{Path: file, Glob: "**", Type: "any", Limit: 10})
+	_, perr := Run(&Args{Path: file, Glob: "**", Type: "any", Limit: 10}, nil)
 	if perr == nil || perr.Code != "not_dir" {
 		t.Fatalf("expected not_dir, got %+v", perr)
 	}

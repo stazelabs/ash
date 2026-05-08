@@ -38,6 +38,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/bmatcuk/doublestar/v4"
@@ -237,9 +238,12 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 }
 
 // Run executes the search. Path may be a file (no walking) or a directory
-// (filepath.WalkDir with the same filtering as find).
-func Run(a *Args) (*Result, *proto.Error) {
+// (filepath.WalkDir with the same filtering as find). tr may be nil; tests
+// pass nil to skip phase timing.
+func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
+	regexStart := time.Now()
 	re, perr := compilePattern(a)
+	tr.AddRegex(time.Since(regexStart))
 	if perr != nil {
 		return nil, perr
 	}
@@ -257,17 +261,19 @@ func Run(a *Args) (*Result, *proto.Error) {
 
 	res := &Result{Matches: make([]Match, 0, 32)}
 	st := &state{
-		a:             a,
-		re:            re,
-		res:           res,
-		fileMatches:   map[string]int{},
-		matchedFiles:  map[string]struct{}{},
+		a:            a,
+		re:           re,
+		res:          res,
+		tr:           tr,
+		fileMatches:  map[string]int{},
+		matchedFiles: map[string]struct{}{},
 	}
 
 	if !info.IsDir() {
 		// Single-file search; path filters and gitignore are skipped.
 		st.searchOne(a.Path, info)
 	} else {
+		walkStart := time.Now()
 		walkErr := walker.Walk(a.Path, walker.Options{
 			Glob:             a.Glob,
 			Exclude:          a.Exclude,
@@ -286,6 +292,7 @@ func Run(a *Args) (*Result, *proto.Error) {
 			}
 			return walker.Continue, nil
 		})
+		tr.AddWalk(time.Since(walkStart))
 		if walkErr != nil {
 			return nil, &proto.Error{Code: "walk", Msg: walkErr.Error()}
 		}
@@ -346,6 +353,7 @@ type state struct {
 	a            *Args
 	re           *regexp.Regexp
 	res          *Result
+	tr           *proto.Tracer // nil-safe; per-file IO time accumulates here
 	fileMatches  map[string]int
 	matchedFiles map[string]struct{}
 	matchCount   int  // count of "match" records (excludes context)
@@ -359,7 +367,9 @@ func (s *state) searchOne(path string, fi fs.FileInfo) bool {
 		s.res.FilesSkippedLarge++
 		return false
 	}
+	ioStart := time.Now()
 	body, err := os.ReadFile(path)
+	s.tr.AddIO(time.Since(ioStart))
 	if err != nil {
 		// Unreadable files are silently skipped, matching ripgrep's default.
 		// Permission and transient errors don't abort the whole search.
