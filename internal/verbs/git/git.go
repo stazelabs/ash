@@ -24,6 +24,7 @@
 package git
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/stazelabs/ash/internal/proto"
@@ -227,6 +228,9 @@ func toInt(v any) (int, bool) {
 		return int(n), true
 	case float64:
 		return int(n), true
+	case string:
+		i, err := strconv.Atoi(n)
+		return i, err == nil
 	}
 	return 0, false
 }
