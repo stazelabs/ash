@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	idiff "github.com/stazelabs/ash/internal/diff"
 	"github.com/stazelabs/ash/internal/proto"
@@ -27,6 +28,7 @@ type Args struct {
 	Other   string
 	Content string
 	Context int
+	Stat    bool
 }
 
 type Result struct {
@@ -54,6 +56,9 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Context, perr = argutil.OptionalPosInt(in, "context", idiff.DefaultContext, 50); perr != nil {
 		return nil, perr
 	}
+	if a.Stat, perr = argutil.OptionalBool(in, "stat", false); perr != nil {
+		return nil, perr
+	}
 
 	hasOther := a.Other != ""
 	hasContent := in["content"] != nil // distinguish "not provided" from empty string
@@ -67,9 +72,11 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 }
 
 // Run executes the diff. tr may be nil.
-func Run(a *Args, _ *proto.Tracer) (*Result, *proto.Error) {
+func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	// Read the "before" file.
+	t0 := time.Now()
 	rawA, err := os.ReadFile(a.Path)
+	tr.AddIO(time.Since(t0))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, &proto.Error{Code: "not_found", Msg: a.Path + ": no such file"}
@@ -84,7 +91,9 @@ func Run(a *Args, _ *proto.Tracer) (*Result, *proto.Error) {
 	// Determine the "after" side.
 	var contentB, pathB string
 	if a.Other != "" {
+		t1 := time.Now()
 		rawB, err := os.ReadFile(a.Other)
+		tr.AddIO(time.Since(t1))
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				return nil, &proto.Error{Code: "not_found", Msg: a.Other + ": no such file"}
@@ -110,8 +119,16 @@ func Run(a *Args, _ *proto.Tracer) (*Result, *proto.Error) {
 	}
 
 	add, del := idiff.Stats(edits)
+	if a.Stat {
+		return &Result{
+			PathA:     a.Path,
+			PathB:     pathB,
+			Additions: add,
+			Deletions: del,
+			Unchanged: add == 0 && del == 0,
+		}, nil
+	}
 	patch := idiff.Unified(edits, a.Path, pathB, a.Context)
-
 	return &Result{
 		PathA:     a.Path,
 		PathB:     pathB,
@@ -132,6 +149,9 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	}
 	if r.Unchanged {
 		return fmt.Sprintf("=== ash diff: %s vs %s [identical] ===", r.PathA, r.PathB)
+	}
+	if r.Patch == "" {
+		return fmt.Sprintf("=== ash diff: %s vs %s [+%d -%d] ===", r.PathA, r.PathB, r.Additions, r.Deletions)
 	}
 	header := fmt.Sprintf("=== ash diff: %s vs %s [+%d -%d] ===\n", r.PathA, r.PathB, r.Additions, r.Deletions)
 	return header + r.Patch

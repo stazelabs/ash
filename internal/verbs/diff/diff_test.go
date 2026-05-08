@@ -119,6 +119,78 @@ func TestRun_FileNotFound(t *testing.T) {
 	}
 }
 
+// -- stat mode ------------------------------------------------------------------
+
+func TestParseArgs_StatFlag(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{"path": "a.go", "other": "b.go", "stat": "true"})
+	if perr != nil {
+		t.Fatal(perr)
+	}
+	if !a.Stat {
+		t.Error("want Stat=true")
+	}
+}
+
+func TestParseArgs_StatDefault(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{"path": "a.go", "content": "x"})
+	if perr != nil {
+		t.Fatal(perr)
+	}
+	if a.Stat {
+		t.Error("want Stat=false by default")
+	}
+}
+
+func TestRun_StatMode_Changed(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "f.txt")
+	_ = os.WriteFile(p, []byte("line1\nline2\nline3\n"), 0o644)
+
+	a := &Args{Path: p, Content: "line1\nLINE2\nline3\n", Context: 3, Stat: true}
+	r, perr := Run(a, nil)
+	if perr != nil {
+		t.Fatal(perr)
+	}
+	if r.Patch != "" {
+		t.Errorf("want empty patch in stat mode, got %q", r.Patch)
+	}
+	if r.Additions != 1 || r.Deletions != 1 {
+		t.Errorf("add=%d del=%d want 1,1", r.Additions, r.Deletions)
+	}
+	if r.Unchanged {
+		t.Error("want unchanged=false for changed content")
+	}
+}
+
+func TestRun_StatMode_Identical(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "f.txt")
+	_ = os.WriteFile(p, []byte("hello\n"), 0o644)
+
+	a := &Args{Path: p, Content: "hello\n", Context: 3, Stat: true}
+	r, perr := Run(a, nil)
+	if perr != nil {
+		t.Fatal(perr)
+	}
+	if r.Patch != "" {
+		t.Errorf("want empty patch in stat mode, got %q", r.Patch)
+	}
+	if !r.Unchanged {
+		t.Error("want unchanged=true for identical content")
+	}
+}
+
+func TestPrettyResponse_StatMode(t *testing.T) {
+	r := &Result{PathA: "a.go", PathB: "b.go", Additions: 2, Deletions: 1}
+	got := PrettyResponse(nil, okResponse(r))
+	if strings.Contains(got, "\n") {
+		t.Errorf("stat-mode pretty should be single line, got: %q", got)
+	}
+	if !strings.Contains(got, "+2") || !strings.Contains(got, "-1") {
+		t.Errorf("expected counts in stat-mode output: %q", got)
+	}
+}
+
 // -- PrettyResponse -------------------------------------------------------
 
 func TestPrettyResponse_Unchanged(t *testing.T) {

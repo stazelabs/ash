@@ -26,7 +26,8 @@ import (
 )
 
 type Args struct {
-	Paths []string
+	Paths          []string
+	FollowSymlinks bool
 }
 
 // Entry holds the metadata for one path. Fields are omitted from the wire
@@ -73,7 +74,11 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if len(paths) == 0 {
 		return nil, &proto.Error{Code: "args", Msg: "paths must contain at least one non-empty path"}
 	}
-	return &Args{Paths: paths}, nil
+	follow, perr2 := argutil.OptionalBool(in, "follow_symlinks", false)
+	if perr2 != nil {
+		return nil, perr2
+	}
+	return &Args{Paths: paths, FollowSymlinks: follow}, nil
 }
 
 // Run stats each path in order. The tracer is unused: each stat is a single
@@ -81,7 +86,7 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 func Run(a *Args, _ *proto.Tracer) (*Result, *proto.Error) {
 	res := &Result{Entries: make([]Entry, 0, len(a.Paths))}
 	for _, p := range a.Paths {
-		e := statOne(p)
+		e := statOne(p, a.FollowSymlinks)
 		res.Entries = append(res.Entries, e)
 		if e.Error != "" {
 			res.Errors++
@@ -91,7 +96,7 @@ func Run(a *Args, _ *proto.Tracer) (*Result, *proto.Error) {
 	return res, nil
 }
 
-func statOne(path string) Entry {
+func statOne(path string, followSymlinks bool) Entry {
 	info, err := os.Lstat(path)
 	if err != nil {
 		e := Entry{Path: path}
@@ -116,6 +121,26 @@ func statOne(path string) Entry {
 		e.Type = "symlink"
 		if target, lerr := os.Readlink(path); lerr == nil {
 			e.LinkTarget = target
+		}
+		if followSymlinks {
+			tinfo, terr := os.Stat(path)
+			if terr != nil {
+				if errors.Is(terr, fs.ErrNotExist) {
+					e.Error = "broken_symlink"
+				} else {
+					e.Error = "stat"
+				}
+			} else {
+				e.Mtime = tinfo.ModTime().UnixNano()
+				e.Mode = fmt.Sprintf("%04o", tinfo.Mode().Perm())
+				switch {
+				case tinfo.IsDir():
+					e.Type = "dir"
+				default:
+					e.Type = "file"
+					e.Size = tinfo.Size()
+				}
+			}
 		}
 	case info.IsDir():
 		e.Type = "dir"

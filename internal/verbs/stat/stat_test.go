@@ -134,6 +134,72 @@ func TestRun_symlink(t *testing.T) {
 	}
 }
 
+func TestRun_followSymlinks(t *testing.T) {
+	filePath, _, linkPath := makeFixture(t)
+	res, perr := Run(&Args{Paths: []string{linkPath}, FollowSymlinks: true}, nil)
+	if perr != nil {
+		t.Fatal(perr)
+	}
+	e := res.Entries[0]
+	if e.Type != "file" {
+		t.Errorf("want type=file after follow, got %q", e.Type)
+	}
+	if e.LinkTarget != filePath {
+		t.Errorf("want link_target preserved, got %q", e.LinkTarget)
+	}
+	if e.Size != int64(len("package main\n")) {
+		t.Errorf("want size=%d, got %d", len("package main\n"), e.Size)
+	}
+	if e.Error != "" {
+		t.Errorf("want no error, got %q", e.Error)
+	}
+}
+
+func TestRun_followSymlinks_broken(t *testing.T) {
+	root := t.TempDir()
+	linkPath := filepath.Join(root, "broken")
+	if err := os.Symlink(filepath.Join(root, "nonexistent"), linkPath); err != nil {
+		t.Fatal(err)
+	}
+	res, perr := Run(&Args{Paths: []string{linkPath}, FollowSymlinks: true}, nil)
+	if perr != nil {
+		t.Fatal(perr)
+	}
+	if res.Errors != 1 {
+		t.Fatalf("want 1 error, got %d", res.Errors)
+	}
+	e := res.Entries[0]
+	if e.Type != "symlink" {
+		t.Errorf("want type=symlink for broken link, got %q", e.Type)
+	}
+	if e.Error != "broken_symlink" {
+		t.Errorf("want error=broken_symlink, got %q", e.Error)
+	}
+	if e.LinkTarget == "" {
+		t.Error("want link_target preserved for broken symlink")
+	}
+}
+
+func TestParseArgs_followSymlinks(t *testing.T) {
+	a, err := ParseArgs(map[string]any{"paths": "some/file.go", "follow_symlinks": "true"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !a.FollowSymlinks {
+		t.Error("want FollowSymlinks=true")
+	}
+}
+
+func TestParseArgs_followSymlinks_default(t *testing.T) {
+	a, err := ParseArgs(map[string]any{"paths": "some/file.go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.FollowSymlinks {
+		t.Error("want FollowSymlinks=false by default")
+	}
+}
+
 func TestRun_notFound(t *testing.T) {
 	root := t.TempDir()
 	res, perr := Run(&Args{Paths: []string{filepath.Join(root, "no_such_file")}}, nil)
