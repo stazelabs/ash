@@ -127,11 +127,13 @@ func main() {
 func printUsage() {
 	fmt.Fprintln(os.Stderr, `usage: ash <verb> [--key value | --key=value]... [--format pretty|json|msgpack]
 
-verbs (phase 1, work in progress):
+verbs (phase 2):
   read    --path <p> [--range start:end] [--range_kind lines|bytes] [--limit_bytes N]
+  write   --path <p> --content <text> [--encoding utf-8|base64]
+                     [--mkdir true|false] [--create_only true|false]
   find    --path <p> [--glob <pattern>] [--type any|file|dir|symlink]
                      [--max_depth N] [--limit N] [--exclude <pattern>]
-                     [--include_hidden true|false]
+                     [--include_hidden true|false] [--with_meta true|false]
                      [--respect_gitignore true|false]   (default true)
   grep    --pattern <p> --path <p> [--glob <pattern>]
                      [--case smart|sensitive|insensitive] (default smart)
@@ -146,6 +148,9 @@ verbs (phase 1, work in progress):
                      ops: status [--untracked true|false] [--ignored true|false]
                           log    [--limit N] [--range <rev>] [--author <s>]
                                  [--since <d>] [--until <d>] [--pathspec <p>]
+                          diff   [--staged true|false] [--range <rev>]
+                                 [--pathspec <p>] [--stat true|false]
+                                 [--context N] [--limit_bytes N]
   metrics [--last N] [--verb <verb>]                   (default last=20)
   report  [--session current|all|<id>] [--since <dur>] (default session=current)
           [--last N] [--verb <verb>]
