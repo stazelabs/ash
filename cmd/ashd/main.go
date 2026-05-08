@@ -16,6 +16,7 @@ import (
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/session"
 	"github.com/stazelabs/ash/internal/verbs/find"
+	"github.com/stazelabs/ash/internal/verbs/grep"
 	"github.com/stazelabs/ash/internal/verbs/help"
 	"github.com/stazelabs/ash/internal/verbs/metrics"
 	"github.com/stazelabs/ash/internal/verbs/read"
@@ -133,6 +134,21 @@ func handle(conn net.Conn, led *ledger.Ledger) {
 					rsp.Data = result
 				}
 			}
+		case "grep":
+			args, perr := grep.ParseArgs(req.Args)
+			if perr != nil {
+				rsp.OK = false
+				rsp.Err = perr
+			} else {
+				result, perr := grep.Run(args)
+				if perr != nil {
+					rsp.OK = false
+					rsp.Err = perr
+				} else {
+					rsp.OK = true
+					rsp.Data = result
+				}
+			}
 		case "metrics":
 			margs, perr := metrics.ParseArgs(req.Args)
 			if perr != nil {
@@ -179,6 +195,8 @@ func handle(conn net.Conn, led *ledger.Ledger) {
 			prettyRsp = read.PrettyResponse(req, rsp)
 		case "find":
 			prettyRsp = find.PrettyResponse(req, rsp)
+		case "grep":
+			prettyRsp = grep.PrettyResponse(req, rsp)
 		case "metrics":
 			prettyRsp = metrics.PrettyResponse(req, rsp)
 		case "help":
@@ -267,6 +285,9 @@ func truncatedFromResult(rsp *proto.Response) bool {
 		return r.Truncated
 	}
 	if r, ok := rsp.Data.(*find.Result); ok {
+		return r.Truncated
+	}
+	if r, ok := rsp.Data.(*grep.Result); ok {
 		return r.Truncated
 	}
 	return false

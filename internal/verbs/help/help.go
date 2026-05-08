@@ -65,6 +65,27 @@ var registry = []VerbSchema{
 		},
 	},
 	{
+		Verb:        "grep",
+		Description: "Search files for an RE2 pattern. Skips binary files and files >16 MiB. Respects .gitignore by default.",
+		Args: []ArgSchema{
+			{Name: "pattern", Type: "string", Required: true, Description: "RE2 regex (or literal text when fixed_string=true)."},
+			{Name: "path", Type: "string", Required: true, Description: "File or directory to search."},
+			{Name: "glob", Type: "string", Default: "**", Description: "Doublestar pattern; only files matching this are scanned."},
+			{Name: "case", Type: "string", Default: "smart", Values: []string{"smart", "sensitive", "insensitive"}, Description: "Case sensitivity. smart = insensitive unless pattern has an uppercase letter."},
+			{Name: "fixed_string", Type: "bool", Default: "false", Description: "Treat pattern as literal text instead of a regex."},
+			{Name: "word", Type: "bool", Default: "false", Description: "Require word boundaries (\\b) around the pattern."},
+			{Name: "max_matches", Type: "int", Default: "256", Description: "Cap on total match records. Hard cap is 4096."},
+			{Name: "max_per_file", Type: "int", Default: "0", Description: "Cap on records per file. 0 means unlimited."},
+			{Name: "context_before", Type: "int", Default: "0", Description: "Lines of context before each match. Max 50."},
+			{Name: "context_after", Type: "int", Default: "0", Description: "Lines of context after each match. Max 50."},
+			{Name: "files_only", Type: "bool", Default: "false", Description: "Return only the paths of files containing at least one match."},
+			{Name: "exclude", Type: "string", Default: "", Description: "Doublestar pattern; matching paths are skipped."},
+			{Name: "max_depth", Type: "int", Default: "0", Description: "Maximum directory depth to descend. 0 means unlimited."},
+			{Name: "include_hidden", Type: "bool", Default: "false", Description: "When false, directories starting with '.' are skipped."},
+			{Name: "respect_gitignore", Type: "bool", Default: "true", Description: "When true, .gitignore at the walk root is loaded and applied."},
+		},
+	},
+	{
 		Verb:        "metrics",
 		Description: "Query recent call history from the ledger without shelling out to sqlite3.",
 		Args: []ArgSchema{

@@ -22,6 +22,7 @@ import (
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/session"
 	"github.com/stazelabs/ash/internal/verbs/find"
+	"github.com/stazelabs/ash/internal/verbs/grep"
 	"github.com/stazelabs/ash/internal/verbs/help"
 	"github.com/stazelabs/ash/internal/verbs/metrics"
 	"github.com/stazelabs/ash/internal/verbs/read"
@@ -130,6 +131,15 @@ verbs (phase 1, work in progress):
   read    --path <p> [--range start:end] [--range_kind lines|bytes] [--limit_bytes N]
   find    --path <p> [--glob <pattern>] [--type any|file|dir|symlink]
                      [--max_depth N] [--limit N] [--exclude <pattern>]
+                     [--include_hidden true|false]
+                     [--respect_gitignore true|false]   (default true)
+  grep    --pattern <p> --path <p> [--glob <pattern>]
+                     [--case smart|sensitive|insensitive] (default smart)
+                     [--fixed_string true|false] [--word true|false]
+                     [--max_matches N] [--max_per_file N]
+                     [--context_before N] [--context_after N]
+                     [--files_only true|false]
+                     [--exclude <pattern>] [--max_depth N]
                      [--include_hidden true|false]
                      [--respect_gitignore true|false]   (default true)
   metrics [--last N]  [--verb <verb>]                  (default last=20)
@@ -299,6 +309,8 @@ func prettyResponse(verb string, req *proto.Request, rsp *proto.Response) string
 		return read.PrettyResponse(req, rsp)
 	case "find":
 		return find.PrettyResponse(req, rsp)
+	case "grep":
+		return grep.PrettyResponse(req, rsp)
 	case "metrics":
 		return metrics.PrettyResponse(req, rsp)
 	case "help":

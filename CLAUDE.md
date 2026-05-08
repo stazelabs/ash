@@ -8,7 +8,7 @@ This file is the operational counterpart to `README.md`. The README is the desig
 
 This repo is also a deliberate experiment in *recursive* tool development: as soon as primordial `ash` exists (Phase 1: `find` + `grep` + `read` + daemon + bash shim + ledger), agents working on this repo start using `ash` for those operations. Every session feeds the next phase's design.
 
-**Current phase:** Phase 1, ship 3 — `ash read`, `ash find`, and `ash metrics` are live. Daemon (`ashd`) auto-starts on first invocation, persists per-call instrumentation to a SQLite ledger at `.ash/ledger.db`, and tokenizes every response with `cl100k_base` for honest token counts. Ledger failures surface in `Metrics.LedgerError` and the client prints a `WARNING` line if any call's metrics didn't persist.
+**Current phase:** Phase 1, ship 4 — `ash read`, `ash find`, `ash grep`, and `ash metrics` are live. Daemon (`ashd`) auto-starts on first invocation, persists per-call instrumentation to a SQLite ledger at `.ash/ledger.db`, and tokenizes every response with `cl100k_base` for honest token counts. Ledger failures surface in `Metrics.LedgerError` and the client prints a `WARNING` line if any call's metrics didn't persist.
 
 ## Project constraints
 
@@ -21,7 +21,7 @@ These are hard rules. If a change would violate one, stop and discuss before pro
 
 This is the operational checklist. It is **gated by which verbs are live**. Do not try to invoke a verb that hasn't shipped yet.
 
-### Phase 1 ship 3 (now) — `read`, `find`, and `metrics` are live
+### Phase 1 ship 4 (now) — `read`, `find`, `grep`, and `metrics` are live
 
 Build the binaries first (one-time per session, cheap to redo):
 
@@ -40,15 +40,20 @@ Then any `ash` invocation auto-starts the daemon. Use `bin/ash` from the repo ro
    - "find anything related to ledger" → `ash find --path . --glob '**/*ledger*'`
    - Hidden directories (`.git`, `.ash`, `.vscode`) are skipped by default. Pass `--include_hidden true` if you actually want them.
    - `.gitignore` at the walk root is respected by default. Pass `--respect_gitignore false` for a raw walk (e.g. when you genuinely need to inspect generated artifacts in `bin/` or `dist/`).
-2. **Reads of files in this repo** — use `ash read` deliberately at least a few times per session, even when the harness Read tool would suffice. We need ledger data to compare.
-3. **Ledger queries** — use `ash metrics` instead of `sqlite3 .ash/ledger.db`. The `--last N` and `--verb <verb>` filters cover the common cases.
-4. Bash `find`, `cat`, `head`, `tail`, `ls -R` should be replaced by their `ash` equivalents in this repo. Bash `grep` stays until `ash grep` ships.
+2. **Any pattern search across one or more files** — use `ash grep`. Examples:
+   - "where is `ParseArgs` called?" → `ash grep --pattern 'ParseArgs' --path . --glob '**/*.go'`
+   - "find TODO/FIXME notes" → `ash grep --pattern 'TODO|FIXME' --path .`
+   - "literal string with regex metacharacters" → `ash grep --pattern 'cfg.Foo()' --path . --fixed_string true`
+   - "just the file list (e.g. for `ash read` follow-up)" → add `--files_only true`
+   - "with surrounding lines" → `--context_before 2 --context_after 2`
+   - Smart-case is the default: an all-lowercase pattern is matched case-insensitively; any uppercase letter switches to case-sensitive. Override with `--case sensitive` or `--case insensitive`.
+   - Binary files (NUL byte in the leading 8 KiB) and files >16 MiB are skipped silently; the response counts them so you know why a hit didn't appear.
+   - Same hidden-dir and `.gitignore` defaults as `find`.
+3. **Reads of files in this repo** — use `ash read` deliberately at least a few times per session, even when the harness Read tool would suffice. We need ledger data to compare.
+4. **Ledger queries** — use `ash metrics` instead of `sqlite3 .ash/ledger.db`. The `--last N` and `--verb <verb>` filters cover the common cases.
+5. Bash `find`, `cat`, `head`, `tail`, `ls -R`, `grep`, `rg` should be replaced by their `ash` equivalents in this repo.
 
-**The whole point** is that you are the first user. If `ash find` or `ash read` errors, hangs, or feels heavier than the bash equivalent, that's a bug or a design gap — investigate, don't paper over. Write the session note.
-
-### Phase 1 ship 4 (next) — `grep` will land here
-
-When `ash grep` ships: any pattern search across more than one file uses `ash grep`. Until then, those operations stay in bash.
+**The whole point** is that you are the first user. If a verb errors, hangs, or feels heavier than the bash equivalent, that's a bug or a design gap — investigate, don't paper over. Write the session note.
 
 ## How to invoke ash
 
@@ -90,6 +95,7 @@ The ledger is the substrate for the recursive-development experiment. If a sessi
 
 - `ash read --path <p> [--range start:end] [--range_kind lines|bytes] [--limit_bytes N]` — read a file (or a line/byte range of one). UTF-8 returned as-is; binary returned base64-encoded with `encoding=base64` in the response. Default size cap is 256 KiB.
 - `ash find --path <p> [--glob <pattern>] [--type any|file|dir|symlink] [--max_depth N] [--limit N] [--exclude <pattern>] [--include_hidden true|false] [--respect_gitignore true|false]` — list paths under `<p>`. `glob` and `exclude` are doublestar patterns (`**` for recursive, `*.{go,md}` for alternation, etc.). `include_hidden` defaults to false (directories starting with `.` are skipped; leaf dotfiles like `.gitignore` are still findable). `respect_gitignore` defaults to **true** — the `.gitignore` at the walk root (`<p>`) is loaded and applied. Pass `--respect_gitignore false` for a raw filesystem walk. Nested `.gitignore` files are not yet honored. Default `limit` is 256, hard cap 4096; truncation produces a hint about how to narrow. Symlinks are reported but never followed.
+- `ash grep --pattern <re> --path <p> [--glob <pattern>] [--case smart|sensitive|insensitive] [--fixed_string true|false] [--word true|false] [--max_matches N] [--max_per_file N] [--context_before N] [--context_after N] [--files_only true|false] [--exclude <pattern>] [--max_depth N] [--include_hidden true|false] [--respect_gitignore true|false]` — RE2 pattern search. `path` may be a single file or a directory. `case` defaults to `smart` (insensitive unless the pattern has an uppercase letter, like ripgrep). `fixed_string=true` escapes regex metacharacters; `word=true` wraps with `\b…\b`. Default `max_matches` is 256, hard cap 4096; `max_per_file` is unlimited (0). Context (before/after) is capped at 50 lines per side and dedups across overlapping matches. `files_only=true` returns just the paths of matching files. Same `.gitignore`, hidden-dir, and walk semantics as `find`. Binary files (NUL in first 8 KiB) and files >16 MiB are skipped silently and reported via `files_skipped_binary` / `files_skipped_large`. Symlinks are not followed.
 - `ash metrics [--last N] [--verb <verb>]` — query recent call history from the ledger. Returns a table of timestamp / verb / ok / tokens_in / tokens_out / latency_exec_us. `last` defaults to 20, max 200. `verb` filters to a single verb (e.g. `--verb find`). Use this instead of shelling out to `sqlite3`.
 - `ash help [--verb <verb>]` — return the structured argument schema for one verb or all live verbs. Omit `--verb` to see all schemas. Useful for checking defaults and valid values without reading source.
 
@@ -117,6 +123,7 @@ Keep notes terse. A bullet list is fine. The goal is signal, not prose.
 Even after primordial `ash` ships, some operations stay in bash. Track them here so the dogfooding rule doesn't push agents into pretending verbs exist that don't.
 
 - **`git`** — until the `git` verb lands in Phase 2, all version control is bash.
+- **`go test`, `go build`, `go vet`** — until `test`/`build` land in Phase 2, build/test orchestration is bash.
 - **System package management** (`brew`, `apt`, `npm install -g`, etc.) — never in scope for `ash`.
 - **Process management at the OS level** beyond what `proc` covers — bash.
 - **Anything not yet implemented as a verb.** When in doubt: bash, with a session note explaining what verb you wished existed.
