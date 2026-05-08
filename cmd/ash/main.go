@@ -144,6 +144,8 @@ verbs (phase 1, work in progress):
                      [--respect_gitignore true|false]   (default true)
   git     --op <op> [--path <p>] [op-specific flags]
                      ops: status [--untracked true|false] [--ignored true|false]
+                          log    [--limit N] [--range <rev>] [--author <s>]
+                                 [--since <d>] [--until <d>] [--pathspec <p>]
   metrics [--last N]  [--verb <verb>]                  (default last=20)
   help    [--verb <verb>]                               (omit for all verbs)
 
