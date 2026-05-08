@@ -142,6 +142,12 @@ func TestDecide_bash(t *testing.T) {
 		{name: "chained || with denied", command: "test -f foo || cat foo", want: "deny", wantRule: "Bash:cat"},
 		{name: "pipe with denied LHS", command: "cat foo.go | wc -l", want: "deny", wantRule: "Bash:cat"},
 		{name: "all-allowed chain stays allow", command: "go build && go test ./... ; gh pr list", want: "allow"},
+		// ASH-19: quote-aware segmentation — prose inside quotes must not trigger redirects.
+		{name: "commit msg grep in double-quoted arg allows", command: `git commit -m "case; grep verb"`, want: "allow"},
+		{name: "commit msg grep in single-quoted arg allows", command: `git commit -m 'case; grep verb'`, want: "allow"},
+		{name: "commit msg grep in cmd subst allows", command: "git commit -m \"$(cat <<'EOF'\nfoo; grep bar\nEOF\n)\"", want: "allow"},
+		// True-positive: operator outside quotes still denies.
+		{name: "semicolon outside quotes still denies", command: "echo hello; grep foo .", want: "deny", wantRule: "Bash:grep"},
 
 		// Prefix stripping: VAR=val and env/command/exec/time/nice.
 		{name: "VAR= prefix", command: "FOO=bar grep pattern .", want: "deny", wantRule: "Bash:grep"},

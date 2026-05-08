@@ -375,22 +375,140 @@ func pickPath(candidates ...string) string {
 
 // -- bash command analysis -------------------------------------------------
 
-var bashSplitRe = regexp.MustCompile(`\|\||&&|;|\|`)
-
-// segments splits a bash command on shell separators. Matches the python
-// _BASH_SPLIT_RE behavior: shallow split, no syntactic awareness of
-// quotes or subshells. Sufficient for catching agent-issued chained
-// commands like `git status; git log`.
+// segments splits a bash command string on shell operators (||, &&, ;, |)
+// while treating quoted regions and subshell expressions as opaque so that
+// operator characters inside string literals do not produce false-positive splits.
+//
+// Tracking rules:
+//   - Single quotes: everything between ' and ' is literal; no splitting.
+//   - Double quotes: treated as a string context; $(...) nesting is tracked.
+//   - Backslash outside single-quotes: next byte is escaped and passed through.
+//   - Parentheses (bare and via $(...)): depth-tracked; no splitting inside.
+//   - Backtick substitutions: depth-tracked; no splitting inside.
+//   - Heredocs (<<EOF...EOF) are NOT parsed; they almost always appear inside
+//     $(...) which is already tracked transitively.
 func segments(command string) []string {
-	parts := bashSplitRe.Split(command, -1)
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			out = append(out, p)
+	var segs []string
+	var cur strings.Builder
+	inSingle := false
+	inDouble := false
+	parenDepth := 0
+	backtickDepth := 0
+
+	flush := func() {
+		if s := strings.TrimSpace(cur.String()); s != "" {
+			segs = append(segs, s)
+		}
+		cur.Reset()
+	}
+
+	i := 0
+	n := len(command)
+	for i < n {
+		c := command[i]
+
+		if inSingle {
+			if c == '\'' {
+				inSingle = false
+			}
+			cur.WriteByte(c)
+			i++
+			continue
+		}
+
+		if c == '\\' {
+			cur.WriteByte(c)
+			i++
+			if i < n {
+				cur.WriteByte(command[i])
+				i++
+			}
+			continue
+		}
+
+		if inDouble {
+			switch {
+			case c == '"':
+				inDouble = false
+				cur.WriteByte(c)
+			case c == '$' && i+1 < n && command[i+1] == '(':
+				parenDepth++
+				cur.WriteByte(c)
+				cur.WriteByte(command[i+1])
+				i += 2
+				continue
+			case c == '(':
+				parenDepth++
+				cur.WriteByte(c)
+			case c == ')':
+				if parenDepth > 0 {
+					parenDepth--
+				}
+				cur.WriteByte(c)
+			case c == '`':
+				backtickDepth++
+				cur.WriteByte(c)
+			default:
+				cur.WriteByte(c)
+			}
+			i++
+			continue
+		}
+
+		// Unquoted context.
+		switch {
+		case c == '\'':
+			inSingle = true
+			cur.WriteByte(c)
+			i++
+		case c == '"':
+			inDouble = true
+			cur.WriteByte(c)
+			i++
+		case c == '`':
+			if backtickDepth > 0 {
+				backtickDepth--
+			} else {
+				backtickDepth++
+			}
+			cur.WriteByte(c)
+			i++
+		case c == '$' && i+1 < n && command[i+1] == '(':
+			parenDepth++
+			cur.WriteByte(c)
+			cur.WriteByte(command[i+1])
+			i += 2
+		case c == '(':
+			parenDepth++
+			cur.WriteByte(c)
+			i++
+		case c == ')':
+			if parenDepth > 0 {
+				parenDepth--
+			}
+			cur.WriteByte(c)
+			i++
+		case (c == ';' || c == '|' || c == '&') && parenDepth == 0 && backtickDepth == 0:
+			if (c == '|' || c == '&') && i+1 < n && command[i+1] == c {
+				// Two-character operator: || or &&
+				flush()
+				i += 2
+			} else if c == '&' {
+				// Lone & (background): treat as literal rather than splitting.
+				cur.WriteByte(c)
+				i++
+			} else {
+				// ; or lone |: split.
+				flush()
+				i++
+			}
+		default:
+			cur.WriteByte(c)
+			i++
 		}
 	}
-	return out
+	flush()
+	return segs
 }
 
 // firstToken returns the first program in a bash segment after stripping
