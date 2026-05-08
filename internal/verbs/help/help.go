@@ -136,6 +136,15 @@ var registry = []VerbSchema{
 			{Name: "path", Type: "string", Description: "Single-path alias for --paths (e.g. --path cmd/ash/main.go). One of --paths or --path is required."},
 		},
 	},
+	{
+		Verb:        "bench",
+		Description: "Run a canonical case list against ash and the bash equivalent the agent would otherwise have used; tokenize both with the same encoder and report tokens/latency deltas per case.",
+		Args: []ArgSchema{
+			{Name: "verb", Type: "string", Default: "", Description: "Restrict to cases for one verb (e.g. 'grep')."},
+			{Name: "case", Type: "string", Default: "", Description: "Run a single named case (e.g. 'grep_todo_repo'). Overrides --verb."},
+			{Name: "limit", Type: "int", Default: "0", Description: "Cap number of cases run after filters. 0 means no cap."},
+		},
+	},
 }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {

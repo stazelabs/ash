@@ -21,7 +21,7 @@ These are hard rules. If a change would violate one, stop and discuss before pro
 
 This is the operational checklist. It is **gated by which verbs are live**. Do not try to invoke a verb that hasn't shipped yet.
 
-### Phase 2 ship 7 (now) — `read`, `find`, `grep`, `git status/log`, `metrics`, `report`, and `stat` are live
+### Phase 2 ship 8 (now) — `read`, `find`, `grep`, `git status/log`, `metrics`, `report`, `stat`, and `bench` are live
 
 Build the binaries first (one-time per session, cheap to redo):
 
@@ -129,6 +129,7 @@ The ledger is the substrate for the recursive-development experiment. If a sessi
 - `ash report [--session current|all|<id>] [--since <duration>] [--last <N>] [--verb <verb>]` — aggregated per-verb summary from the ledger: call count, ok%, p50/p95 exec latency, p50/p95 tokens_out, truncation rate. Defaults to the current daemon session. Use instead of `ash metrics --last 200` when you want synthesis rather than raw rows. Duration accepts Go format plus `d` suffix (e.g. `--since 1h`, `--since 7d`).
 - `ash help [--verb <verb>]` — return the structured argument schema for one verb or all live verbs. Omit `--verb` to see all schemas. Useful for checking defaults and valid values without reading source.
 - `ash stat --paths <p1>[,<p2>...]` — lstat one or more explicit paths and return `{type, size, mtime, mode, link_target?}` per entry. Per-entry `error` field (not_found / permission / stat) keeps a bulk call alive when some paths are missing. Use for pre-read size/mtime checks or existence testing without a full walk.
+- `ash bench [--verb <verb>] [--case <name>] [--limit N]` — run a canonical case list against ash and the bash equivalent the agent would otherwise have used; tokenize both with the same encoder and report per-case Δtokens / Δlatency, plus per-verb and overall summaries. Use to answer "is ash actually saving tokens, per verb and per query shape?" — see [docs/bench.md](docs/bench.md). Bash subprocesses are sandboxed (timeout, 16 MiB stdout cap); the bench call itself is recorded in the ledger like any other verb, but per-case ash dispatches are not.
 
 ## Session feedback ritual
 

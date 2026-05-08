@@ -34,7 +34,7 @@ This project is two experiments at once: the shell itself, and a deliberate stud
 
 ## Status
 
-**Alpha.** Phase 2 is underway and self-hosting. Seven verbs are live: `find`, `grep`, `read`, `git` (status + log), `metrics`, `report`, `stat`, and `help`. The daemon auto-starts, persists per-call instrumentation to a SQLite ledger, and tokenizes every response with `cl100k_base`. Agents working on this repo use `ash` for all covered operations; session notes in `docs/session-notes/` capture the experience. Remaining Phase 2 verbs (`write`, `edit`, `test`, `build`, `fmt`) and Phase 3 (`lang`) are upcoming. Expect breaking changes.
+**Alpha.** Phase 2 is underway and self-hosting. Eight verbs are live: `find`, `grep`, `read`, `git` (status + log), `metrics`, `report`, `stat`, `bench`, and `help`. The daemon auto-starts, persists per-call instrumentation to a SQLite ledger, and tokenizes every response with `cl100k_base`. `ash bench` answers "is ash actually saving tokens?" by running canonical cases against the bash equivalent and reporting per-case Δtokens / Δlatency — see [docs/bench.md](docs/bench.md). Agents working on this repo use `ash` for all covered operations; session notes in `docs/session-notes/` capture the experience. Remaining Phase 2 verbs (`write`, `edit`, `test`, `build`, `fmt`) and Phase 3 (`lang`) are upcoming. Expect breaking changes.
 
 ## Design principles
 

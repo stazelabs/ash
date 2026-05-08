@@ -10,6 +10,7 @@ package verbs
 import (
 	"github.com/stazelabs/ash/internal/ledger"
 	"github.com/stazelabs/ash/internal/proto"
+	"github.com/stazelabs/ash/internal/verbs/bench"
 	"github.com/stazelabs/ash/internal/verbs/find"
 	"github.com/stazelabs/ash/internal/verbs/git"
 	"github.com/stazelabs/ash/internal/verbs/grep"
@@ -48,14 +49,22 @@ func PrettyHandlers() map[string]Pretty {
 		"report":  report.PrettyResponse,
 		"help":    help.PrettyResponse,
 		"stat":    stat.PrettyResponse,
+		"bench":   bench.PrettyResponse,
 	}
 }
 
 // Runners returns the daemon execution registry. The ledger is captured
 // by the metrics runner since metrics queries the ledger directly. Pass a
 // real *ledger.Ledger; passing nil will panic when metrics fires.
+//
+// The bench runner closes over the registry itself + the pretty handlers
+// so it can dispatch any verb in-process and tokenize its canonical
+// response. The closure binds the maps by reference; by the time bench
+// fires the maps are fully populated, so self-dispatch (`ash bench` →
+// `ash bench`) works too — though it's a degenerate case.
 func Runners(led *ledger.Ledger) map[string]Runner {
-	return map[string]Runner{
+	pretty := PrettyHandlers()
+	runners := map[string]Runner{
 		"read": {
 			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
 				a, perr := read.ParseArgs(args)
@@ -147,4 +156,32 @@ func Runners(led *ledger.Ledger) map[string]Runner {
 			},
 		},
 	}
+	runners["bench"] = Runner{
+		Run: func(args map[string]any, _ *proto.Tracer) (any, *proto.Error) {
+			a, perr := bench.ParseArgs(args)
+			if perr != nil {
+				return nil, perr
+			}
+			deps := bench.Deps{
+				Counter: led.Counter(),
+				Run: func(verb string, vargs map[string]any) (any, *proto.Error) {
+					r, ok := runners[verb]
+					if !ok {
+						return nil, &proto.Error{Code: "unknown_verb", Msg: "unknown verb: " + verb}
+					}
+					// In-process dispatch uses a throwaway tracer; bench
+					// doesn't currently surface sub-phase data per case.
+					return r.Run(vargs, &proto.Tracer{})
+				},
+				Pretty: func(verb string, req *proto.Request, rsp *proto.Response) string {
+					if p, ok := pretty[verb]; ok {
+						return p(req, rsp)
+					}
+					return proto.PrettyResponseHeader(rsp)
+				},
+			}
+			return bench.RunWithDeps(deps, a)
+		},
+	}
+	return runners
 }

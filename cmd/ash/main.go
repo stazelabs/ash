@@ -150,6 +150,7 @@ verbs (phase 1, work in progress):
   report  [--session current|all|<id>] [--since <dur>] (default session=current)
           [--last N] [--verb <verb>]
   stat    --paths <p1>[,<p2>...]                        (lstat; per-entry errors)
+  bench   [--verb <verb>] [--case <name>] [--limit N]   (ash vs bash comparison)
   help    [--verb <verb>]                               (omit for all verbs)
 
 global flags:
