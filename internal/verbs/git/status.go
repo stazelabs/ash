@@ -17,6 +17,7 @@ import (
 // list. A file with "MM" (modified in index AND worktree) appears in
 // both Staged and Unstaged.
 type StatusResult struct {
+	Head      string       `msgpack:"head,omitempty"`
 	Branch    string       `msgpack:"branch,omitempty"`
 	Upstream  string       `msgpack:"upstream,omitempty"`
 	Ahead     int          `msgpack:"ahead,omitempty"`
@@ -64,6 +65,7 @@ func runStatus(a *Args, tr *proto.Tracer) (*StatusResult, *proto.Error) {
 // test the parser without git on the runner.
 func parseStatus(out []byte) (*StatusResult, *proto.Error) {
 	s := &StatusResult{}
+	var oid string
 	scanner := bufio.NewScanner(bytes.NewReader(out))
 	scanner.Buffer(make([]byte, 0, 64<<10), 1<<20)
 	for scanner.Scan() {
@@ -73,9 +75,10 @@ func parseStatus(out []byte) (*StatusResult, *proto.Error) {
 		}
 		switch {
 		case strings.HasPrefix(line, "# branch.oid "):
-			oid := strings.TrimPrefix(line, "# branch.oid ")
+			oid = strings.TrimPrefix(line, "# branch.oid ")
 			if oid == "(initial)" {
 				s.Initial = true
+				oid = ""
 			}
 		case strings.HasPrefix(line, "# branch.head "):
 			head := strings.TrimPrefix(line, "# branch.head ")
@@ -113,6 +116,16 @@ func parseStatus(out []byte) (*StatusResult, *proto.Error) {
 		return nil, &proto.Error{Code: "parse", Msg: err.Error()}
 	}
 	s.Clean = len(s.Staged) == 0 && len(s.Unstaged) == 0 && len(s.Untracked) == 0 && len(s.Conflicts) == 0
+	switch {
+	case s.Initial:
+		// Head stays empty — no commit exists yet.
+	case s.Branch != "":
+		s.Head = s.Branch
+	case s.Detached && len(oid) >= 7:
+		s.Head = oid[:7]
+	case s.Detached && oid != "":
+		s.Head = oid
+	}
 	return s, nil
 }
 
@@ -255,6 +268,9 @@ func writeChanges(b *strings.Builder, fs []FileChange) {
 
 func decodeStatus(m map[string]any) *StatusResult {
 	s := &StatusResult{}
+	if v, ok := m["head"].(string); ok {
+		s.Head = v
+	}
 	if v, ok := m["branch"].(string); ok {
 		s.Branch = v
 	}

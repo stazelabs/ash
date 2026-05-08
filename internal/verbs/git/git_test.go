@@ -69,6 +69,27 @@ func TestParseStatus_DetachedAndInitial(t *testing.T) {
 	})
 }
 
+func TestParseStatus_Head(t *testing.T) {
+	t.Run("on branch", func(t *testing.T) {
+		s, _ := parseStatus([]byte("# branch.oid abc1234def5678abc1234def5678abc1234def5678\n# branch.head main\n"))
+		if s.Head != "main" {
+			t.Errorf("Head=%q want main", s.Head)
+		}
+	})
+	t.Run("detached", func(t *testing.T) {
+		s, _ := parseStatus([]byte("# branch.oid 45b4bfb1234567890123456789012345678901234\n# branch.head (detached)\n"))
+		if s.Head != "45b4bfb" {
+			t.Errorf("Head=%q want 45b4bfb", s.Head)
+		}
+	})
+	t.Run("initial commit", func(t *testing.T) {
+		s, _ := parseStatus([]byte("# branch.oid (initial)\n# branch.head main\n"))
+		if s.Head != "" {
+			t.Errorf("Head=%q want empty for initial commit", s.Head)
+		}
+	})
+}
+
 func TestParseStatus_TrackedSplit(t *testing.T) {
 	// "M." means index modified, worktree clean -> Staged.
 	// ".M" means index clean, worktree modified -> Unstaged.
