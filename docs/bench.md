@@ -167,3 +167,29 @@ Take-aways the bench made visible:
 1. The single biggest cost was the date column — tiktoken splits hyphenated dates aggressively. If we ever bring date back to the default, format it as `yyyymmdd` (3 tokens) rather than `yyyy-mm-dd` (5 tokens).
 2. JSON-envelope penalty on tiny queries (find_shallow still +71%) is a header amortization issue — the `=== ash find: N results [scope] ===` line is fixed cost. Acceptable for now; if it becomes load-bearing, we can collapse the header on small results.
 3. Structured data on the wire vs human-readable rendering are separable concerns — the design principle "robot-first, structured everything" survived the change because nothing the agent could *do* with the result lost any information.
+
+## Heavy-tree case (2026-05-08): `grep_heavy_func_internal` exercises truncation
+
+The grep verb summary after the find optimization above sat at **-16% tokens** vs bash. The hypothesis going into bench v1 had been "ash should win big on grep when there are many matches, because ash truncates with a narrow-this-query hint while bash dumps everything." The four original grep cases (TODO across repo, ParseArgs in internal, files-only, rare pattern) all returned well under the default `max_matches=256` cap — none of them ever forced ash to truncate, so the load-bearing argument was untested. (See [ASH-18](https://linear.app/stazelabs/issue/ASH-18).)
+
+Fix: add one case to the canonical set that is guaranteed to hit the cap.
+
+- New case: [`grep_heavy_func_internal`](../internal/bench/cases.go) — `ash grep --pattern func --path internal`. The literal `func` returns ~586 matches under `internal/`, well over the 256-match default. Bash equivalent (`grep -rn func internal`) dumps every line.
+- Scope is `internal/` rather than `.` for reproducibility — `internal/` does not include `.git/`, `bin/`, or `.ash/`, so the bash side does not vary with local daemon state, build artifacts, or git pack churn.
+- Default-flag honesty: the case does *not* pass `--max_matches` explicitly. The whole point is to exercise the default ash experience. If the default ever changes, the case will reflect that change.
+
+Bench delta after adding the case (13 → 14 cases):
+
+| case | ash_tok | bash_tok | Δtok% |
+|---|---|---|---|
+| grep_heavy_func_internal (new) | 4982 | 14518 | **-66%** |
+| **grep verb summary** | 8728 | 19001 | **-54%** (was -16%) |
+| **overall** | 15593 | 31454 | **-50%** (was -44%) |
+
+The case clears the >50% acceptance bar from the ticket and validates the original hypothesis: when result sets are large, ash truncates to 256 matches plus a narrow-this hint while bash returns the full dump, and the token gap is meaningful, not marginal.
+
+Take-aways:
+
+1. The bench needed *both* shapes to be honest — small-query cases (where ash can be neutral or negative due to JSON-envelope overhead) and many-match cases (where the truncation cap is the design choice that buys the win). The first ship had only the former.
+2. Real-world repo dependence is not a problem here. The case scope is the repos own `internal/` tree, which evolves with the codebase but is fully checked in — so results are reproducible across machines and shift only when the code shifts. A synthetic blob would be cheaper to keep stable but would test nothing the agent will actually encounter.
+3. Vendored / generated trees (e.g. `node_modules`, `vendor/`, large `bin/` artifacts) would push the gap wider still — once `ash` is benched against a larger codebase, that comparison is the next data point. For now, `internal/` is the heaviest tree the repo has on hand.

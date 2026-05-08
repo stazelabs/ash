@@ -69,6 +69,12 @@ var Cases = []Case{
 		AshArgs: map[string]any{"pattern": "ash bench:", "path": "."},
 		Why:     "rare pattern; both sides return ~nothing, JSON envelope penalty visible",
 	},
+	{
+		Name:    "grep_heavy_func_internal",
+		Verb:    "grep",
+		AshArgs: map[string]any{"pattern": "func", "path": "internal"},
+		Why:     "many-match query; ash truncates at default max_matches=256 with a narrow-this hint while bash dumps every line — the load-bearing token-savings case",
+	},
 
 	// --- read ---
 	{
