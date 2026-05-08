@@ -1,6 +1,6 @@
 # ash
 
-> An agentic shell for coding agents. Structured, lean, robot-first.
+> An agentic shell for coding agents. Structured, lean, 🤖 robot-first.
 
 `ash` is a shell designed from the ground up for AI coding agents as the primary user. It collapses the sprawling, platform-divergent surface of legacy Unix utilities into a small set of structured verbs that return typed, token-efficient results.
 
