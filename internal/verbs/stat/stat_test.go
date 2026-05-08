@@ -51,6 +51,16 @@ func TestParseArgs_single(t *testing.T) {
 	}
 }
 
+func TestParseArgs_pathAlias(t *testing.T) {
+	a, err := ParseArgs(map[string]any{"path": "some/file.go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(a.Paths) != 1 || a.Paths[0] != "some/file.go" {
+		t.Fatalf("unexpected paths from --path alias: %v", a.Paths)
+	}
+}
+
 func TestParseArgs_multi(t *testing.T) {
 	a, err := ParseArgs(map[string]any{"paths": "a.go , b.go,c.go"})
 	if err != nil {

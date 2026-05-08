@@ -9,6 +9,17 @@ import (
 	"github.com/stazelabs/ash/internal/proto"
 )
 
+// encodeArgs encodes a proto.Request with the given verb and args into msgpack,
+// for use in tests that need populated ArgsMsgpack blobs.
+func encodeArgs(t *testing.T, verb string, args map[string]any) []byte {
+	t.Helper()
+	b, err := proto.EncodeRequest(&proto.Request{Verb: verb, Args: args})
+	if err != nil {
+		t.Fatalf("encodeArgs: %v", err)
+	}
+	return b
+}
+
 func TestPercentile(t *testing.T) {
 	tests := []struct {
 		vals []int64
@@ -457,5 +468,183 @@ func TestPrettyResponse_NoHotspotSections_WhenClean(t *testing.T) {
 	}
 	if strings.Contains(out, "errors") {
 		t.Errorf("unexpected errors section in clean output:\n%s", out)
+	}
+}
+
+func makeCallsWithBytes(verb string, n int, tokOut, bytesOut int) []ledger.Call {
+	calls := make([]ledger.Call, n)
+	for i := range calls {
+		calls[i] = ledger.Call{
+			Verb:          verb,
+			OK:            true,
+			LatencyExecUs: 100,
+			TokensOut:     tokOut,
+			BytesOut:      bytesOut,
+		}
+	}
+	return calls
+}
+
+func TestAggregate_TokPerKiB(t *testing.T) {
+	// 200 tokens, 1024 bytes → 200 tok/KiB
+	calls := makeCallsWithBytes("read", 4, 200, 1024)
+	r := aggregate(calls, Scope{Session: "current"})
+
+	if len(r.ByVerb) != 1 {
+		t.Fatalf("expected 1 verb, got %d", len(r.ByVerb))
+	}
+	got := r.ByVerb[0].TokPerKiB
+	if got != 200.0 {
+		t.Errorf("TokPerKiB = %.2f, want 200.0", got)
+	}
+}
+
+func TestAggregate_TokPerKiB_ZeroBytesOut(t *testing.T) {
+	calls := makeCalls("read", 2, 100, true, false) // BytesOut = 0
+	r := aggregate(calls, Scope{Session: "current"})
+
+	if r.ByVerb[0].TokPerKiB != 0 {
+		t.Errorf("TokPerKiB should be 0 when bytes_out=0, got %.2f", r.ByVerb[0].TokPerKiB)
+	}
+}
+
+func TestCollectArgDists_basic(t *testing.T) {
+	blob1 := encodeArgs(t, "find", map[string]any{"path": ".", "glob": "**/*.go"})
+	blob2 := encodeArgs(t, "find", map[string]any{"path": ".", "glob": "**/*.md"})
+	blob3 := encodeArgs(t, "find", map[string]any{"path": ".", "glob": "**/*.go"})
+
+	calls := []ledger.Call{
+		{Verb: "find", OK: true, ArgsMsgpack: blob1},
+		{Verb: "find", OK: true, ArgsMsgpack: blob2},
+		{Verb: "find", OK: true, ArgsMsgpack: blob3},
+	}
+	byVerb := map[string][]ledger.Call{"find": calls}
+	order := []string{"find"}
+
+	dists := collectArgDists(byVerb, order)
+	if len(dists) != 1 {
+		t.Fatalf("expected 1 verb dist, got %d", len(dists))
+	}
+	vd := dists[0]
+	if vd.Verb != "find" {
+		t.Errorf("verb = %q, want 'find'", vd.Verb)
+	}
+
+	// Find the glob key.
+	var globDist *ArgDist
+	for i := range vd.Args {
+		if vd.Args[i].Key == "glob" {
+			globDist = &vd.Args[i]
+		}
+	}
+	if globDist == nil {
+		t.Fatal("expected 'glob' key in arg distributions")
+	}
+	// **/*.go appears twice, **/*.md once — sorted by count desc.
+	if len(globDist.Values) != 2 {
+		t.Fatalf("expected 2 glob values, got %d", len(globDist.Values))
+	}
+	if globDist.Values[0].Value != "**/*.go" || globDist.Values[0].Count != 2 {
+		t.Errorf("first glob value = %q (%d×), want **/*.go (2×)",
+			globDist.Values[0].Value, globDist.Values[0].Count)
+	}
+	if globDist.Values[1].Value != "**/*.md" || globDist.Values[1].Count != 1 {
+		t.Errorf("second glob value = %q (%d×), want **/*.md (1×)",
+			globDist.Values[1].Value, globDist.Values[1].Count)
+	}
+}
+
+func TestCollectArgDists_noArgsMsgpack(t *testing.T) {
+	calls := makeCalls("find", 3, 100, true, false) // ArgsMsgpack is nil
+	byVerb := map[string][]ledger.Call{"find": calls}
+	order := []string{"find"}
+
+	dists := collectArgDists(byVerb, order)
+	if len(dists) != 0 {
+		t.Errorf("expected no dists when ArgsMsgpack is nil, got %d", len(dists))
+	}
+}
+
+func TestCollectArgDists_keysAlphabetical(t *testing.T) {
+	blob := encodeArgs(t, "grep", map[string]any{"pattern": "TODO", "path": ".", "glob": "**/*.go"})
+	calls := []ledger.Call{{Verb: "grep", OK: true, ArgsMsgpack: blob}}
+	byVerb := map[string][]ledger.Call{"grep": calls}
+
+	dists := collectArgDists(byVerb, []string{"grep"})
+	if len(dists) == 0 {
+		t.Fatal("expected arg dists")
+	}
+	keys := make([]string, len(dists[0].Args))
+	for i, d := range dists[0].Args {
+		keys[i] = d.Key
+	}
+	for i := 1; i < len(keys); i++ {
+		if keys[i] < keys[i-1] {
+			t.Errorf("keys not sorted alphabetically: %v", keys)
+		}
+	}
+}
+
+func TestPrettyResponse_TokPerKiB(t *testing.T) {
+	calls := makeCallsWithBytes("read", 2, 200, 1024)
+	r := aggregate(calls, Scope{Session: "current"})
+
+	rsp := &proto.Response{OK: true, Data: r}
+	out := PrettyResponse(nil, rsp)
+
+	if !strings.Contains(out, "token efficiency") {
+		t.Errorf("expected token efficiency section:\n%s", out)
+	}
+	if !strings.Contains(out, "tok/KiB") {
+		t.Errorf("expected tok/KiB header:\n%s", out)
+	}
+	if !strings.Contains(out, "read") {
+		t.Errorf("expected verb 'read' in token efficiency section:\n%s", out)
+	}
+}
+
+func TestPrettyResponse_NoTokPerKiB_WhenZeroBytesOut(t *testing.T) {
+	calls := makeCalls("find", 3, 1000, true, false)
+	r := aggregate(calls, Scope{Session: "current"})
+
+	rsp := &proto.Response{OK: true, Data: r}
+	out := PrettyResponse(nil, rsp)
+
+	if strings.Contains(out, "token efficiency") {
+		t.Errorf("unexpected token efficiency section when bytes_out=0:\n%s", out)
+	}
+}
+
+func TestPrettyResponse_ArgDists(t *testing.T) {
+	blob := encodeArgs(t, "find", map[string]any{"path": ".", "glob": "**/*.go"})
+	calls := []ledger.Call{
+		{Verb: "find", OK: true, LatencyExecUs: 100, ArgsMsgpack: blob},
+		{Verb: "find", OK: true, LatencyExecUs: 100, ArgsMsgpack: blob},
+	}
+	r := aggregate(calls, Scope{Session: "current"})
+
+	rsp := &proto.Response{OK: true, Data: r}
+	out := PrettyResponse(nil, rsp)
+
+	if !strings.Contains(out, "arg distributions") {
+		t.Errorf("expected arg distributions section:\n%s", out)
+	}
+	if !strings.Contains(out, "glob") {
+		t.Errorf("expected 'glob' key in arg distributions:\n%s", out)
+	}
+	if !strings.Contains(out, "**/*.go") {
+		t.Errorf("expected '**/*.go' value in arg distributions:\n%s", out)
+	}
+}
+
+func TestPrettyResponse_NoArgDists_WhenNoMsgpack(t *testing.T) {
+	calls := makeCalls("find", 3, 1000, true, false)
+	r := aggregate(calls, Scope{Session: "current"})
+
+	rsp := &proto.Response{OK: true, Data: r}
+	out := PrettyResponse(nil, rsp)
+
+	if strings.Contains(out, "arg distributions") {
+		t.Errorf("unexpected arg distributions section when no ArgsMsgpack:\n%s", out)
 	}
 }

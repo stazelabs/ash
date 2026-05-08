@@ -132,7 +132,8 @@ var registry = []VerbSchema{
 		Verb:        "stat",
 		Description: "Return filesystem metadata for one or more explicit paths. Uses lstat, so symlinks are reported as their own type. Missing paths produce a per-entry error rather than failing the whole call.",
 		Args: []ArgSchema{
-			{Name: "paths", Type: "string", Required: true, Description: "Comma-separated list of paths to inspect (e.g. 'cmd/ash/main.go,internal/')."},
+			{Name: "paths", Type: "string", Description: "Comma-separated list of paths to inspect (e.g. 'cmd/ash/main.go,internal/'). One of --paths or --path is required."},
+			{Name: "path", Type: "string", Description: "Single-path alias for --paths (e.g. --path cmd/ash/main.go). One of --paths or --path is required."},
 		},
 	},
 }

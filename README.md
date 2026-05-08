@@ -34,7 +34,7 @@ This project is two experiments at once: the shell itself, and a deliberate stud
 
 ## Status
 
-**Pre-alpha.** Design phase. No working code yet — this README defines the target. The first milestone is a Go prototype implementing `find`, `grep`, and `read` against the structured wire protocol, with a bash-compatible shim for incremental adoption. The build itself is a deliberate experiment in iteratively developing a tool *with* the coding agents that will use it — see "How we're building this" above.
+**Alpha.** Phase 2 is underway and self-hosting. Seven verbs are live: `find`, `grep`, `read`, `git` (status + log), `metrics`, `report`, `stat`, and `help`. The daemon auto-starts, persists per-call instrumentation to a SQLite ledger, and tokenizes every response with `cl100k_base`. Agents working on this repo use `ash` for all covered operations; session notes in `docs/session-notes/` capture the experience. Remaining Phase 2 verbs (`write`, `edit`, `test`, `build`, `fmt`) and Phase 3 (`lang`) are upcoming. Expect breaking changes.
 
 ## Design principles
 

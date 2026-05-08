@@ -3,6 +3,7 @@
 // Args:
 //
 //	paths   string (required) - comma-separated list of paths to inspect
+//	path    string (alias)    - accepted as an alias for --paths for single-path ergonomics
 //
 // Returns one Entry per path. Paths that do not exist or are inaccessible
 // produce a non-nil Error field rather than failing the whole call, so a
@@ -47,9 +48,19 @@ type Result struct {
 }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
-	raw, perr := argutil.RequireString(in, "paths")
+	// Accept --paths (canonical) or --path (alias for the single-path case).
+	raw, perr := argutil.OptionalString(in, "paths", "")
 	if perr != nil {
 		return nil, perr
+	}
+	if raw == "" {
+		raw, perr = argutil.OptionalString(in, "path", "")
+		if perr != nil {
+			return nil, perr
+		}
+		if raw == "" {
+			return nil, &proto.Error{Code: "args", Msg: "--paths (or --path) is required"}
+		}
 	}
 	parts := strings.Split(raw, ",")
 	paths := make([]string, 0, len(parts))

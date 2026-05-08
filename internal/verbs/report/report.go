@@ -60,6 +60,24 @@ type VerbSubPhase struct {
 	Pct  float64 `msgpack:"pct"`
 }
 
+// ArgValueCount is one value seen for an arg key, with its call frequency.
+type ArgValueCount struct {
+	Value string `msgpack:"value"`
+	Count int    `msgpack:"count"`
+}
+
+// ArgDist is the frequency distribution of values seen for one arg key.
+type ArgDist struct {
+	Key    string          `msgpack:"key"`
+	Values []ArgValueCount `msgpack:"values"`
+}
+
+// VerbArgDist is the arg distributions for one verb.
+type VerbArgDist struct {
+	Verb string    `msgpack:"verb"`
+	Args []ArgDist `msgpack:"args"`
+}
+
 type VerbStats struct {
 	Verb         string         `msgpack:"verb"`
 	N            int            `msgpack:"n"`
@@ -72,6 +90,7 @@ type VerbStats struct {
 	TruncatedN   int            `msgpack:"truncated_n"`
 	TruncatedPct float64        `msgpack:"truncated_pct"`
 	SubPhases    []VerbSubPhase `msgpack:"sub_phases,omitempty"`
+	TokPerKiB    float64        `msgpack:"tok_per_kib,omitempty"` // tokens_out / (bytes_out/1024)
 }
 
 // ErrEntry is one row in the error-code histogram.
@@ -89,11 +108,12 @@ type TruncHotspot struct {
 }
 
 type Result struct {
-	Scope         Scope          `msgpack:"scope"`
-	Totals        Totals         `msgpack:"totals"`
-	ByVerb        []VerbStats    `msgpack:"by_verb"`
-	ErrHistogram  []ErrEntry     `msgpack:"err_histogram,omitempty"`
-	TruncHotspots []TruncHotspot `msgpack:"trunc_hotspots,omitempty"`
+	Scope            Scope          `msgpack:"scope"`
+	Totals           Totals         `msgpack:"totals"`
+	ByVerb           []VerbStats    `msgpack:"by_verb"`
+	ErrHistogram     []ErrEntry     `msgpack:"err_histogram,omitempty"`
+	TruncHotspots    []TruncHotspot `msgpack:"trunc_hotspots,omitempty"`
+	ArgDistributions []VerbArgDist  `msgpack:"arg_distributions,omitempty"`
 }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
@@ -160,6 +180,14 @@ func RunWithLedger(led *ledger.Ledger, a *Args) (*Result, *proto.Error) {
 		if len(result.ErrHistogram) > a.TopN {
 			result.ErrHistogram = result.ErrHistogram[:a.TopN]
 		}
+		// Cap arg distribution values per key.
+		for i := range result.ArgDistributions {
+			for j := range result.ArgDistributions[i].Args {
+				if len(result.ArgDistributions[i].Args[j].Values) > a.TopN {
+					result.ArgDistributions[i].Args[j].Values = result.ArgDistributions[i].Args[j].Values[:a.TopN]
+				}
+			}
+		}
 	}
 	return result, nil
 }
@@ -206,6 +234,7 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 		execUs := make([]int64, len(cs))
 		tokOut := make([]int64, len(cs))
 		var sumExec, sumWalk, sumIO, sumRegex int64
+		var sumTokOut, sumBytesOut int64
 		for i, c := range cs {
 			if c.OK {
 				vs.OKCount++
@@ -222,6 +251,8 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 			sumWalk += c.WalkUs
 			sumIO += c.IOUs
 			sumRegex += c.RegexUs
+			sumTokOut += int64(c.TokensOut)
+			sumBytesOut += int64(c.BytesOut)
 		}
 		vs.OKPct = pct(vs.OKCount, vs.N)
 		vs.TruncatedPct = pct(vs.TruncatedN, vs.N)
@@ -253,6 +284,11 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 			}
 		}
 
+		// Token efficiency: tokens per KiB of response bytes.
+		if sumBytesOut > 0 {
+			vs.TokPerKiB = float64(sumTokOut) / (float64(sumBytesOut) / 1024.0)
+		}
+
 		stats = append(stats, vs)
 	}
 
@@ -281,12 +317,65 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 	})
 
 	return &Result{
-		Scope:         scope,
-		Totals:        totals,
-		ByVerb:        stats,
-		ErrHistogram:  errHist,
-		TruncHotspots: truncHotspots,
+		Scope:            scope,
+		Totals:           totals,
+		ByVerb:           stats,
+		ErrHistogram:     errHist,
+		TruncHotspots:    truncHotspots,
+		ArgDistributions: collectArgDists(byVerb, order),
 	}
+}
+
+// collectArgDists builds per-verb arg frequency distributions from call ArgsMsgpack blobs.
+// Keys are sorted alphabetically; values within each key are sorted by count desc.
+// Callers cap values to topN via RunWithLedger.
+func collectArgDists(byVerb map[string][]ledger.Call, order []string) []VerbArgDist {
+	var result []VerbArgDist
+	for _, verb := range order {
+		cs := byVerb[verb]
+		counts := map[string]map[string]int{} // [key][value]count
+		var keyOrder []string
+		for _, c := range cs {
+			if len(c.ArgsMsgpack) == 0 {
+				continue
+			}
+			req, err := proto.DecodeRequest(c.ArgsMsgpack)
+			if err != nil || len(req.Args) == 0 {
+				continue
+			}
+			for k, v := range req.Args {
+				val := fmt.Sprintf("%v", v)
+				if val == "" {
+					continue
+				}
+				if _, seen := counts[k]; !seen {
+					counts[k] = map[string]int{}
+					keyOrder = append(keyOrder, k)
+				}
+				counts[k][val]++
+			}
+		}
+		if len(keyOrder) == 0 {
+			continue
+		}
+		sort.Strings(keyOrder)
+		var dists []ArgDist
+		for _, k := range keyOrder {
+			vals := make([]ArgValueCount, 0, len(counts[k]))
+			for val, cnt := range counts[k] {
+				vals = append(vals, ArgValueCount{Value: val, Count: cnt})
+			}
+			sort.Slice(vals, func(i, j int) bool {
+				if vals[i].Count != vals[j].Count {
+					return vals[i].Count > vals[j].Count
+				}
+				return vals[i].Value < vals[j].Value
+			})
+			dists = append(dists, ArgDist{Key: k, Values: vals})
+		}
+		result = append(result, VerbArgDist{Verb: verb, Args: dists})
+	}
+	return result
 }
 
 func percentile(vals []int64, p float64) int64 {
@@ -411,6 +500,50 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 				fmt.Fprintf(&b, "  %s \xc3\x97 %d  \xe2\x80\x94 %q\n", e.Code, e.Count, e.SampleMsg)
 			} else {
 				fmt.Fprintf(&b, "  %s \xc3\x97 %d\n", e.Code, e.Count)
+			}
+		}
+	}
+
+	// Token efficiency — only when at least one verb has bytes_out data.
+	hasTokPerKiB := false
+	for _, vs := range r.ByVerb {
+		if vs.TokPerKiB > 0 {
+			hasTokPerKiB = true
+			break
+		}
+	}
+	if hasTokPerKiB {
+		fmt.Fprintf(&b, "\ntoken efficiency (tokens per KiB of response):\n")
+		fmt.Fprintf(&b, "%-10s  %8s\n", "verb", "tok/KiB")
+		fmt.Fprintf(&b, "%s\n", strings.Repeat("-", 22))
+		for _, vs := range r.ByVerb {
+			if vs.TokPerKiB <= 0 {
+				continue
+			}
+			fmt.Fprintf(&b, "%-10s  %7.1f\n", vs.Verb, vs.TokPerKiB)
+		}
+	}
+
+	// Arg distributions — only when at least one verb has decoded args.
+	if len(r.ArgDistributions) > 0 {
+		fmt.Fprintf(&b, "\narg distributions:\n")
+		for _, vd := range r.ArgDistributions {
+			indent := strings.Repeat(" ", 2+len(vd.Verb)+2)
+			for i, d := range vd.Args {
+				var parts []string
+				for _, v := range d.Values {
+					val := v.Value
+					if len(val) > 40 {
+						val = val[:37] + "..."
+					}
+					parts = append(parts, fmt.Sprintf("%s (%d\xc3\x97)", val, v.Count))
+				}
+				valStr := strings.Join(parts, ", ")
+				if i == 0 {
+					fmt.Fprintf(&b, "  %s  %s: %s\n", vd.Verb, d.Key, valStr)
+				} else {
+					fmt.Fprintf(&b, "%s%s: %s\n", indent, d.Key, valStr)
+				}
 			}
 		}
 	}
@@ -546,6 +679,9 @@ func decodeResult(data any) (*Result, bool) {
 			if v, ok := toFloat64(vm["truncated_pct"]); ok {
 				vs.TruncatedPct = v
 			}
+			if v, ok := toFloat64(vm["tok_per_kib"]); ok {
+				vs.TokPerKiB = v
+			}
 			if rawSP, ok := vm["sub_phases"].([]any); ok {
 				for _, px := range rawSP {
 					pm, ok := px.(map[string]any)
@@ -601,6 +737,48 @@ func decodeResult(data any) (*Result, bool) {
 				th.SampleArgs = v
 			}
 			r.TruncHotspots = append(r.TruncHotspots, th)
+		}
+	}
+	if raw, ok := m["arg_distributions"].([]any); ok {
+		for _, x := range raw {
+			vdm, ok := x.(map[string]any)
+			if !ok {
+				continue
+			}
+			vd := VerbArgDist{}
+			if v, ok := vdm["verb"].(string); ok {
+				vd.Verb = v
+			}
+			if args, ok := vdm["args"].([]any); ok {
+				for _, ax := range args {
+					am, ok := ax.(map[string]any)
+					if !ok {
+						continue
+					}
+					d := ArgDist{}
+					if v, ok := am["key"].(string); ok {
+						d.Key = v
+					}
+					if vals, ok := am["values"].([]any); ok {
+						for _, vx := range vals {
+							vm2, ok := vx.(map[string]any)
+							if !ok {
+								continue
+							}
+							vc := ArgValueCount{}
+							if v, ok := vm2["value"].(string); ok {
+								vc.Value = v
+							}
+							if v, ok := argutil.ToInt(vm2["count"]); ok {
+								vc.Count = v
+							}
+							d.Values = append(d.Values, vc)
+						}
+					}
+					vd.Args = append(vd.Args, d)
+				}
+			}
+			r.ArgDistributions = append(r.ArgDistributions, vd)
 		}
 	}
 	return r, true

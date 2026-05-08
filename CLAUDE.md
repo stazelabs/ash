@@ -8,7 +8,7 @@ This file is the operational counterpart to `README.md`. The README is the desig
 
 This repo is also a deliberate experiment in *recursive* tool development: as soon as primordial `ash` exists (Phase 1: `find` + `grep` + `read` + daemon + bash shim + ledger), agents working on this repo start using `ash` for those operations. Every session feeds the next phase's design.
 
-**Current phase:** Phase 2, ship 6 — `ash read`, `ash find`, `ash grep`, `ash git --op status|log`, `ash metrics`, and `ash report` are live. Daemon (`ashd`) auto-starts on first invocation, persists per-call instrumentation to a SQLite ledger at `.ash/ledger.db`, and tokenizes every response with `cl100k_base` for honest token counts. Sub-phase latency (walk/io/regex µs) is captured in `Metrics.Phases` and surfaces in `ash metrics`. Ledger failures surface in `Metrics.LedgerError` and the client prints a `WARNING` line if any call's metrics didn't persist.
+**Current phase:** Phase 2, ship 7 — `ash read`, `ash find`, `ash grep`, `ash git --op status|log`, `ash metrics`, `ash report`, and `ash stat` are live. Daemon (`ashd`) auto-starts on first invocation, persists per-call instrumentation to a SQLite ledger at `.ash/ledger.db`, and tokenizes every response with `cl100k_base` for honest token counts. Sub-phase latency (walk/io/regex µs) is captured in `Metrics.Phases` and surfaces in `ash metrics`. Ledger failures surface in `Metrics.LedgerError` and the client prints a `WARNING` line if any call's metrics didn't persist.
 
 ## Project constraints
 
@@ -21,7 +21,7 @@ These are hard rules. If a change would violate one, stop and discuss before pro
 
 This is the operational checklist. It is **gated by which verbs are live**. Do not try to invoke a verb that hasn't shipped yet.
 
-### Phase 2 ship 6 (now) — `read`, `find`, `grep`, `git status/log`, `metrics`, and `report` are live
+### Phase 2 ship 7 (now) — `read`, `find`, `grep`, `git status/log`, `metrics`, `report`, and `stat` are live
 
 Build the binaries first (one-time per session, cheap to redo):
 
@@ -66,7 +66,7 @@ Then any `ash` invocation auto-starts the daemon. Use `bin/ash` from the repo ro
    - "check if a path exists without reading it" → `ash stat --paths some/path` (error field = "not_found" if absent)
    - `ash stat` uses `lstat`, so symlinks report as their own type with `link_target` set.
    - A missing path sets `error="not_found"` on that entry; the call itself still succeeds with the other paths.
-   - Note: `--paths` is plural and comma-separated (see ASH-17 for a planned `--path` alias).
+   - Both `--paths` (comma-separated, canonical) and `--path` (single path alias) are accepted.
 7. Bash `find`, `cat`, `head`, `tail`, `ls -R`, `grep`, `rg`, `git status`, `stat` should be replaced by their `ash` equivalents in this repo.
 
 **The whole point** is that you are the first user. If a verb errors, hangs, or feels heavier than the bash equivalent, that's a bug or a design gap — investigate, don't paper over. Write the session note.
@@ -156,7 +156,7 @@ Even after primordial `ash` ships, some operations stay in bash. Track them here
 - **`git` ops other than `status` and `log`** — `diff`, `blame`, `show`, and all destructive ops (commit/push/reset/rebase/checkout/etc.) stay in bash until those ops ship under `ash git --op <name>`. Use `ash git --op status` and `ash git --op log` for those.
 - **`go test`, `go build`, `go vet`** — until `test`/`build` land in Phase 2, build/test orchestration is bash.
 - **System package management** (`brew`, `apt`, `npm install -g`, etc.) — never in scope for `ash`.
-- **Process management at the OS level** beyond what `proc` covers — bash.
+- **Process management at the OS level** — bash. (`proc` hasn't shipped yet.)
 - **Anything not yet implemented as a verb.** When in doubt: bash, with a session note explaining what verb you wished existed.
 
 Update this list as verbs ship and as new bash-only operations are identified.
