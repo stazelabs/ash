@@ -40,25 +40,34 @@ type Scope struct {
 }
 
 type Totals struct {
-	Calls      int   `msgpack:"calls"`
-	OK         int   `msgpack:"ok"`
-	Errors     int   `msgpack:"errors"`
-	TokensIn   int64 `msgpack:"tokens_in"`
-	TokensOut  int64 `msgpack:"tokens_out"`
-	ExecSumUs  int64 `msgpack:"exec_sum_us"`
+	Calls     int   `msgpack:"calls"`
+	OK        int   `msgpack:"ok"`
+	Errors    int   `msgpack:"errors"`
+	TokensIn  int64 `msgpack:"tokens_in"`
+	TokensOut int64 `msgpack:"tokens_out"`
+	ExecSumUs int64 `msgpack:"exec_sum_us"`
+}
+
+// VerbSubPhase holds the percentage of exec_us attributed to one named phase.
+// Phases: "walk" (exclusive walker overhead), "io", "regex", "other" (unattributed).
+// They sum to 100 by construction when exec_us > 0.
+type VerbSubPhase struct {
+	Name string  `msgpack:"name"`
+	Pct  float64 `msgpack:"pct"`
 }
 
 type VerbStats struct {
-	Verb          string  `msgpack:"verb"`
-	N             int     `msgpack:"n"`
-	OKCount       int     `msgpack:"ok_count"`
-	OKPct         float64 `msgpack:"ok_pct"`
-	P50ExecUs     int64   `msgpack:"p50_exec_us"`
-	P95ExecUs     int64   `msgpack:"p95_exec_us"`
-	P50TokensOut  int64   `msgpack:"p50_tokens_out"`
-	P95TokensOut  int64   `msgpack:"p95_tokens_out"`
-	TruncatedN    int     `msgpack:"truncated_n"`
-	TruncatedPct  float64 `msgpack:"truncated_pct"`
+	Verb         string         `msgpack:"verb"`
+	N            int            `msgpack:"n"`
+	OKCount      int            `msgpack:"ok_count"`
+	OKPct        float64        `msgpack:"ok_pct"`
+	P50ExecUs    int64          `msgpack:"p50_exec_us"`
+	P95ExecUs    int64          `msgpack:"p95_exec_us"`
+	P50TokensOut int64          `msgpack:"p50_tokens_out"`
+	P95TokensOut int64          `msgpack:"p95_tokens_out"`
+	TruncatedN   int            `msgpack:"truncated_n"`
+	TruncatedPct float64        `msgpack:"truncated_pct"`
+	SubPhases    []VerbSubPhase `msgpack:"sub_phases,omitempty"`
 }
 
 type Result struct {
@@ -147,6 +156,7 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 		vs := VerbStats{Verb: verb, N: len(cs)}
 		execUs := make([]int64, len(cs))
 		tokOut := make([]int64, len(cs))
+		var sumExec, sumWalk, sumIO, sumRegex int64
 		for i, c := range cs {
 			if c.OK {
 				vs.OKCount++
@@ -156,6 +166,10 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 			}
 			execUs[i] = c.LatencyExecUs
 			tokOut[i] = int64(c.TokensOut)
+			sumExec += c.LatencyExecUs
+			sumWalk += c.WalkUs
+			sumIO += c.IOUs
+			sumRegex += c.RegexUs
 		}
 		vs.OKPct = pct(vs.OKCount, vs.N)
 		vs.TruncatedPct = pct(vs.TruncatedN, vs.N)
@@ -163,6 +177,30 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 		vs.P95ExecUs = percentile(execUs, 0.95)
 		vs.P50TokensOut = percentile(tokOut, 0.50)
 		vs.P95TokensOut = percentile(tokOut, 0.95)
+
+		// Sub-phase breakdown: only emit when at least one call had phase data.
+		// walk% is exclusive walker overhead (WalkUs minus its IO/regex subsets).
+		// other% is exec time outside walker.Walk entirely.
+		if sumExec > 0 && (sumWalk > 0 || sumIO > 0 || sumRegex > 0) {
+			walkExcl := sumWalk - sumIO - sumRegex
+			if walkExcl < 0 {
+				walkExcl = 0
+			}
+			walkPct := pctOf(walkExcl, sumExec)
+			ioPct := pctOf(sumIO, sumExec)
+			regexPct := pctOf(sumRegex, sumExec)
+			otherPct := 100.0 - walkPct - ioPct - regexPct
+			if otherPct < 0 {
+				otherPct = 0
+			}
+			vs.SubPhases = []VerbSubPhase{
+				{Name: "walk", Pct: walkPct},
+				{Name: "io", Pct: ioPct},
+				{Name: "regex", Pct: regexPct},
+				{Name: "other", Pct: otherPct},
+			}
+		}
+
 		stats = append(stats, vs)
 	}
 
@@ -187,6 +225,13 @@ func pct(n, total int) float64 {
 	return float64(n) / float64(total) * 100
 }
 
+func pctOf(num, denom int64) float64 {
+	if denom == 0 {
+		return 0
+	}
+	return float64(num) / float64(denom) * 100
+}
+
 func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)
@@ -206,7 +251,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if r.Scope.Verb != "" {
 		sessionLabel += ", verb=" + r.Scope.Verb
 	}
-	fmt.Fprintf(&b, "=== ash report: %s — %d calls, %s exec ===\n",
+	fmt.Fprintf(&b, "=== ash report: %s \xe2\x80\x94 %d calls, %s exec ===\n",
 		sessionLabel, r.Totals.Calls, fmtUs(r.Totals.ExecSumUs))
 
 	// Totals line
@@ -231,7 +276,41 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 			vs.TruncatedPct)
 	}
 
+	// Sub-phase breakdown section — only when at least one verb has phase data.
+	hasSubPhases := false
+	for _, vs := range r.ByVerb {
+		if len(vs.SubPhases) > 0 {
+			hasSubPhases = true
+			break
+		}
+	}
+	if hasSubPhases {
+		fmt.Fprintf(&b, "\nsub-phase breakdown (%% of exec, verbs that instrument phases):\n")
+		fmt.Fprintf(&b, "%-10s  %5s  %4s  %6s  %6s\n", "verb", "walk%", "io%", "regex%", "other%")
+		fmt.Fprintf(&b, "%s\n", strings.Repeat("-", 40))
+		for _, vs := range r.ByVerb {
+			if len(vs.SubPhases) == 0 {
+				continue
+			}
+			walkPct := subPhasePct(vs.SubPhases, "walk")
+			ioPct := subPhasePct(vs.SubPhases, "io")
+			regexPct := subPhasePct(vs.SubPhases, "regex")
+			otherPct := subPhasePct(vs.SubPhases, "other")
+			fmt.Fprintf(&b, "%-10s  %4.0f%%  %3.0f%%  %5.0f%%  %5.0f%%\n",
+				vs.Verb, walkPct, ioPct, regexPct, otherPct)
+		}
+	}
+
 	return strings.TrimRight(b.String(), "\n")
+}
+
+func subPhasePct(phases []VerbSubPhase, name string) float64 {
+	for _, p := range phases {
+		if p.Name == name {
+			return p.Pct
+		}
+	}
+	return 0
 }
 
 // fmtUs formats microseconds as e.g. "142us", "2.4ms", "1.2s".
@@ -326,6 +405,22 @@ func decodeResult(data any) (*Result, bool) {
 			}
 			if v, ok := toFloat64(vm["truncated_pct"]); ok {
 				vs.TruncatedPct = v
+			}
+			if rawSP, ok := vm["sub_phases"].([]any); ok {
+				for _, px := range rawSP {
+					pm, ok := px.(map[string]any)
+					if !ok {
+						continue
+					}
+					sp := VerbSubPhase{}
+					if v, ok := pm["name"].(string); ok {
+						sp.Name = v
+					}
+					if v, ok := toFloat64(pm["pct"]); ok {
+						sp.Pct = v
+					}
+					vs.SubPhases = append(vs.SubPhases, sp)
+				}
 			}
 			r.ByVerb = append(r.ByVerb, vs)
 		}

@@ -1,10 +1,12 @@
 package report
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stazelabs/ash/internal/ledger"
+	"github.com/stazelabs/ash/internal/proto"
 )
 
 func TestPercentile(t *testing.T) {
@@ -205,5 +207,130 @@ func TestFmtUs(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("fmtUs(%d) = %q, want %q", tt.us, got, tt.want)
 		}
+	}
+}
+
+func makeCallsWithPhases(verb string, execUs, walkUs, ioUs, regexUs int64) []ledger.Call {
+	return []ledger.Call{{
+		Verb:          verb,
+		OK:            true,
+		LatencyExecUs: execUs,
+		WalkUs:        walkUs,
+		IOUs:          ioUs,
+		RegexUs:       regexUs,
+	}}
+}
+
+func TestAggregate_SubPhases_FindLike(t *testing.T) {
+	// exec=1000, walk=830 (io=210, regex=0 are subsets)
+	// walk_excl = 830-210 = 620 → 62%, io = 21%, regex = 0%, other = 17%
+	calls := makeCallsWithPhases("find", 1000, 830, 210, 0)
+	r := aggregate(calls, Scope{Session: "current"})
+
+	if len(r.ByVerb) != 1 {
+		t.Fatalf("expected 1 verb, got %d", len(r.ByVerb))
+	}
+	vs := r.ByVerb[0]
+	if len(vs.SubPhases) == 0 {
+		t.Fatal("expected SubPhases to be populated")
+	}
+
+	cases := []struct{ name string; want float64 }{
+		{"walk", 62},
+		{"io", 21},
+		{"regex", 0},
+		{"other", 17},
+	}
+	for _, c := range cases {
+		got := subPhasePct(vs.SubPhases, c.name)
+		if got != c.want {
+			t.Errorf("subPhase %q = %.0f, want %.0f", c.name, got, c.want)
+		}
+	}
+}
+
+func TestAggregate_SubPhases_GrepLike(t *testing.T) {
+	// exec=1000, walk=900 (io=440, regex=80 are subsets)
+	// walk_excl = 900-440-80 = 380 → 38%, io = 44%, regex = 8%, other = 10%
+	calls := makeCallsWithPhases("grep", 1000, 900, 440, 80)
+	r := aggregate(calls, Scope{Session: "current"})
+
+	vs := r.ByVerb[0]
+	cases := []struct{ name string; want float64 }{
+		{"walk", 38},
+		{"io", 44},
+		{"regex", 8},
+		{"other", 10},
+	}
+	for _, c := range cases {
+		got := subPhasePct(vs.SubPhases, c.name)
+		if got != c.want {
+			t.Errorf("subPhase %q = %.0f, want %.0f", c.name, got, c.want)
+		}
+	}
+}
+
+func TestAggregate_SubPhases_NoPhaseData(t *testing.T) {
+	calls := makeCalls("read", 2, 500, true, false) // WalkUs/IOUs/RegexUs all zero
+	r := aggregate(calls, Scope{Session: "current"})
+
+	if len(r.ByVerb[0].SubPhases) != 0 {
+		t.Errorf("expected no SubPhases when phases are zero, got %v", r.ByVerb[0].SubPhases)
+	}
+}
+
+func TestAggregate_SubPhases_WalkExclClamped(t *testing.T) {
+	// Walk < io+regex (clock skew / data anomaly): exclusive walk should clamp to 0.
+	calls := makeCallsWithPhases("grep", 1000, 100, 400, 100)
+	r := aggregate(calls, Scope{Session: "current"})
+
+	vs := r.ByVerb[0]
+	walkPct := subPhasePct(vs.SubPhases, "walk")
+	if walkPct < 0 {
+		t.Errorf("walk%% should be >= 0, got %.1f", walkPct)
+	}
+}
+
+func TestPctOf(t *testing.T) {
+	if pctOf(0, 0) != 0 {
+		t.Error("pctOf(0,0) should be 0")
+	}
+	if pctOf(620, 1000) != 62.0 {
+		t.Errorf("pctOf(620,1000) = %v, want 62.0", pctOf(620, 1000))
+	}
+	if pctOf(1000, 1000) != 100.0 {
+		t.Errorf("pctOf(1000,1000) = %v, want 100.0", pctOf(1000, 1000))
+	}
+}
+
+func TestSubPhasePct(t *testing.T) {
+	phases := []VerbSubPhase{
+		{Name: "walk", Pct: 62},
+		{Name: "io", Pct: 21},
+		{Name: "regex", Pct: 0},
+		{Name: "other", Pct: 17},
+	}
+	if subPhasePct(phases, "walk") != 62 {
+		t.Errorf("expected 62, got %v", subPhasePct(phases, "walk"))
+	}
+	if subPhasePct(phases, "missing") != 0 {
+		t.Errorf("expected 0 for missing phase, got %v", subPhasePct(phases, "missing"))
+	}
+}
+
+func TestPrettyResponse_SubPhaseSection(t *testing.T) {
+	calls := makeCallsWithPhases("find", 1000, 830, 210, 0)
+	r := aggregate(calls, Scope{Session: "current"})
+
+	// Simulate the PrettyResponse path via the *Result fast path in decodeResult.
+	rsp := &proto.Response{OK: true}
+	rsp.Data = r
+	out := PrettyResponse(nil, rsp)
+
+	if !strings.Contains(out, "sub-phase breakdown") {
+		t.Errorf("expected sub-phase breakdown section in output:\n%s", out)
+	}
+	if !strings.Contains(out, "find") {
+		t.Errorf("expected verb name in sub-phase section:\n%s", out)
 	}
 }
