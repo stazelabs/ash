@@ -19,6 +19,7 @@ import (
 
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/session"
+	"github.com/stazelabs/ash/internal/verbs/find"
 	"github.com/stazelabs/ash/internal/verbs/read"
 )
 
@@ -107,6 +108,9 @@ func printUsage() {
 
 verbs (phase 1, work in progress):
   read --path <p> [--range start:end] [--range_kind lines|bytes] [--limit_bytes N]
+  find --path <p> [--glob <pattern>] [--type any|file|dir|symlink]
+                  [--max_depth N] [--limit N] [--exclude <pattern>]
+                  [--include_hidden true|false]
 
 ash auto-starts the daemon (ashd) on first call.`)
 }
@@ -228,6 +232,8 @@ func prettyResponse(verb string, req *proto.Request, rsp *proto.Response) string
 	switch verb {
 	case "read":
 		return read.PrettyResponse(req, rsp)
+	case "find":
+		return find.PrettyResponse(req, rsp)
 	default:
 		return proto.PrettyResponseHeader(rsp)
 	}

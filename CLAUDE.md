@@ -8,7 +8,7 @@ This file is the operational counterpart to `README.md`. The README is the desig
 
 This repo is also a deliberate experiment in *recursive* tool development: as soon as primordial `ash` exists (Phase 1: `find` + `grep` + `read` + daemon + bash shim + ledger), agents working on this repo start using `ash` for those operations. Every session feeds the next phase's design.
 
-**Current phase:** Phase 1, ship 1 — `ash read` is live. Daemon (`ashd`) auto-starts on first invocation, persists per-call instrumentation to a SQLite ledger at `.ash/ledger.db`, and tokenizes every response with `cl100k_base` for honest token counts.
+**Current phase:** Phase 1, ship 2 — `ash read` and `ash find` are live. Daemon (`ashd`) auto-starts on first invocation, persists per-call instrumentation to a SQLite ledger at `.ash/ledger.db`, and tokenizes every response with `cl100k_base` for honest token counts. Ledger failures surface in `Metrics.LedgerError` and the client prints a `WARNING` line if any call's metrics didn't persist.
 
 ## Project constraints
 
@@ -21,7 +21,7 @@ These are hard rules. If a change would violate one, stop and discuss before pro
 
 This is the operational checklist. It is **gated by which verbs are live**. Do not try to invoke a verb that hasn't shipped yet.
 
-### Phase 1 ship 1 (now) — `read` is live
+### Phase 1 ship 2 (now) — `read` and `find` are live
 
 Build the binaries first (one-time per session, cheap to redo):
 
@@ -32,21 +32,22 @@ go build -o bin/ashd ./cmd/ashd
 
 Then any `ash` invocation auto-starts the daemon. Use `bin/ash` from the repo root, or add `bin/` to `$PATH` for the session.
 
-**Use `ash read` deliberately at least a few times per session that touches the project**, even when the harness Read tool would suffice. The point right now is not that `ash read` outperforms Read — it doesn't yet. The point is to:
+**Switch criteria — what to actually use ash for now:**
 
-- Generate ledger data so we have something to compare against when `find` and `grep` ship.
-- Notice friction in the wire format, the auto-start dance, the pretty-print, the args mapping.
-- Build muscle memory for the dogfooding habit before the verbs that genuinely matter (`grep`, `find`) land.
+1. **Any path or filename lookup across more than one directory** — use `ash find`. Examples:
+   - "list all .go files under cmd/" → `ash find --path cmd --glob '**/*.go' --type file`
+   - "show top-level files only" → `ash find --path . --max_depth 1`
+   - "find anything related to ledger" → `ash find --path . --glob '**/*ledger*'`
+   - Hidden directories (`.git`, `.ash`, `.vscode`) are skipped by default. Pass `--include_hidden true` if you actually want them.
+   - The `bin/` directory is gitignored but `find` still walks it — pass `--exclude 'bin/**'` when it's noise.
+2. **Reads of files in this repo** — use `ash read` deliberately at least a few times per session, even when the harness Read tool would suffice. We need ledger data to compare.
+3. Bash `find`, `cat`, `head`, `tail`, `ls -R` should be replaced by their `ash` equivalents in this repo. Bash `grep` stays until ship 3.
 
-Concrete checklist:
+**The whole point** is that you are the first user. If `ash find` or `ash read` errors, hangs, or feels heavier than the bash equivalent, that's a bug or a design gap — investigate, don't paper over. Write the session note.
 
-1. Do at least one `ash read` per session in this repo. Hit a small file (top of `README.md` or a Go file). Write a session note (see ritual below) about anything that felt off.
-2. If `ash read` errors or hangs, that's a bug — investigate, don't paper over. The whole point of building it this way is that *you* are the first user.
-3. Other reads (the harness Read tool, bash `cat`/`head`) are still completely fine. We're not replacing anything yet.
+### Phase 1 ship 3 (next) — `grep` will land here
 
-### Phase 1 ship 2-3 (next) — `find` and `grep` will land here
-
-When `ash find` ships, this block grows: any path/glob lookup across more than one directory uses `ash find`. When `ash grep` ships: any pattern search across more than one file uses `ash grep`. Until then, those operations stay in bash.
+When `ash grep` ships: any pattern search across more than one file uses `ash grep`. Until then, those operations stay in bash.
 
 ## How to invoke ash
 
@@ -75,6 +76,7 @@ The ledger is the substrate for the recursive-development experiment. If a sessi
 ### Live verbs
 
 - `ash read --path <p> [--range start:end] [--range_kind lines|bytes] [--limit_bytes N]` — read a file (or a line/byte range of one). UTF-8 returned as-is; binary returned base64-encoded with `encoding=base64` in the response. Default size cap is 256 KiB.
+- `ash find --path <p> [--glob <pattern>] [--type any|file|dir|symlink] [--max_depth N] [--limit N] [--exclude <pattern>] [--include_hidden true|false]` — list paths under `<p>`. `glob` and `exclude` are doublestar patterns (`**` for recursive, `*.{go,md}` for alternation, etc.). `include_hidden` defaults to false (directories starting with `.` are skipped; leaf dotfiles like `.gitignore` are still findable). Default `limit` is 256, hard cap 4096; truncation produces a hint about how to narrow. Symlinks are reported but never followed.
 
 ## Session feedback ritual
 

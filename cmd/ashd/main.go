@@ -15,6 +15,7 @@ import (
 	"github.com/stazelabs/ash/internal/ledger"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/session"
+	"github.com/stazelabs/ash/internal/verbs/find"
 	"github.com/stazelabs/ash/internal/verbs/read"
 )
 
@@ -115,6 +116,21 @@ func handle(conn net.Conn, led *ledger.Ledger) {
 					rsp.Data = result
 				}
 			}
+		case "find":
+			args, perr := find.ParseArgs(req.Args)
+			if perr != nil {
+				rsp.OK = false
+				rsp.Err = perr
+			} else {
+				result, perr := find.Run(args)
+				if perr != nil {
+					rsp.OK = false
+					rsp.Err = perr
+				} else {
+					rsp.OK = true
+					rsp.Data = result
+				}
+			}
 		default:
 			rsp.OK = false
 			rsp.Err = &proto.Error{Code: "unknown_verb", Msg: "unknown verb: " + req.Verb}
@@ -129,6 +145,8 @@ func handle(conn net.Conn, led *ledger.Ledger) {
 		switch req.Verb {
 		case "read":
 			prettyRsp = read.PrettyResponse(req, rsp)
+		case "find":
+			prettyRsp = find.PrettyResponse(req, rsp)
 		default:
 			prettyRsp = proto.PrettyResponseHeader(rsp)
 		}
@@ -210,6 +228,9 @@ func truncatedFromResult(rsp *proto.Response) bool {
 		return false
 	}
 	if r, ok := rsp.Data.(*read.Result); ok {
+		return r.Truncated
+	}
+	if r, ok := rsp.Data.(*find.Result); ok {
 		return r.Truncated
 	}
 	return false
