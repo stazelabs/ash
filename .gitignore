@@ -1,0 +1,22 @@
+# Build output
+bin/
+dist/
+*.exe
+
+# Test artifacts
+*.test
+coverage.out
+coverage.html
+
+# Vendored deps
+vendor/
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Editor noise
+.idea/
+.vscode/
+*.swp
+*~
