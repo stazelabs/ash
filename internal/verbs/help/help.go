@@ -63,6 +63,7 @@ var registry = []VerbSchema{
 			{Name: "exclude", Type: "string", Default: "", Description: "Doublestar pattern; matching entries are skipped entirely."},
 			{Name: "include_hidden", Type: "bool", Default: "false", Description: "When false, directories starting with '.' are skipped. Leaf dotfiles remain findable."},
 			{Name: "respect_gitignore", Type: "bool", Default: "true", Description: "When true, .gitignore at the walk root is loaded and applied. Pass false for a raw walk."},
+			{Name: "with_meta", Type: "bool", Default: "false", Description: "When true, each pretty-form row shows '<F|D|L> <size> <yyyy-mm-dd> <path>'. Default is path-only (with trailing '/' for dirs); use 'ash stat' for size/mtime."},
 		},
 	},
 	{

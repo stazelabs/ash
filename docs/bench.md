@@ -141,3 +141,29 @@ Example mappings:
 ## Conceptual takeaway
 
 The hook puts us in a position to *build* the comparison, not in possession of it. The hook contains the bash↔ash mapping but only uses it to deny. `ash bench` walks that mapping in reverse to run controlled comparisons on demand. Hook telemetry and optional shadow recording are layered follow-ups.
+
+## First optimization round (2026-05-08): `find` pretty form
+
+Bench v1 surfaced `find` at **+148% tokens** vs bash on the per-verb summary (find_shallow +495%, find_go_files +123%, find_md_in_docs +87%). Profiling the pretty form ([internal/verbs/find/find.go](../internal/verbs/find/find.go) `writeRecord`) showed each row was `<F|D|L> <size> <yyyy-mm-dd> <path>` — about ~10 tokens of metadata per record, dominated by the date column (`2026-05-08` is 5 tokens because tiktoken splits yyyy-mm-dd on the hyphens).
+
+Fix: lean default + opt-in metadata.
+
+- Default rendering is path-only, with a trailing `/` on directories to disambiguate from files. Symlinks render as the bare path (use `ash stat` for the link target).
+- `--with_meta true` brings back the `<F|D|L> <size> <yyyy-mm-dd> <path>` form for callers that want it.
+- Wire/JSON data is unchanged — size + mtime + type are still in the structured `Result.Records`. Only the pretty rendering changes.
+
+Bench delta after the change:
+
+| case | before | after | Δ |
+|---|---|---|---|
+| find_shallow | +495% | +71% | -424pp |
+| find_go_files | +123% | -6% | -129pp |
+| find_md_in_docs | +87% | +11% | -76pp |
+| **find verb summary** | **+148%** | **+7%** | **-141pp** |
+| **overall (13 cases)** | **-40%** | **-44%** | -4pp |
+
+Take-aways the bench made visible:
+
+1. The single biggest cost was the date column — tiktoken splits hyphenated dates aggressively. If we ever bring date back to the default, format it as `yyyymmdd` (3 tokens) rather than `yyyy-mm-dd` (5 tokens).
+2. JSON-envelope penalty on tiny queries (find_shallow still +71%) is a header amortization issue — the `=== ash find: N results [scope] ===` line is fixed cost. Acceptable for now; if it becomes load-bearing, we can collapse the header on small results.
+3. Structured data on the wire vs human-readable rendering are separable concerns — the design principle "robot-first, structured everything" survived the change because nothing the agent could *do* with the result lost any information.

@@ -53,6 +53,7 @@ type Args struct {
 	Exclude          string
 	IncludeHidden    bool
 	RespectGitignore bool
+	WithMeta         bool // include size + mtime + type prefix in pretty form
 }
 
 type Record struct {
@@ -94,6 +95,9 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 		return nil, perr
 	}
 	if a.RespectGitignore, perr = argutil.OptionalBool(in, "respect_gitignore", true); perr != nil {
+		return nil, perr
+	}
+	if a.WithMeta, perr = argutil.OptionalBool(in, "with_meta", false); perr != nil {
 		return nil, perr
 	}
 	if !doublestar.ValidatePathPattern(a.Glob) {
@@ -194,6 +198,17 @@ func typeMatches(want, got string) bool {
 
 // PrettyResponse renders the find response in canonical line-oriented form.
 // Used both for client display and daemon-side token counting.
+//
+// Default ("lean") form is one path per line, with a trailing `/` on
+// directory entries to disambiguate them from files. Size + mtime
+// metadata is omitted by default — agents that want it pass
+// `--with_meta true` (or follow up with `ash stat` for selected paths).
+//
+// Rationale: in the find_md_in_docs / find_go_files bench cases the
+// default-on metadata cost ~10 tokens per record (date alone is ~5
+// because tiktoken splits yyyy-mm-dd), pushing ash find above bash
+// `find` on every measured case. The wire data still carries size +
+// mtime + type — only the pretty rendering changes.
 func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)
@@ -201,6 +216,14 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	r, ok := decodeResult(rsp.Data)
 	if !ok {
 		return "ok\n<unrecognized find result>"
+	}
+	withMeta := false
+	if req != nil {
+		if v, ok := req.Args["with_meta"]; ok {
+			if b, ok := argutil.ToBool(v); ok {
+				withMeta = b
+			}
+		}
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "=== ash find: %d results", r.Count)
@@ -212,7 +235,11 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	}
 	b.WriteString(" ===\n")
 	for _, rec := range r.Records {
-		writeRecord(&b, rec)
+		if withMeta {
+			writeRecordFull(&b, rec)
+		} else {
+			writeRecordLean(&b, rec)
+		}
 	}
 	if r.Truncated {
 		b.WriteString("\n[truncation: ")
@@ -222,7 +249,20 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-func writeRecord(b *strings.Builder, r Record) {
+// writeRecordLean is the default pretty row: just the path, with a
+// trailing `/` for dirs. Symlinks render as the bare path; the agent
+// can `ash stat` to learn the link target if needed.
+func writeRecordLean(b *strings.Builder, r Record) {
+	b.WriteString(r.Path)
+	if r.Type == "dir" {
+		b.WriteByte('/')
+	}
+	b.WriteByte('\n')
+}
+
+// writeRecordFull is the verbose row used when --with_meta=true:
+// `<F|D|L> <size> <yyyy-mm-dd> <path>`.
+func writeRecordFull(b *strings.Builder, r Record) {
 	switch r.Type {
 	case "dir":
 		b.WriteByte('D')
