@@ -39,7 +39,7 @@ Then any `ash` invocation auto-starts the daemon. Use `bin/ash` from the repo ro
    - "show top-level files only" → `ash find --path . --max_depth 1`
    - "find anything related to ledger" → `ash find --path . --glob '**/*ledger*'`
    - Hidden directories (`.git`, `.ash`, `.vscode`) are skipped by default. Pass `--include_hidden true` if you actually want them.
-   - The `bin/` directory is gitignored but `find` still walks it — pass `--exclude 'bin/**'` when it's noise.
+   - `.gitignore` at the walk root is respected by default. Pass `--respect_gitignore false` for a raw walk (e.g. when you genuinely need to inspect generated artifacts in `bin/` or `dist/`).
 2. **Reads of files in this repo** — use `ash read` deliberately at least a few times per session, even when the harness Read tool would suffice. We need ledger data to compare.
 3. Bash `find`, `cat`, `head`, `tail`, `ls -R` should be replaced by their `ash` equivalents in this repo. Bash `grep` stays until ship 3.
 
@@ -76,7 +76,7 @@ The ledger is the substrate for the recursive-development experiment. If a sessi
 ### Live verbs
 
 - `ash read --path <p> [--range start:end] [--range_kind lines|bytes] [--limit_bytes N]` — read a file (or a line/byte range of one). UTF-8 returned as-is; binary returned base64-encoded with `encoding=base64` in the response. Default size cap is 256 KiB.
-- `ash find --path <p> [--glob <pattern>] [--type any|file|dir|symlink] [--max_depth N] [--limit N] [--exclude <pattern>] [--include_hidden true|false]` — list paths under `<p>`. `glob` and `exclude` are doublestar patterns (`**` for recursive, `*.{go,md}` for alternation, etc.). `include_hidden` defaults to false (directories starting with `.` are skipped; leaf dotfiles like `.gitignore` are still findable). Default `limit` is 256, hard cap 4096; truncation produces a hint about how to narrow. Symlinks are reported but never followed.
+- `ash find --path <p> [--glob <pattern>] [--type any|file|dir|symlink] [--max_depth N] [--limit N] [--exclude <pattern>] [--include_hidden true|false] [--respect_gitignore true|false]` — list paths under `<p>`. `glob` and `exclude` are doublestar patterns (`**` for recursive, `*.{go,md}` for alternation, etc.). `include_hidden` defaults to false (directories starting with `.` are skipped; leaf dotfiles like `.gitignore` are still findable). `respect_gitignore` defaults to **true** — the `.gitignore` at the walk root (`<p>`) is loaded and applied. Pass `--respect_gitignore false` for a raw filesystem walk. Nested `.gitignore` files are not yet honored. Default `limit` is 256, hard cap 4096; truncation produces a hint about how to narrow. Symlinks are reported but never followed.
 
 ## Session feedback ritual
 

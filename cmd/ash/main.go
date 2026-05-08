@@ -111,6 +111,7 @@ verbs (phase 1, work in progress):
   find --path <p> [--glob <pattern>] [--type any|file|dir|symlink]
                   [--max_depth N] [--limit N] [--exclude <pattern>]
                   [--include_hidden true|false]
+                  [--respect_gitignore true|false]   (default true)
 
 ash auto-starts the daemon (ashd) on first call.`)
 }

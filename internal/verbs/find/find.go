@@ -2,15 +2,19 @@
 //
 // Args:
 //
-//	path            string  (required) - starting directory
-//	glob            string  (optional) - doublestar pattern, default "**"
-//	type            string  (optional) - "any" | "file" | "dir" | "symlink", default "any"
-//	max_depth       int     (optional) - 0 means unlimited; 0 = path itself only otherwise
-//	limit           int     (optional) - cap on records, default 256, hard cap 4096
-//	exclude         string  (optional) - doublestar pattern; matches are skipped
-//	include_hidden  bool    (optional) - if false (default), directories whose name
-//	                                     starts with "." are not recursed into. Leaf
-//	                                     files starting with "." are still findable.
+//	path                string  (required) - starting directory
+//	glob                string  (optional) - doublestar pattern, default "**"
+//	type                string  (optional) - "any" | "file" | "dir" | "symlink", default "any"
+//	max_depth           int     (optional) - 0 means unlimited; 0 = path itself only otherwise
+//	limit               int     (optional) - cap on records, default 256, hard cap 4096
+//	exclude             string  (optional) - doublestar pattern; matches are skipped
+//	include_hidden      bool    (optional) - if false (default), directories whose name
+//	                                         starts with "." are not recursed into. Leaf
+//	                                         files starting with "." are still findable.
+//	respect_gitignore   bool    (optional) - if true (default), the .gitignore at the walk
+//	                                         root is loaded and its rules exclude matching
+//	                                         paths. Nested .gitignore files are NOT yet
+//	                                         honored. Pass false for raw filesystem walk.
 //
 // Path semantics mirror Unix find: the form of paths in results matches the
 // form of --path (relative-in -> relative-out, absolute-in -> absolute-out).
@@ -30,6 +34,7 @@ import (
 	"time"
 
 	"github.com/bmatcuk/doublestar/v4"
+	"github.com/stazelabs/ash/internal/gitignore"
 	"github.com/stazelabs/ash/internal/proto"
 )
 
@@ -40,13 +45,14 @@ const (
 )
 
 type Args struct {
-	Path          string
-	Glob          string
-	Type          string
-	MaxDepth      int  // 0 = unlimited
-	Limit         int
-	Exclude       string
-	IncludeHidden bool
+	Path             string
+	Glob             string
+	Type             string
+	MaxDepth         int // 0 = unlimited
+	Limit            int
+	Exclude          string
+	IncludeHidden    bool
+	RespectGitignore bool
 }
 
 type Record struct {
@@ -65,9 +71,10 @@ type Result struct {
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	a := &Args{
-		Glob:  DefaultGlob,
-		Type:  "any",
-		Limit: DefaultLimit,
+		Glob:             DefaultGlob,
+		Type:             "any",
+		Limit:            DefaultLimit,
+		RespectGitignore: true,
 	}
 	pv, ok := in["path"]
 	if !ok {
@@ -128,6 +135,13 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 			return nil, &proto.Error{Code: "args", Msg: "include_hidden must be a bool (true/false)"}
 		}
 		a.IncludeHidden = b
+	}
+	if v, ok := in["respect_gitignore"]; ok && v != nil {
+		b, ok := toBool(v)
+		if !ok {
+			return nil, &proto.Error{Code: "args", Msg: "respect_gitignore must be a bool (true/false)"}
+		}
+		a.RespectGitignore = b
 	}
 	if !doublestar.ValidatePathPattern(a.Glob) {
 		return nil, &proto.Error{Code: "args", Msg: "glob is not a valid pattern: " + a.Glob}
@@ -191,6 +205,17 @@ func Run(a *Args) (*Result, *proto.Error) {
 	rootSep := strings.Count(filepath.Clean(a.Path), string(filepath.Separator))
 	limitHit := false
 
+	// gitignore matcher is loaded from the walk root if respect_gitignore is on.
+	// nil matcher (no .gitignore present, or feature disabled) excludes nothing.
+	var gi *gitignore.Matcher
+	if a.RespectGitignore {
+		m, err := gitignore.LoadFromDir(a.Path)
+		if err != nil {
+			return nil, &proto.Error{Code: "gitignore", Msg: err.Error()}
+		}
+		gi = m
+	}
+
 	walkErr := filepath.WalkDir(a.Path, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			// Surface permission errors as skips, not failures. The walk
@@ -227,6 +252,13 @@ func Run(a *Args) (*Result, *proto.Error) {
 
 		rel, _ := filepath.Rel(a.Path, p)
 		matchPath := filepath.ToSlash(rel)
+
+		if gi.Excludes(matchPath, d.IsDir()) {
+			if d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
 
 		if a.Exclude != "" {
 			ex, _ := doublestar.Match(a.Exclude, matchPath)
@@ -373,6 +405,19 @@ func scopeFromArgs(req *proto.Request) string {
 	}
 	if v, ok := req.Args["type"].(string); ok && v != "" && v != "any" {
 		parts = append(parts, "type="+v)
+	}
+	// respect_gitignore is shown only when explicitly disabled, since true is
+	// the default. Same idea for include_hidden: hide the default, show the
+	// override.
+	if v, ok := req.Args["respect_gitignore"]; ok {
+		if b, ok := toBool(v); ok && !b {
+			parts = append(parts, "respect_gitignore=false")
+		}
+	}
+	if v, ok := req.Args["include_hidden"]; ok {
+		if b, ok := toBool(v); ok && b {
+			parts = append(parts, "include_hidden=true")
+		}
 	}
 	return strings.Join(parts, ", ")
 }

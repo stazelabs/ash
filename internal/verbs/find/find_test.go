@@ -160,6 +160,72 @@ func TestRun_MaxDepth(t *testing.T) {
 	}
 }
 
+func TestRun_RespectsGitignoreByDefault(t *testing.T) {
+	root := makeTree(t)
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte("vendor/\n*.go\n!a.go\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Default args -> RespectGitignore=true. vendor/ disappears, *.go disappears
+	// except for the negated a.go.
+	res, perr := Run(&Args{Path: root, Glob: DefaultGlob, Type: "any", Limit: 100, RespectGitignore: true})
+	if perr != nil {
+		t.Fatalf("unexpected error: %+v", perr)
+	}
+	got := pathsByType(t, res, root, "")
+	for _, p := range got {
+		if strings.HasPrefix(p, "vendor/") || p == "vendor" {
+			t.Errorf("gitignored path leaked: %s", p)
+		}
+		if strings.HasSuffix(p, ".go") && p != "a.go" {
+			t.Errorf(".go file should have been gitignored (only a.go is negated): %s", p)
+		}
+	}
+	if !contains(got, "a.go") {
+		t.Errorf("negated pattern (!a.go) should keep a.go visible; got %v", got)
+	}
+	if !contains(got, "README.md") {
+		t.Errorf("non-matching files should still be present; got %v", got)
+	}
+}
+
+func TestRun_OptOutOfGitignore(t *testing.T) {
+	root := makeTree(t)
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte("vendor/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, perr := Run(&Args{Path: root, Glob: DefaultGlob, Type: "any", Limit: 100, RespectGitignore: false})
+	if perr != nil {
+		t.Fatalf("unexpected error: %+v", perr)
+	}
+	got := pathsByType(t, res, root, "")
+	if !contains(got, "vendor") || !contains(got, "vendor/pkg/v.go") {
+		t.Errorf("opt-out should walk vendor/, got %v", got)
+	}
+}
+
+func TestRun_NoGitignoreFileIsNoop(t *testing.T) {
+	root := makeTree(t)
+	// no .gitignore written; default-on should still work fine.
+	res, perr := Run(&Args{Path: root, Glob: DefaultGlob, Type: "any", Limit: 100, RespectGitignore: true})
+	if perr != nil {
+		t.Fatalf("unexpected error: %+v", perr)
+	}
+	got := pathsByType(t, res, root, "")
+	if !contains(got, "vendor/pkg/v.go") {
+		t.Errorf("with no .gitignore, vendor should still appear; got %v", got)
+	}
+}
+
+func TestParseArgs_DefaultsRespectGitignoreTrue(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{"path": "."})
+	if perr != nil {
+		t.Fatalf("unexpected: %+v", perr)
+	}
+	if !a.RespectGitignore {
+		t.Error("respect_gitignore should default to true")
+	}
+}
+
 func TestRun_Exclude(t *testing.T) {
 	root := makeTree(t)
 	res, perr := Run(&Args{Path: root, Glob: "**/*.go", Type: "file", Exclude: "vendor/**", Limit: 100})
