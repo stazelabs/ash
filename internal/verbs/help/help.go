@@ -153,6 +153,29 @@ var registry = []VerbSchema{
 		},
 	},
 	{
+		Verb:        "edit",
+		Description: "In-place file mutation. String-replacement mode (old_string/new_string) or line-range mode (range/new_content). Atomic write via temp-file+rename.",
+		Args: []ArgSchema{
+			{Name: "path", Type: "string", Required: true, Description: "File to edit."},
+			{Name: "old_string", Type: "string", Description: "[string mode] Exact text to find (required if range not provided). Must appear exactly once unless replace_all=true."},
+			{Name: "new_string", Type: "string", Default: "", Description: "[string mode] Replacement text. Empty string deletes the matched text."},
+			{Name: "replace_all", Type: "bool", Default: "false", Description: "[string mode] Replace every occurrence of old_string. If false, errors when old_string appears more than once."},
+			{Name: "range", Type: "string", Description: "[range mode] Line range to replace, formatted as start:end, 1-based inclusive (required if old_string not provided)."},
+			{Name: "new_content", Type: "string", Default: "", Description: "[range mode] Replacement text for the specified lines. Empty string deletes the lines."},
+			{Name: "dry_run", Type: "bool", Default: "false", Description: "Compute the replacement but do not write. Result includes a unified diff in the patch field."},
+		},
+	},
+	{
+		Verb:        "diff",
+		Description: "Compute a unified diff between a file and another file or inline content. Both inputs capped at 2000 lines. Returns additions, deletions, and the patch text.",
+		Args: []ArgSchema{
+			{Name: "path", Type: "string", Required: true, Description: "File to use as the before (a) side."},
+			{Name: "other", Type: "string", Description: "Second file for the after (b) side. Mutually exclusive with content."},
+			{Name: "content", Type: "string", Description: "Inline after-side text. Mutually exclusive with other. Pass '-' to read from stdin."},
+			{Name: "context", Type: "int", Default: "3", Description: "Context lines per hunk. Max 50."},
+		},
+	},
+	{
 		Verb:        "bench",
 		Description: "Run a canonical case list against ash and the bash equivalent the agent would otherwise have used; tokenize both with the same encoder and report tokens/latency deltas per case.",
 		Args: []ArgSchema{

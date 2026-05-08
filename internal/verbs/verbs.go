@@ -11,6 +11,8 @@ import (
 	"github.com/stazelabs/ash/internal/ledger"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/verbs/bench"
+	"github.com/stazelabs/ash/internal/verbs/diff"
+	"github.com/stazelabs/ash/internal/verbs/edit"
 	"github.com/stazelabs/ash/internal/verbs/find"
 	"github.com/stazelabs/ash/internal/verbs/git"
 	"github.com/stazelabs/ash/internal/verbs/grep"
@@ -51,6 +53,8 @@ func PrettyHandlers() map[string]Pretty {
 		"help":    help.PrettyResponse,
 		"stat":    stat.PrettyResponse,
 		"write":   write.PrettyResponse,
+		"edit":    edit.PrettyResponse,
+		"diff":    diff.PrettyResponse,
 		"bench":   bench.PrettyResponse,
 	}
 }
@@ -164,6 +168,24 @@ func Runners(led *ledger.Ledger) map[string]Runner {
 					return nil, perr
 				}
 				return write.Run(a, tr)
+			},
+		},
+		"edit": {
+			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
+				a, perr := edit.ParseArgs(args)
+				if perr != nil {
+					return nil, perr
+				}
+				return edit.Run(a, tr)
+			},
+		},
+		"diff": {
+			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
+				a, perr := diff.ParseArgs(args)
+				if perr != nil {
+					return nil, perr
+				}
+				return diff.Run(a, tr)
 			},
 		},
 	}

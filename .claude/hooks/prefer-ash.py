@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: deny built-in Grep/Glob and bash grep/find/cat/head/tail/
+"""PreToolUse hook: deny built-in Grep/Glob/Edit and bash grep/find/cat/head/tail/
 ls -R/git status/git log/stat in the ash repo, returning a suggested `ash <verb>`
 invocation.
 
-Read is intentionally NOT denied: the harness Edit/Write tools require a
-prior native Read to satisfy their internal "file has been read" guard, so
-denying Read created a catch-22 that forced agents into bash workarounds
-(`tee` heredocs, `python3 -c`) just to edit a file. CLAUDE.md guidance and
-ledger inspection drive `ash read` adoption instead. Bash `cat`/`head`/`tail`
-remain denied so pure-exploration reads still flow through `ash`.
+Read is intentionally NOT denied: `ash edit` (unlike the harness Edit) does not
+require a prior Read, but keeping Read available avoids blocking other harness
+internals. CLAUDE.md guidance and ledger inspection drive `ash read` adoption.
+Bash `cat`/`head`/`tail` remain denied so pure-exploration reads still flow
+through `ash`.
 
 The hook is project-scoped (registered in .claude/settings.json). On any
 unexpected error it allows the call through — the hook should steer, not
@@ -100,6 +99,21 @@ def handle_glob(tool_input: dict) -> None:
     pattern = tool_input.get("pattern") or "**/*"
     path = tool_input.get("path") or "."
     deny(f"Use ash instead: `{suggest_find(path, pattern, 'file')}`.")
+
+
+def handle_edit(tool_input: dict) -> None:
+    path = tool_input.get("file_path") or tool_input.get("path") or "<file>"
+    old = tool_input.get("old_string") or ""
+    new = tool_input.get("new_string") or ""
+    if old:
+        cmd = (
+            f"ash edit --path {shellquote(path)}"
+            f" --old_string {shellquote(old)}"
+            f" --new_string {shellquote(new)}"
+        )
+    else:
+        cmd = f"ash edit --path {shellquote(path)} --old_string <text> --new_string <replacement>"
+    deny(f"Use ash instead: `{cmd}`.")
 
 
 _BASH_SPLIT_RE = re.compile(r"\|\||&&|;|\|")
@@ -230,6 +244,8 @@ def main() -> None:
             handle_grep(tool_input)
         elif tool_name == "Glob":
             handle_glob(tool_input)
+        elif tool_name == "Edit":
+            handle_edit(tool_input)
         elif tool_name == "Bash":
             handle_bash(tool_input)
         else:

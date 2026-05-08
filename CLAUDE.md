@@ -8,7 +8,7 @@ This file is the operational counterpart to `README.md`. The README is the desig
 
 This repo is also a deliberate experiment in *recursive* tool development: as soon as primordial `ash` exists (Phase 1: `find` + `grep` + `read` + daemon + bash shim + ledger), agents working on this repo start using `ash` for those operations. Every session feeds the next phase's design.
 
-**Current phase:** Phase 2, ship 9 — `ash read`, `ash find`, `ash grep`, `ash git --op status|log|diff`, `ash metrics`, `ash report`, `ash stat`, `ash bench`, and `ash write` are live. Daemon (`ashd`) auto-starts on first invocation, persists per-call instrumentation to a SQLite ledger at `.ash/ledger.db`, and tokenizes every response with `cl100k_base` for honest token counts. Sub-phase latency (walk/io/regex µs) is captured in `Metrics.Phases` and surfaces in `ash metrics`. Ledger failures surface in `Metrics.LedgerError` and the client prints a `WARNING` line if any call's metrics didn't persist.
+**Current phase:** Phase 2, ship 11 — `ash read`, `ash find`, `ash grep`, `ash git --op status|log|diff`, `ash metrics`, `ash report`, `ash stat`, `ash bench`, `ash write`, `ash edit`, and `ash diff` are live. `ash edit` supports `--dry_run true` to preview changes without writing. All string-valued args accept `-` to read from stdin. Daemon (`ashd`) auto-starts on first invocation, persists per-call instrumentation to a SQLite ledger at `.ash/ledger.db`, and tokenizes every response with `cl100k_base` for honest token counts. Sub-phase latency (walk/io/regex µs) is captured in `Metrics.Phases` and surfaces in `ash metrics`. Ledger failures surface in `Metrics.LedgerError` and the client prints a `WARNING` line if any call's metrics didn't persist.
 
 ## Project constraints
 
@@ -21,7 +21,7 @@ These are hard rules. If a change would violate one, stop and discuss before pro
 
 This is the operational checklist. It is **gated by which verbs are live**. Do not try to invoke a verb that hasn't shipped yet.
 
-### Phase 2 ship 9 (now) — `read`, `find`, `grep`, `git status/log/diff`, `metrics`, `report`, `stat`, `bench`, and `write` are live
+### Phase 2 ship 11 (now) — `read`, `find`, `grep`, `git status/log/diff`, `metrics`, `report`, `stat`, `bench`, `write`, `edit`, and `diff` are live
 
 Build the binaries first (one-time per session, cheap to redo):
 
@@ -78,13 +78,27 @@ Then any `ash` invocation auto-starts the daemon. Use `bin/ash` from the repo ro
    - "ensure no accidental overwrite" → add `--create_only true`
    - "write binary/base64 content" → `--encoding base64`
    - Parent dirs are created automatically (`--mkdir true` default).
-8. Bash `find`, `cat`, `head`, `tail`, `ls -R`, `grep`, `rg`, `git status`, `git diff`, `stat` should be replaced by their `ash` equivalents in this repo.
+8. **Editing files in this repo** — use `ash edit` instead of the harness Edit tool. Examples:
+   - "replace a function body" → `ash edit --path internal/foo/foo.go --old_string 'func old() {}' --new_string 'func new() {}'`
+   - "delete a line or block" → `ash edit --path f.go --old_string 'line to remove\n' --new_string ''`
+   - "replace all occurrences" → add `--replace_all true`
+   - "replace a line range" → `ash edit --path f.go --range 5:10 --new_content 'replacement lines\n'`
+   - "delete lines" → `ash edit --path f.go --range 3:5` (omit `--new_content` for deletion)
+   - Errors if `old_string` is not found (`match_not_found`) or appears multiple times without `--replace_all true` (`ambiguous`). Both are signal — the agent should use a more specific string or confirm intent.
+   - "preview without writing" → add `--dry_run true`; result includes a unified diff in `patch` field.
+9. **Diffing content in this repo** — use `ash diff` to compare two files or a file against inline text. Examples:
+   - "what changed between these two files?" → `ash diff --path a.go --other b.go`
+   - "what would a replacement produce?" → `ash diff --path f.go --content 'new content'`
+   - "narrow hunk context" → add `--context 1`
+   - Pass `--content -` to read the after-side from stdin: `echo 'new' | ash diff --path f.go --content -`
+   - Both inputs capped at 2000 lines; returns unified diff patch + additions/deletions counts.
+10. Bash `find`, `cat`, `head`, `tail`, `ls -R`, `grep`, `rg`, `git status`, `git diff`, `stat` should be replaced by their `ash` equivalents in this repo.
 
 **The whole point** is that you are the first user. If a verb errors, hangs, or feels heavier than the bash equivalent, that's a bug or a design gap — investigate, don't paper over. Write the session note.
 
 ### Enforcement
 
-The repo ships a `PreToolUse` hook at `.claude/hooks/prefer-ash.py` (registered in `.claude/settings.json`) that denies the harness's built-in `Grep`/`Glob`/`Read` tools and bash `grep`/`rg`/`find`/`cat`/`head`/`tail`/`ls -R`/`git status`/`git log`/`stat` in this project, returning the equivalent `ash` invocation as the deny reason. Image/PDF/notebook reads are allowed through (`ash read` can't render them). `git blame`/`show` and other not-yet-shipped ops are allowed through. See [docs/PreToolUse.md](docs/PreToolUse.md) for the full design and behavior matrix.
+The repo ships a `PreToolUse` hook at `.claude/hooks/prefer-ash.py` (registered in `.claude/settings.json`) that denies the harness's built-in `Grep`/`Glob`/`Edit` tools and bash `grep`/`rg`/`find`/`cat`/`head`/`tail`/`ls -R`/`git status`/`git log`/`stat` in this project, returning the equivalent `ash` invocation as the deny reason. Image/PDF/notebook reads are allowed through (`ash read` can't render them). `git blame`/`show` and other not-yet-shipped ops are allowed through. See [docs/PreToolUse.md](docs/PreToolUse.md) for the full design and behavior matrix.
 
 If `ash` genuinely doesn't fit (a verb that hasn't shipped, a non-text artifact, etc.), the hook is best-effort — when it gets in the way, that is a session-note finding, not a hook bug to "work around" with `--no-verify`-style escape hatches.
 
@@ -141,7 +155,10 @@ The ledger is the substrate for the recursive-development experiment. If a sessi
 - `ash report [--session current|all|<id>] [--since <duration>] [--last <N>] [--verb <verb>]` — aggregated per-verb summary from the ledger: call count, ok%, p50/p95 exec latency, p50/p95 tokens_out, truncation rate. Defaults to the current daemon session. Use instead of `ash metrics --last 200` when you want synthesis rather than raw rows. Duration accepts Go format plus `d` suffix (e.g. `--since 1h`, `--since 7d`).
 - `ash help [--verb <verb>]` — return the structured argument schema for one verb or all live verbs. Omit `--verb` to see all schemas. Useful for checking defaults and valid values without reading source.
 - `ash stat --paths <p1>[,<p2>...]` — lstat one or more explicit paths and return `{type, size, mtime, mode, link_target?}` per entry. Per-entry `error` field (not_found / permission / stat) keeps a bulk call alive when some paths are missing. Use for pre-read size/mtime checks or existence testing without a full walk.
-- `ash write --path <p> --content <text> [--encoding utf-8|base64] [--mkdir true|false] [--create_only true|false]` — write content to a file. Parent directories are created by default (`--mkdir true`). Atomic via temp-file+rename so a crash mid-write never leaves a partial file. Pass `--encoding base64` for binary content. `--create_only true` errors if the file already exists. Result reports `bytes_written` and `created` (bool).
+- `ash write --path <p> --content <text|-> [--encoding utf-8|base64] [--mkdir true|false] [--create_only true|false]` — write content to a file. Parent directories are created by default (`--mkdir true`). Atomic via temp-file+rename. Pass `--content -` to read from stdin (avoids shell quoting issues with special characters). Result reports `bytes_written` and `created` (bool).
+- `ash edit --path <p> --old_string <text> [--new_string <text>] [--replace_all true|false] [--dry_run true|false]` — in-place string replacement. `--dry_run true` computes the change and returns a unified diff in `patch` without writing. Errors with `match_not_found` if not found, `ambiguous` if found multiple times. Atomic write.
+- `ash edit --path <p> --range <start:end> [--new_content <text>] [--dry_run true|false]` — line-range replacement (1-based, inclusive). End is clamped to file length. `--dry_run true` supported. Result reports `bytes_written`, `lines_total`, and `occurrences`.
+- `ash diff --path <p> (--other <p2> | --content <text|->) [--context N]` — unified diff between a file and another file or inline content. `--content -` reads from stdin. Returns `additions`, `deletions`, and `patch` (unified diff text). Both inputs capped at 2000 lines (`too_large` error above that).
 - `ash bench [--verb <verb>] [--case <name>] [--limit N]` — run a canonical case list against ash and the bash equivalent the agent would otherwise have used; tokenize both with the same encoder and report per-case Δtokens / Δlatency, plus per-verb and overall summaries. Use to answer "is ash actually saving tokens, per verb and per query shape?" — see [docs/bench.md](docs/bench.md). Bash subprocesses are sandboxed (timeout, 16 MiB stdout cap); the bench call itself is recorded in the ledger like any other verb, but per-case ash dispatches are not.
 
 ## Session feedback ritual

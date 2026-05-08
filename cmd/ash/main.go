@@ -37,6 +37,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "ash:", err)
 		os.Exit(2)
 	}
+	if err := resolveStdin(args); err != nil {
+		fmt.Fprintln(os.Stderr, "ash:", err)
+		os.Exit(2)
+	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -129,8 +133,13 @@ func printUsage() {
 
 verbs (phase 2):
   read    --path <p> [--range start:end] [--range_kind lines|bytes] [--limit_bytes N]
-  write   --path <p> --content <text> [--encoding utf-8|base64]
+  write   --path <p> --content <text|-> [--encoding utf-8|base64]
                      [--mkdir true|false] [--create_only true|false]
+  edit    --path <p> --old_string <text> [--new_string <text>]
+                     [--replace_all true|false] [--dry_run true|false]
+          --path <p> --range start:end [--new_content <text>]
+                     [--dry_run true|false]
+  diff    --path <p> (--other <p2> | --content <text|->) [--context N]
   find    --path <p> [--glob <pattern>] [--type any|file|dir|symlink]
                      [--max_depth N] [--limit N] [--exclude <pattern>]
                      [--include_hidden true|false] [--with_meta true|false]
@@ -157,6 +166,8 @@ verbs (phase 2):
   stat    --paths <p1>[,<p2>...]                        (lstat; per-entry errors)
   bench   [--verb <verb>] [--case <name>] [--limit N]   (ash vs bash comparison)
   help    [--verb <verb>]                               (omit for all verbs)
+
+note: pass - as a value to read that arg from stdin (e.g. --content -)
 
 global flags:
   --format pretty|json|msgpack   output format (default: pretty)
@@ -210,6 +221,30 @@ func parseFlags(argv []string) (map[string]any, error) {
 		out[key] = val
 	}
 	return out, nil
+}
+
+// resolveStdin replaces any arg value of exactly "-" with content read from
+// stdin. Only one arg may use "-" per invocation; reading stdin twice is an
+// error. This enables: echo 'new code' | ash write --path f.go --content -
+func resolveStdin(args map[string]any) error {
+	var stdinKey string
+	for k, v := range args {
+		if s, ok := v.(string); ok && s == "-" {
+			if stdinKey != "" {
+				return fmt.Errorf("only one arg can read from stdin (-); got both --%s and --%s", stdinKey, k)
+			}
+			stdinKey = k
+		}
+	}
+	if stdinKey == "" {
+		return nil
+	}
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return fmt.Errorf("reading stdin for --%s: %w", stdinKey, err)
+	}
+	args[stdinKey] = string(data)
+	return nil
 }
 
 func dialOrStart(root, sock string) (net.Conn, error) {
