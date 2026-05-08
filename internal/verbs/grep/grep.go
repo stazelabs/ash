@@ -34,7 +34,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -42,8 +41,8 @@ import (
 	"unicode"
 
 	"github.com/bmatcuk/doublestar/v4"
-	"github.com/stazelabs/ash/internal/gitignore"
 	"github.com/stazelabs/ash/internal/proto"
+	"github.com/stazelabs/ash/internal/walker"
 )
 
 const (
@@ -269,81 +268,25 @@ func Run(a *Args) (*Result, *proto.Error) {
 		// Single-file search; path filters and gitignore are skipped.
 		st.searchOne(a.Path, info)
 	} else {
-		var gi *gitignore.Matcher
-		if a.RespectGitignore {
-			m, err := gitignore.LoadFromDir(a.Path)
-			if err != nil {
-				return nil, &proto.Error{Code: "gitignore", Msg: err.Error()}
+		walkErr := walker.Walk(a.Path, walker.Options{
+			Glob:             a.Glob,
+			Exclude:          a.Exclude,
+			MaxDepth:         a.MaxDepth,
+			IncludeHidden:    a.IncludeHidden,
+			RespectGitignore: a.RespectGitignore,
+		}, func(e walker.Entry) (walker.Action, error) {
+			// grep only searches regular files. Dirs are descended (handled by
+			// the walker), symlinks are never followed, and Info() failures
+			// drop the entry rather than aborting the walk.
+			if e.Type != "file" || e.Info == nil {
+				return walker.Continue, nil
 			}
-			gi = m
-		}
-		rootSep := strings.Count(filepath.Clean(a.Path), string(filepath.Separator))
-
-		walkErr := filepath.WalkDir(a.Path, func(p string, d fs.DirEntry, err error) error {
-			if err != nil {
-				if errors.Is(err, fs.ErrPermission) {
-					if d != nil && d.IsDir() {
-						return fs.SkipDir
-					}
-					return nil
-				}
-				return err
+			if st.searchOne(e.Path, e.Info) {
+				return walker.Stop, nil
 			}
-			if p == a.Path {
-				return nil
-			}
-			base := filepath.Base(p)
-			if !a.IncludeHidden && d.IsDir() && strings.HasPrefix(base, ".") {
-				return fs.SkipDir
-			}
-			if a.MaxDepth > 0 {
-				depth := strings.Count(filepath.Clean(p), string(filepath.Separator)) - rootSep
-				if depth > a.MaxDepth {
-					if d.IsDir() {
-						return fs.SkipDir
-					}
-					return nil
-				}
-			}
-			rel, _ := filepath.Rel(a.Path, p)
-			matchPath := filepath.ToSlash(rel)
-			if gi.Excludes(matchPath, d.IsDir()) {
-				if d.IsDir() {
-					return fs.SkipDir
-				}
-				return nil
-			}
-			if a.Exclude != "" {
-				if ex, _ := doublestar.Match(a.Exclude, matchPath); ex {
-					if d.IsDir() {
-						return fs.SkipDir
-					}
-					return nil
-				}
-			}
-			// Symlinks reported by find are never followed here either.
-			if d.Type()&fs.ModeSymlink != 0 {
-				return nil
-			}
-			if d.IsDir() {
-				return nil
-			}
-			// Glob filter applies only to files. Default "**" matches everything.
-			if a.Glob != DefaultGlob {
-				if matched, _ := doublestar.Match(a.Glob, matchPath); !matched {
-					return nil
-				}
-			}
-			fi, err := d.Info()
-			if err != nil {
-				return nil
-			}
-			if st.searchOne(outputPath(a.Path, p), fi) {
-				return fs.SkipAll
-			}
-			return nil
+			return walker.Continue, nil
 		})
-		if walkErr != nil && !errors.Is(walkErr, fs.SkipAll) {
+		if walkErr != nil {
 			return nil, &proto.Error{Code: "walk", Msg: walkErr.Error()}
 		}
 	}
@@ -364,19 +307,37 @@ func Run(a *Args) (*Result, *proto.Error) {
 	res.FileCount = len(st.matchedFiles)
 	if st.limitHit {
 		res.Truncated = true
-		if a.FilesOnly {
-			res.TruncationHint = fmt.Sprintf(
-				"hit max_matches=%d distinct files. narrow with --glob, --exclude, or raise --max_matches (max %d).",
-				a.MaxMatches, MaxMaxMatches,
-			)
-		} else {
-			res.TruncationHint = fmt.Sprintf(
-				"hit max_matches=%d. narrow with --glob, --max_per_file, --exclude, or raise --max_matches (max %d).",
-				a.MaxMatches, MaxMaxMatches,
-			)
-		}
+		res.TruncationHint = truncationHint(a.MaxMatches, a.FilesOnly)
 	}
 	return res, nil
+}
+
+// truncationHint adapts the message to whether the user hit their own
+// --max_matches (raisable up to MaxMaxMatches) or the hard cap itself
+// (not raisable; only narrowing helps). ASH-12.
+func truncationHint(limit int, filesOnly bool) string {
+	if limit >= MaxMaxMatches {
+		if filesOnly {
+			return fmt.Sprintf(
+				"hit hard cap of %d distinct files. narrow with --glob or --exclude — --max_matches cannot go higher.",
+				MaxMaxMatches,
+			)
+		}
+		return fmt.Sprintf(
+			"hit hard cap of %d match records. narrow with --glob, --max_per_file, or --exclude — --max_matches cannot go higher.",
+			MaxMaxMatches,
+		)
+	}
+	if filesOnly {
+		return fmt.Sprintf(
+			"hit max_matches=%d distinct files. narrow with --glob, --exclude, or raise --max_matches (max %d).",
+			limit, MaxMaxMatches,
+		)
+	}
+	return fmt.Sprintf(
+		"hit max_matches=%d. narrow with --glob, --max_per_file, --exclude, or raise --max_matches (max %d).",
+		limit, MaxMaxMatches,
+	)
 }
 
 // state threads per-walk bookkeeping through the per-file routines without
@@ -586,20 +547,6 @@ func clipText(b []byte) string {
 		return string(b[:maxLineTextBytes]) + "…"
 	}
 	return string(b)
-}
-
-// outputPath duplicates find.outputPath: relative-in -> relative-out,
-// absolute-in -> absolute-out. Kept here to keep the verb self-contained;
-// pull into a shared helper when a third walker user lands.
-func outputPath(root, full string) string {
-	if filepath.IsAbs(root) {
-		return full
-	}
-	rel, err := filepath.Rel(".", full)
-	if err != nil {
-		return full
-	}
-	return rel
 }
 
 func toInt(v any) (int, bool) {

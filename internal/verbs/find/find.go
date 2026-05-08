@@ -28,14 +28,13 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/bmatcuk/doublestar/v4"
-	"github.com/stazelabs/ash/internal/gitignore"
 	"github.com/stazelabs/ash/internal/proto"
+	"github.com/stazelabs/ash/internal/walker"
 )
 
 const (
@@ -200,141 +199,64 @@ func Run(a *Args) (*Result, *proto.Error) {
 	}
 
 	res := &Result{Records: make([]Record, 0, 32)}
-
-	// rootDepth lets us compare relative depth without re-counting separators.
-	rootSep := strings.Count(filepath.Clean(a.Path), string(filepath.Separator))
 	limitHit := false
 
-	// gitignore matcher is loaded from the walk root if respect_gitignore is on.
-	// nil matcher (no .gitignore present, or feature disabled) excludes nothing.
-	var gi *gitignore.Matcher
-	if a.RespectGitignore {
-		m, err := gitignore.LoadFromDir(a.Path)
-		if err != nil {
-			return nil, &proto.Error{Code: "gitignore", Msg: err.Error()}
+	walkErr := walker.Walk(a.Path, walker.Options{
+		Glob:             a.Glob,
+		Exclude:          a.Exclude,
+		MaxDepth:         a.MaxDepth,
+		IncludeHidden:    a.IncludeHidden,
+		RespectGitignore: a.RespectGitignore,
+	}, func(e walker.Entry) (walker.Action, error) {
+		if !typeMatches(a.Type, e.Type) {
+			return walker.Continue, nil
 		}
-		gi = m
-	}
-
-	walkErr := filepath.WalkDir(a.Path, func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			// Surface permission errors as skips, not failures. The walk
-			// keeps going; the agent gets a partial answer rather than an
-			// abort.
-			if errors.Is(err, fs.ErrPermission) {
-				if d != nil && d.IsDir() {
-					return fs.SkipDir
-				}
-				return nil
-			}
-			return err
-		}
-		if p == a.Path {
-			return nil // never include the walk root in results
-		}
-		base := filepath.Base(p)
-		// Hidden directory skip applies to directories only; leaf dotfiles
-		// remain findable. The walk root is already excluded above so this
-		// only fires for descendants.
-		if !a.IncludeHidden && d.IsDir() && strings.HasPrefix(base, ".") {
-			return fs.SkipDir
-		}
-		// Depth guard: max_depth=0 means unlimited; 1 means direct children only.
-		if a.MaxDepth > 0 {
-			depth := strings.Count(filepath.Clean(p), string(filepath.Separator)) - rootSep
-			if depth > a.MaxDepth {
-				if d.IsDir() {
-					return fs.SkipDir
-				}
-				return nil
-			}
-		}
-
-		rel, _ := filepath.Rel(a.Path, p)
-		matchPath := filepath.ToSlash(rel)
-
-		if gi.Excludes(matchPath, d.IsDir()) {
-			if d.IsDir() {
-				return fs.SkipDir
-			}
-			return nil
-		}
-
-		if a.Exclude != "" {
-			ex, _ := doublestar.Match(a.Exclude, matchPath)
-			if ex {
-				if d.IsDir() {
-					return fs.SkipDir
-				}
-				return nil
-			}
-		}
-
-		// Determine entry type.
-		var typ string
-		switch {
-		case d.Type()&fs.ModeSymlink != 0:
-			typ = "symlink"
-		case d.IsDir():
-			typ = "dir"
-		default:
-			typ = "file"
-		}
-
-		if !typeMatches(a.Type, typ) {
-			return nil
-		}
-
-		matched, _ := doublestar.Match(a.Glob, matchPath)
-		if !matched {
-			return nil
-		}
-
-		fi, err := d.Info()
-		if err != nil {
-			return nil
+		// Info may be nil if d.Info() failed mid-walk (entry vanished).
+		// Treat as silently un-emittable rather than blowing up the walk.
+		if e.Info == nil {
+			return walker.Continue, nil
 		}
 		rec := Record{
-			Path:  outputPath(a.Path, p),
-			Type:  typ,
-			Mtime: fi.ModTime().UnixNano(),
+			Path:  e.Path,
+			Type:  e.Type,
+			Mtime: e.Info.ModTime().UnixNano(),
 		}
-		if typ == "file" {
-			rec.Size = fi.Size()
+		if e.Type == "file" {
+			rec.Size = e.Info.Size()
 		}
 		res.Records = append(res.Records, rec)
 		if len(res.Records) >= a.Limit {
 			limitHit = true
-			return fs.SkipAll
+			return walker.Stop, nil
 		}
-		return nil
+		return walker.Continue, nil
 	})
-	if walkErr != nil && !errors.Is(walkErr, fs.SkipAll) {
+	if walkErr != nil {
 		return nil, &proto.Error{Code: "walk", Msg: walkErr.Error()}
 	}
 
 	res.Count = len(res.Records)
 	if limitHit {
 		res.Truncated = true
-		res.TruncationHint = fmt.Sprintf(
-			"hit limit of %d records. narrow with --glob, --type, --max_depth, or --exclude; or raise --limit (max %d).",
-			a.Limit, MaxLimit,
-		)
+		res.TruncationHint = truncationHint(a.Limit)
 	}
 	return res, nil
 }
 
-// outputPath returns the path in the form that matches the form of --path:
-// relative-in produces relative-out, absolute-in produces absolute-out.
-func outputPath(root, full string) string {
-	if filepath.IsAbs(root) {
-		return full
+// truncationHint adapts the message to whether the user hit their own
+// --limit (raisable up to MaxLimit) or the hard cap itself (not raisable;
+// only narrowing helps). ASH-12.
+func truncationHint(limit int) string {
+	if limit >= MaxLimit {
+		return fmt.Sprintf(
+			"hit hard cap of %d records. narrow with --glob, --type, --max_depth, or --exclude — --limit cannot go higher.",
+			MaxLimit,
+		)
 	}
-	rel, err := filepath.Rel(".", full)
-	if err != nil {
-		return full
-	}
-	return rel
+	return fmt.Sprintf(
+		"hit limit of %d records. narrow with --glob, --type, --max_depth, or --exclude; or raise --limit (max %d).",
+		limit, MaxLimit,
+	)
 }
 
 func typeMatches(want, got string) bool {

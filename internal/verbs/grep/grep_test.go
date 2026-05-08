@@ -436,6 +436,34 @@ func TestRun_MaxMatchesGlobalTruncates(t *testing.T) {
 	if !strings.Contains(res.TruncationHint, "max_matches=3") {
 		t.Errorf("hint missing max_matches info: %q", res.TruncationHint)
 	}
+	// User-set limit below cap; raising should still be suggested.
+	if !strings.Contains(res.TruncationHint, "raise --max_matches") {
+		t.Errorf("hint should suggest raising --max_matches below cap: %q", res.TruncationHint)
+	}
+}
+
+// TestRun_TruncationHintAtHardCap covers ASH-12: when --max_matches is at
+// MaxMaxMatches, "raise --max_matches" is a dead-end suggestion. Hint should
+// pivot to narrowing.
+func TestRun_TruncationHintAtHardCap(t *testing.T) {
+	t.Run("matches mode", func(t *testing.T) {
+		hint := truncationHint(MaxMaxMatches, false)
+		if strings.Contains(hint, "raise --max_matches") {
+			t.Errorf("hint at cap must not suggest raising: %q", hint)
+		}
+		if !strings.Contains(hint, "hard cap") || !strings.Contains(hint, "narrow") {
+			t.Errorf("hint at cap should mention the cap and suggest narrowing: %q", hint)
+		}
+	})
+	t.Run("files_only mode", func(t *testing.T) {
+		hint := truncationHint(MaxMaxMatches, true)
+		if strings.Contains(hint, "raise --max_matches") {
+			t.Errorf("files_only hint at cap must not suggest raising: %q", hint)
+		}
+		if !strings.Contains(hint, "files") {
+			t.Errorf("files_only hint should mention files: %q", hint)
+		}
+	})
 }
 
 func TestRun_ContextBeforeAfter(t *testing.T) {

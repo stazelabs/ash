@@ -255,6 +255,27 @@ func TestRun_LimitTruncatesWithHint(t *testing.T) {
 	if !strings.Contains(res.TruncationHint, "limit of 3") {
 		t.Errorf("hint missing limit info: %q", res.TruncationHint)
 	}
+	// User-set limit is below the hard cap, so the hint should still suggest
+	// raising --limit (ASH-12: dead-end suggestion only at the cap).
+	if !strings.Contains(res.TruncationHint, "raise --limit") {
+		t.Errorf("hint should suggest raising --limit when below cap: %q", res.TruncationHint)
+	}
+}
+
+// TestRun_TruncationHintAtHardCap covers ASH-12: when the user's --limit is
+// at the hard cap (MaxLimit), suggesting "raise --limit" is a dead end.
+// The hint should instead point at narrowing.
+func TestRun_TruncationHintAtHardCap(t *testing.T) {
+	hint := truncationHint(MaxLimit)
+	if strings.Contains(hint, "raise --limit") {
+		t.Errorf("hint at hard cap must not suggest raising --limit: %q", hint)
+	}
+	if !strings.Contains(hint, "hard cap") {
+		t.Errorf("hint at hard cap should mention the cap: %q", hint)
+	}
+	if !strings.Contains(hint, "narrow") {
+		t.Errorf("hint at hard cap should suggest narrowing: %q", hint)
+	}
 }
 
 func TestRun_NotFound(t *testing.T) {
