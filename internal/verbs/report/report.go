@@ -70,10 +70,25 @@ type VerbStats struct {
 	SubPhases    []VerbSubPhase `msgpack:"sub_phases,omitempty"`
 }
 
+// ErrEntry is one row in the error-code histogram.
+type ErrEntry struct {
+	Code      string `msgpack:"code"`
+	Count     int    `msgpack:"count"`
+	SampleMsg string `msgpack:"sample_msg"`
+}
+
+// TruncHotspot identifies a verb with truncated calls, sorted by count desc.
+type TruncHotspot struct {
+	Verb  string `msgpack:"verb"`
+	Count int    `msgpack:"count"`
+}
+
 type Result struct {
-	Scope  Scope       `msgpack:"scope"`
-	Totals Totals      `msgpack:"totals"`
-	ByVerb []VerbStats `msgpack:"by_verb"`
+	Scope         Scope          `msgpack:"scope"`
+	Totals        Totals         `msgpack:"totals"`
+	ByVerb        []VerbStats    `msgpack:"by_verb"`
+	ErrHistogram  []ErrEntry     `msgpack:"err_histogram,omitempty"`
+	TruncHotspots []TruncHotspot `msgpack:"trunc_hotspots,omitempty"`
 }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
@@ -135,6 +150,11 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 	byVerb := map[string][]ledger.Call{}
 	order := []string{}
 
+	// Error histogram state.
+	errCounts := map[string]int{}
+	errSample := map[string]string{}
+	var errOrder []string
+
 	for _, c := range calls {
 		totals.TokensIn += int64(c.TokensIn)
 		totals.TokensOut += int64(c.TokensOut)
@@ -143,6 +163,13 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 			totals.OK++
 		} else {
 			totals.Errors++
+			if c.ErrCode != "" {
+				if _, seen := errCounts[c.ErrCode]; !seen {
+					errOrder = append(errOrder, c.ErrCode)
+					errSample[c.ErrCode] = c.ErrMsg
+				}
+				errCounts[c.ErrCode]++
+			}
 		}
 		if _, seen := byVerb[c.Verb]; !seen {
 			order = append(order, c.Verb)
@@ -204,7 +231,33 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 		stats = append(stats, vs)
 	}
 
-	return &Result{Scope: scope, Totals: totals, ByVerb: stats}
+	// Build error histogram sorted by count desc.
+	sort.Slice(errOrder, func(i, j int) bool {
+		return errCounts[errOrder[i]] > errCounts[errOrder[j]]
+	})
+	var errHist []ErrEntry
+	for _, code := range errOrder {
+		errHist = append(errHist, ErrEntry{Code: code, Count: errCounts[code], SampleMsg: errSample[code]})
+	}
+
+	// Build truncation hotspots from per-verb stats, sorted by count desc.
+	var truncHotspots []TruncHotspot
+	for _, vs := range stats {
+		if vs.TruncatedN > 0 {
+			truncHotspots = append(truncHotspots, TruncHotspot{Verb: vs.Verb, Count: vs.TruncatedN})
+		}
+	}
+	sort.Slice(truncHotspots, func(i, j int) bool {
+		return truncHotspots[i].Count > truncHotspots[j].Count
+	})
+
+	return &Result{
+		Scope:         scope,
+		Totals:        totals,
+		ByVerb:        stats,
+		ErrHistogram:  errHist,
+		TruncHotspots: truncHotspots,
+	}
 }
 
 func percentile(vals []int64, p float64) int64 {
@@ -298,6 +351,34 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 			otherPct := subPhasePct(vs.SubPhases, "other")
 			fmt.Fprintf(&b, "%-10s  %4.0f%%  %3.0f%%  %5.0f%%  %5.0f%%\n",
 				vs.Verb, walkPct, ioPct, regexPct, otherPct)
+		}
+	}
+
+	// Truncation hotspots — only when at least one call was truncated.
+	if len(r.TruncHotspots) > 0 {
+		total := 0
+		for _, th := range r.TruncHotspots {
+			total += th.Count
+		}
+		fmt.Fprintf(&b, "\ntruncation (%d truncated):\n", total)
+		for _, th := range r.TruncHotspots {
+			fmt.Fprintf(&b, "  %s \xc3\x97 %d\n", th.Verb, th.Count)
+		}
+	}
+
+	// Error histogram — only when there are errors with a known code.
+	if len(r.ErrHistogram) > 0 {
+		total := 0
+		for _, e := range r.ErrHistogram {
+			total += e.Count
+		}
+		fmt.Fprintf(&b, "\nerrors (%d):\n", total)
+		for _, e := range r.ErrHistogram {
+			if e.SampleMsg != "" {
+				fmt.Fprintf(&b, "  %s \xc3\x97 %d  \xe2\x80\x94 %q\n", e.Code, e.Count, e.SampleMsg)
+			} else {
+				fmt.Fprintf(&b, "  %s \xc3\x97 %d\n", e.Code, e.Count)
+			}
 		}
 	}
 
@@ -423,6 +504,41 @@ func decodeResult(data any) (*Result, bool) {
 				}
 			}
 			r.ByVerb = append(r.ByVerb, vs)
+		}
+	}
+	if raw, ok := m["err_histogram"].([]any); ok {
+		for _, x := range raw {
+			em, ok := x.(map[string]any)
+			if !ok {
+				continue
+			}
+			e := ErrEntry{}
+			if v, ok := em["code"].(string); ok {
+				e.Code = v
+			}
+			if v, ok := argutil.ToInt(em["count"]); ok {
+				e.Count = v
+			}
+			if v, ok := em["sample_msg"].(string); ok {
+				e.SampleMsg = v
+			}
+			r.ErrHistogram = append(r.ErrHistogram, e)
+		}
+	}
+	if raw, ok := m["trunc_hotspots"].([]any); ok {
+		for _, x := range raw {
+			tm, ok := x.(map[string]any)
+			if !ok {
+				continue
+			}
+			th := TruncHotspot{}
+			if v, ok := tm["verb"].(string); ok {
+				th.Verb = v
+			}
+			if v, ok := argutil.ToInt(tm["count"]); ok {
+				th.Count = v
+			}
+			r.TruncHotspots = append(r.TruncHotspots, th)
 		}
 	}
 	return r, true

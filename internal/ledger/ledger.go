@@ -222,7 +222,7 @@ func (l *Ledger) QueryWindow(opts QueryOpts) ([]Call, error) {
 	}
 
 	rows, err := l.db.Query(`
-		SELECT ts, verb, ok, err_code,
+		SELECT ts, verb, ok, err_code, err_msg,
 		       latency_parse_us, latency_exec_us, latency_serialize_us,
 		       tokens_in, tokens_out, tokens_method,
 		       bytes_in, bytes_out, truncated,
@@ -239,7 +239,7 @@ func (l *Ledger) QueryWindow(opts QueryOpts) ([]Call, error) {
 		var ts int64
 		var okInt, truncInt int
 		if err := rows.Scan(
-			&ts, &c.Verb, &okInt, &c.ErrCode,
+			&ts, &c.Verb, &okInt, &c.ErrCode, &c.ErrMsg,
 			&c.LatencyParseUs, &c.LatencyExecUs, &c.LatencySerializeUs,
 			&c.TokensIn, &c.TokensOut, &c.TokensMethod,
 			&c.BytesIn, &c.BytesOut, &truncInt,
@@ -264,7 +264,7 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 	)
 	if verbFilter != "" {
 		rows, err = l.db.Query(`
-			SELECT ts, verb, ok, err_code,
+			SELECT ts, verb, ok, err_code, err_msg,
 			       latency_parse_us, latency_exec_us, latency_serialize_us,
 			       tokens_in, tokens_out, tokens_method,
 			       bytes_in, bytes_out, truncated,
@@ -273,7 +273,7 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 			ORDER BY id DESC LIMIT ?`, verbFilter, n)
 	} else {
 		rows, err = l.db.Query(`
-			SELECT ts, verb, ok, err_code,
+			SELECT ts, verb, ok, err_code, err_msg,
 			       latency_parse_us, latency_exec_us, latency_serialize_us,
 			       tokens_in, tokens_out, tokens_method,
 			       bytes_in, bytes_out, truncated,
@@ -291,7 +291,7 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 		var ts int64
 		var okInt, truncInt int
 		if err := rows.Scan(
-			&ts, &c.Verb, &okInt, &c.ErrCode,
+			&ts, &c.Verb, &okInt, &c.ErrCode, &c.ErrMsg,
 			&c.LatencyParseUs, &c.LatencyExecUs, &c.LatencySerializeUs,
 			&c.TokensIn, &c.TokensOut, &c.TokensMethod,
 			&c.BytesIn, &c.BytesOut, &truncInt,

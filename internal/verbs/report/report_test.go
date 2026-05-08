@@ -334,3 +334,128 @@ func TestPrettyResponse_SubPhaseSection(t *testing.T) {
 		t.Errorf("expected verb name in sub-phase section:\n%s", out)
 	}
 }
+
+func makeFailedCalls(verb, errCode, errMsg string, n int) []ledger.Call {
+	calls := make([]ledger.Call, n)
+	for i := range calls {
+		calls[i] = ledger.Call{
+			Verb:          verb,
+			OK:            false,
+			ErrCode:       errCode,
+			ErrMsg:        errMsg,
+			LatencyExecUs: 100,
+		}
+	}
+	return calls
+}
+
+func TestAggregate_ErrHistogram(t *testing.T) {
+	calls := append(
+		makeFailedCalls("grep", "args", "bad pattern", 3),
+		makeFailedCalls("find", "not_found", "", 1)...,
+	)
+	r := aggregate(calls, Scope{Session: "current"})
+
+	if len(r.ErrHistogram) != 2 {
+		t.Fatalf("expected 2 err entries, got %d", len(r.ErrHistogram))
+	}
+	// Sorted by count desc: args(3) before not_found(1).
+	if r.ErrHistogram[0].Code != "args" {
+		t.Errorf("first err code = %q, want 'args'", r.ErrHistogram[0].Code)
+	}
+	if r.ErrHistogram[0].Count != 3 {
+		t.Errorf("args count = %d, want 3", r.ErrHistogram[0].Count)
+	}
+	if r.ErrHistogram[0].SampleMsg != "bad pattern" {
+		t.Errorf("args sample_msg = %q, want 'bad pattern'", r.ErrHistogram[0].SampleMsg)
+	}
+	if r.ErrHistogram[1].Code != "not_found" {
+		t.Errorf("second err code = %q, want 'not_found'", r.ErrHistogram[1].Code)
+	}
+}
+
+func TestAggregate_ErrHistogram_NoErrCode(t *testing.T) {
+	// Errors without an err_code should not appear in the histogram.
+	calls := makeFailedCalls("read", "", "", 2)
+	r := aggregate(calls, Scope{Session: "current"})
+	if len(r.ErrHistogram) != 0 {
+		t.Errorf("expected empty histogram for calls with no err_code, got %v", r.ErrHistogram)
+	}
+}
+
+func TestAggregate_TruncHotspots(t *testing.T) {
+	calls := makeCalls("find", 3, 1000, true, true)       // 3 truncated
+	calls = append(calls, makeCalls("grep", 2, 500, true, true)...) // 2 truncated
+	calls = append(calls, makeCalls("read", 4, 200, true, false)...) // 0 truncated
+
+	r := aggregate(calls, Scope{Session: "current"})
+
+	if len(r.TruncHotspots) != 2 {
+		t.Fatalf("expected 2 trunc hotspots, got %d: %v", len(r.TruncHotspots), r.TruncHotspots)
+	}
+	// Sorted by count desc: find(3) before grep(2).
+	if r.TruncHotspots[0].Verb != "find" {
+		t.Errorf("first hotspot verb = %q, want 'find'", r.TruncHotspots[0].Verb)
+	}
+	if r.TruncHotspots[0].Count != 3 {
+		t.Errorf("find trunc count = %d, want 3", r.TruncHotspots[0].Count)
+	}
+	if r.TruncHotspots[1].Verb != "grep" {
+		t.Errorf("second hotspot verb = %q, want 'grep'", r.TruncHotspots[1].Verb)
+	}
+}
+
+func TestAggregate_NoHotspots_WhenClean(t *testing.T) {
+	calls := makeCalls("find", 5, 1000, true, false)
+	r := aggregate(calls, Scope{Session: "current"})
+	if len(r.TruncHotspots) != 0 {
+		t.Errorf("expected no trunc hotspots, got %v", r.TruncHotspots)
+	}
+	if len(r.ErrHistogram) != 0 {
+		t.Errorf("expected no err histogram, got %v", r.ErrHistogram)
+	}
+}
+
+func TestPrettyResponse_HotspotSections(t *testing.T) {
+	calls := append(
+		makeCalls("find", 3, 1000, true, true),
+		makeFailedCalls("grep", "args", "bad pattern", 2)...,
+	)
+	r := aggregate(calls, Scope{Session: "current"})
+
+	rsp := &proto.Response{OK: true}
+	rsp.Data = r
+	out := PrettyResponse(nil, rsp)
+
+	if !strings.Contains(out, "truncation") {
+		t.Errorf("expected truncation section in output:\n%s", out)
+	}
+	if !strings.Contains(out, "find") {
+		t.Errorf("expected 'find' in truncation section:\n%s", out)
+	}
+	if !strings.Contains(out, "errors") {
+		t.Errorf("expected errors section in output:\n%s", out)
+	}
+	if !strings.Contains(out, "args") {
+		t.Errorf("expected 'args' error code in output:\n%s", out)
+	}
+	if !strings.Contains(out, "bad pattern") {
+		t.Errorf("expected sample err_msg in output:\n%s", out)
+	}
+}
+
+func TestPrettyResponse_NoHotspotSections_WhenClean(t *testing.T) {
+	calls := makeCalls("find", 5, 1000, true, false)
+	r := aggregate(calls, Scope{Session: "current"})
+
+	rsp := &proto.Response{OK: true}
+	rsp.Data = r
+	out := PrettyResponse(nil, rsp)
+
+	if strings.Contains(out, "truncation") {
+		t.Errorf("unexpected truncation section in clean output:\n%s", out)
+	}
+	if strings.Contains(out, "errors") {
+		t.Errorf("unexpected errors section in clean output:\n%s", out)
+	}
+}
