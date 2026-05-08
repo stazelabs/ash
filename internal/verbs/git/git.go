@@ -12,11 +12,13 @@
 //	         --ignored.
 //	log      list commits with structured per-commit metadata. Optional:
 //	         --limit, --range, --author, --since, --until, --pathspec.
+//	diff     structured file-level diff. Optional: --staged, --range,
+//	         --pathspec, --stat, --context, --limit_bytes.
 //
 // Implementation shells out to system `git` and parses documented
 // machine-readable formats (porcelain v2 for status, NUL-separated
-// custom format for log). The agent never sees porcelain; they get a
-// typed Result.
+// custom format for log, unified diff for diff). The agent never sees
+// porcelain; they get a typed Result.
 //
 // The README's example uses positional subcommand syntax (`git diff
 // --range ...`); ash's flags-only client rule rules that out, so we use
@@ -35,6 +37,7 @@ type Result struct {
 	Op     string        `msgpack:"op"`
 	Status *StatusResult `msgpack:"status,omitempty"`
 	Log    *LogResult    `msgpack:"log,omitempty"`
+	Diff   *DiffResult   `msgpack:"diff,omitempty"`
 }
 
 type Args struct {
@@ -44,12 +47,18 @@ type Args struct {
 	Untracked bool
 	Ignored   bool
 	// log-op flags
-	Limit    int
+	Limit  int
+	Author string
+	Since  string
+	Until  string
+	// log/diff-op flags (shared)
 	Range    string
-	Author   string
-	Since    string
-	Until    string
 	Pathspec string
+	// diff-op flags
+	Staged    bool
+	Context   int
+	StatOnly  bool
+	LimitBytes int
 }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
@@ -72,9 +81,6 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Limit, perr = argutil.OptionalPosInt(in, "limit", LogDefaultLimit, LogMaxLimit); perr != nil {
 		return nil, perr
 	}
-	if a.Range, perr = argutil.OptionalString(in, "range", ""); perr != nil {
-		return nil, perr
-	}
 	if a.Author, perr = argutil.OptionalString(in, "author", ""); perr != nil {
 		return nil, perr
 	}
@@ -84,7 +90,24 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Until, perr = argutil.OptionalString(in, "until", ""); perr != nil {
 		return nil, perr
 	}
+	// log/diff shared flags
+	if a.Range, perr = argutil.OptionalString(in, "range", ""); perr != nil {
+		return nil, perr
+	}
 	if a.Pathspec, perr = argutil.OptionalString(in, "pathspec", ""); perr != nil {
+		return nil, perr
+	}
+	// diff-op flags
+	if a.Staged, perr = argutil.OptionalBool(in, "staged", false); perr != nil {
+		return nil, perr
+	}
+	if a.Context, perr = argutil.OptionalPosInt(in, "context", DiffDefaultContext, DiffMaxContext); perr != nil {
+		return nil, perr
+	}
+	if a.StatOnly, perr = argutil.OptionalBool(in, "stat", false); perr != nil {
+		return nil, perr
+	}
+	if a.LimitBytes, perr = argutil.OptionalPosInt(in, "limit_bytes", DiffDefaultLimitBytes, DiffMaxLimitBytes); perr != nil {
 		return nil, perr
 	}
 	return a, nil
@@ -106,8 +129,14 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 			return nil, perr
 		}
 		return &Result{Op: "log", Log: l}, nil
+	case "diff":
+		d, perr := runDiff(a, tr)
+		if perr != nil {
+			return nil, perr
+		}
+		return &Result{Op: "diff", Diff: d}, nil
 	default:
-		return nil, &proto.Error{Code: "unknown_op", Msg: "unknown op: " + a.Op + " (live ops: status, log)"}
+		return nil, &proto.Error{Code: "unknown_op", Msg: "unknown op: " + a.Op + " (live ops: status, log, diff)"}
 	}
 }
 
@@ -126,6 +155,8 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		return prettyStatus(r.Status)
 	case "log":
 		return prettyLog(r.Log)
+	case "diff":
+		return prettyDiff(r.Diff)
 	default:
 		return "ok\n<unknown git op: " + r.Op + ">"
 	}
@@ -148,6 +179,9 @@ func decodeResult(data any) (*Result, bool) {
 	}
 	if lm, ok := m["log"].(map[string]any); ok {
 		r.Log = decodeLog(lm)
+	}
+	if dm, ok := m["diff"].(map[string]any); ok {
+		r.Diff = decodeDiff(dm)
 	}
 	return r, true
 }

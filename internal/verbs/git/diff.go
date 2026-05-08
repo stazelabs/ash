@@ -1,0 +1,390 @@
+package git
+
+import (
+	"bufio"
+	"bytes"
+	"errors"
+	"fmt"
+	"os/exec"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/stazelabs/ash/internal/proto"
+	"github.com/stazelabs/ash/internal/verbs/argutil"
+)
+
+const (
+	DiffDefaultContext    = 3
+	DiffMaxContext        = 50
+	DiffDefaultLimitBytes = 256 * 1024
+	DiffMaxLimitBytes     = 4 * 1024 * 1024
+)
+
+// DiffResult is the structured replacement for `git diff` text scraping.
+type DiffResult struct {
+	Files          []DiffFile `msgpack:"files,omitempty"`
+	TotalAdditions int        `msgpack:"total_additions"`
+	TotalDeletions int        `msgpack:"total_deletions"`
+	Truncated      bool       `msgpack:"truncated,omitempty"`
+	TruncationHint string     `msgpack:"truncation_hint,omitempty"`
+	StatOnly       bool       `msgpack:"stat_only,omitempty"`
+}
+
+// DiffFile captures one changed file from a diff. In full (non-stat) mode,
+// Patch holds the raw unified diff text for this file including the
+// "diff --git" header so callers can render it as-is or parse further.
+// In stat-only mode, Patch is empty and only Additions/Deletions are set.
+type DiffFile struct {
+	Path       string `msgpack:"path"`
+	OldPath    string `msgpack:"old_path,omitempty"` // set for renames and copies
+	Status     string `msgpack:"status"`             // A/D/M/R/C; empty in stat-only mode
+	Binary     bool   `msgpack:"binary,omitempty"`
+	Additions  int    `msgpack:"additions"`
+	Deletions  int    `msgpack:"deletions"`
+	Patch      string `msgpack:"patch,omitempty"`
+}
+
+// runDiff dispatches to the stat-only or full-patch runner.
+func runDiff(a *Args, tr *proto.Tracer) (*DiffResult, *proto.Error) {
+	gitBin, err := exec.LookPath("git")
+	if err != nil {
+		return nil, &proto.Error{Code: "git_not_found", Msg: "git binary not on PATH; ash git requires system git"}
+	}
+	if a.StatOnly {
+		return runDiffStat(gitBin, a, tr)
+	}
+	return runDiffFull(gitBin, a, tr)
+}
+
+func buildDiffCmd(gitBin string, extra []string, a *Args) *exec.Cmd {
+	args := []string{"-C", a.Path, "diff"}
+	args = append(args, extra...)
+	if a.Staged {
+		args = append(args, "--cached")
+	}
+	if a.Range != "" {
+		// Range is a single git rev argument (e.g. "HEAD~1..HEAD" or "HEAD~1").
+		// Passed as-is; git validates it.
+		args = append(args, a.Range)
+	}
+	if a.Pathspec != "" {
+		args = append(args, "--", a.Pathspec)
+	}
+	return exec.Command(gitBin, args...)
+}
+
+// runDiffStat runs `git diff --numstat` for token-cheap per-file counts.
+func runDiffStat(gitBin string, a *Args, tr *proto.Tracer) (*DiffResult, *proto.Error) {
+	cmd := buildDiffCmd(gitBin, []string{"--numstat"}, a)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	ioStart := time.Now()
+	runErr := cmd.Run()
+	tr.AddIO(time.Since(ioStart))
+
+	if runErr != nil {
+		return nil, diffRunError(a.Path, runErr, stderr.String())
+	}
+	return parseDiffNumstat(stdout.Bytes())
+}
+
+// runDiffFull runs `git diff --unified=N --no-color` and parses the
+// unified diff into per-file DiffFile records.
+func runDiffFull(gitBin string, a *Args, tr *proto.Tracer) (*DiffResult, *proto.Error) {
+	extra := []string{"--no-color", fmt.Sprintf("--unified=%d", a.Context)}
+	cmd := buildDiffCmd(gitBin, extra, a)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	ioStart := time.Now()
+	runErr := cmd.Run()
+	tr.AddIO(time.Since(ioStart))
+
+	if runErr != nil {
+		return nil, diffRunError(a.Path, runErr, stderr.String())
+	}
+	return parseDiffUnified(stdout.Bytes(), a.LimitBytes)
+}
+
+// diffRunError converts a git subprocess error into a proto.Error.
+func diffRunError(path string, runErr error, stderrMsg string) *proto.Error {
+	var exitErr *exec.ExitError
+	if errors.As(runErr, &exitErr) {
+		msg := strings.TrimSpace(stderrMsg)
+		if msg == "" {
+			msg = exitErr.Error()
+		}
+		if strings.Contains(strings.ToLower(msg), "not a git repository") {
+			return &proto.Error{Code: "not_a_repo", Msg: path + " is not inside a git repository"}
+		}
+		return &proto.Error{Code: "git_failed", Msg: msg}
+	}
+	return &proto.Error{Code: "git_failed", Msg: runErr.Error()}
+}
+
+// parseDiffNumstat parses `git diff --numstat` output.
+// Each line is: "<add>\t<del>\t<path>" where add/del are "-" for binary files.
+func parseDiffNumstat(out []byte) (*DiffResult, *proto.Error) {
+	res := &DiffResult{StatOnly: true}
+	scanner := bufio.NewScanner(bytes.NewReader(out))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+		fields := strings.SplitN(line, "\t", 3)
+		if len(fields) != 3 {
+			continue
+		}
+		f := DiffFile{Path: fields[2]}
+		if fields[0] == "-" {
+			f.Binary = true
+		} else {
+			if a, err := strconv.Atoi(fields[0]); err == nil {
+				f.Additions = a
+				res.TotalAdditions += a
+			}
+			if d, err := strconv.Atoi(fields[1]); err == nil {
+				f.Deletions = d
+				res.TotalDeletions += d
+			}
+		}
+		res.Files = append(res.Files, f)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, &proto.Error{Code: "parse", Msg: err.Error()}
+	}
+	return res, nil
+}
+
+// parseDiffUnified parses the output of `git diff --no-color --unified=N`.
+// Files are grouped by the "diff --git a/X b/Y" header lines. The raw
+// patch text per file (including the diff header) is preserved in
+// DiffFile.Patch. A limitBytes cap is applied to the total patch bytes
+// returned; files beyond the cap have Patch="" but their stats are still
+// included. Additions and deletions are counted from the + / - lines
+// within hunks.
+func parseDiffUnified(out []byte, limitBytes int) (*DiffResult, *proto.Error) {
+	res := &DiffResult{}
+	if len(out) == 0 {
+		return res, nil
+	}
+
+	var (
+		files      []DiffFile
+		current    *DiffFile
+		patchBuf   strings.Builder
+		inHunk     bool
+	)
+
+	finalize := func() {
+		if current == nil {
+			return
+		}
+		current.Patch = patchBuf.String()
+		res.TotalAdditions += current.Additions
+		res.TotalDeletions += current.Deletions
+		files = append(files, *current)
+		current = nil
+		patchBuf.Reset()
+		inHunk = false
+	}
+
+	scanner := bufio.NewScanner(bytes.NewReader(out))
+	scanner.Buffer(make([]byte, 0, 64<<10), 4<<20)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if strings.HasPrefix(line, "diff --git ") {
+			finalize()
+			rest := strings.TrimPrefix(line, "diff --git ")
+			// Extract the new path from "a/<old> b/<new>". For renames,
+			// rename-to lines below will override the path.
+			newPath := ""
+			if idx := strings.LastIndex(rest, " b/"); idx >= 0 {
+				newPath = rest[idx+3:]
+			}
+			current = &DiffFile{Path: newPath, Status: "M"}
+			patchBuf.WriteString(line)
+			patchBuf.WriteByte('\n')
+			inHunk = false
+			continue
+		}
+
+		if current == nil {
+			continue
+		}
+
+		switch {
+		case strings.HasPrefix(line, "new file mode"):
+			current.Status = "A"
+		case strings.HasPrefix(line, "deleted file mode"):
+			current.Status = "D"
+		case strings.HasPrefix(line, "rename from "):
+			current.OldPath = strings.TrimPrefix(line, "rename from ")
+		case strings.HasPrefix(line, "rename to "):
+			current.Status = "R"
+			current.Path = strings.TrimPrefix(line, "rename to ")
+		case strings.HasPrefix(line, "copy from "):
+			current.OldPath = strings.TrimPrefix(line, "copy from ")
+		case strings.HasPrefix(line, "copy to "):
+			current.Status = "C"
+			current.Path = strings.TrimPrefix(line, "copy to ")
+		case strings.HasPrefix(line, "Binary files "):
+			current.Binary = true
+		case strings.HasPrefix(line, "@@ "):
+			inHunk = true
+		case inHunk && len(line) > 0:
+			switch line[0] {
+			case '+':
+				if !strings.HasPrefix(line, "+++") {
+					current.Additions++
+				}
+			case '-':
+				if !strings.HasPrefix(line, "---") {
+					current.Deletions++
+				}
+			}
+		}
+
+		patchBuf.WriteString(line)
+		patchBuf.WriteByte('\n')
+	}
+	finalize()
+
+	if err := scanner.Err(); err != nil {
+		return nil, &proto.Error{Code: "parse", Msg: err.Error()}
+	}
+
+	// Apply the byte cap: walk files in order, include full patches until
+	// the cap is reached, then omit patches for the remainder.
+	var totalBytes int
+	for i := range files {
+		patch := files[i].Patch
+		if totalBytes >= limitBytes {
+			files[i].Patch = ""
+			res.Truncated = true
+		} else if totalBytes+len(patch) > limitBytes {
+			remaining := limitBytes - totalBytes
+			files[i].Patch = patch[:remaining] + "\n[patch truncated at byte cap]\n"
+			totalBytes = limitBytes
+			res.Truncated = true
+		} else {
+			totalBytes += len(patch)
+		}
+	}
+
+	res.Files = files
+	if res.Truncated {
+		res.TruncationHint = diffTruncationHint(limitBytes)
+	}
+	return res, nil
+}
+
+func diffTruncationHint(limitBytes int) string {
+	return fmt.Sprintf(
+		"patch output exceeded %d bytes. narrow with --pathspec, use --stat true for a summary, or raise --limit_bytes (max %d).",
+		limitBytes, DiffMaxLimitBytes,
+	)
+}
+
+func prettyDiff(d *DiffResult) string {
+	if d == nil {
+		return "ok\n<empty diff>"
+	}
+	var b strings.Builder
+	verb := "diff"
+	if d.StatOnly {
+		verb = "diff --stat"
+	}
+	fmt.Fprintf(&b, "=== ash git %s: %d file(s) +%d -%d",
+		verb, len(d.Files), d.TotalAdditions, d.TotalDeletions)
+	if d.Truncated {
+		b.WriteString(" TRUNCATED")
+	}
+	b.WriteString(" ===\n")
+
+	if d.StatOnly {
+		for _, f := range d.Files {
+			if f.Binary {
+				fmt.Fprintf(&b, "  binary          %s\n", f.Path)
+			} else {
+				fmt.Fprintf(&b, "  +%-5d  -%-5d  %s\n", f.Additions, f.Deletions, f.Path)
+			}
+		}
+	} else {
+		for _, f := range d.Files {
+			if f.Patch != "" {
+				b.WriteString(f.Patch)
+			} else if f.Binary {
+				fmt.Fprintf(&b, "[%s %s: binary file]\n", f.Status, f.Path)
+			} else {
+				fmt.Fprintf(&b, "[%s %s: +%d -%d (patch omitted, byte cap reached)]\n",
+					f.Status, f.Path, f.Additions, f.Deletions)
+			}
+		}
+	}
+
+	if d.Truncated && d.TruncationHint != "" {
+		b.WriteString("\n[truncation: ")
+		b.WriteString(d.TruncationHint)
+		b.WriteString("]")
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+func decodeDiff(m map[string]any) *DiffResult {
+	d := &DiffResult{}
+	if v, ok := m["stat_only"].(bool); ok {
+		d.StatOnly = v
+	}
+	if v, ok := argutil.ToInt(m["total_additions"]); ok {
+		d.TotalAdditions = v
+	}
+	if v, ok := argutil.ToInt(m["total_deletions"]); ok {
+		d.TotalDeletions = v
+	}
+	if v, ok := m["truncated"].(bool); ok {
+		d.Truncated = v
+	}
+	if v, ok := m["truncation_hint"].(string); ok {
+		d.TruncationHint = v
+	}
+	if raw, ok := m["files"].([]any); ok {
+		for _, x := range raw {
+			fm, ok := x.(map[string]any)
+			if !ok {
+				continue
+			}
+			f := DiffFile{}
+			if v, ok := fm["path"].(string); ok {
+				f.Path = v
+			}
+			if v, ok := fm["old_path"].(string); ok {
+				f.OldPath = v
+			}
+			if v, ok := fm["status"].(string); ok {
+				f.Status = v
+			}
+			if v, ok := fm["binary"].(bool); ok {
+				f.Binary = v
+			}
+			if v, ok := argutil.ToInt(fm["additions"]); ok {
+				f.Additions = v
+			}
+			if v, ok := argutil.ToInt(fm["deletions"]); ok {
+				f.Deletions = v
+			}
+			if v, ok := fm["patch"].(string); ok {
+				f.Patch = v
+			}
+			d.Files = append(d.Files, f)
+		}
+	}
+	return d
+}
