@@ -664,6 +664,33 @@ func relSlice(t *testing.T, root string, ps []string) []string {
 	return out
 }
 
+func TestNoText(t *testing.T) {
+	root := makeTree(t)
+	a := &Args{
+		Pattern: "Foo", Path: root, Glob: "**/*.go",
+		Case: "sensitive", MaxMatches: DefaultMaxMatches,
+		RespectGitignore: true, NoText: true,
+	}
+	res, perr := Run(a, nil)
+	if perr != nil {
+		t.Fatalf("Run: %+v", perr)
+	}
+	if res.MatchCount == 0 {
+		t.Fatal("expected matches")
+	}
+	for _, m := range res.Matches {
+		if m.Kind == "" && m.Text != "" {
+			t.Errorf("match record has text=%q with no_text=true", m.Text)
+		}
+		if m.Kind != "" && m.Text != "" {
+			t.Errorf("context record has text=%q with no_text=true", m.Text)
+		}
+		if m.Kind == "" && m.Col == 0 {
+			t.Errorf("match record missing col with no_text=true (line %d)", m.Line)
+		}
+	}
+}
+
 func equal(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

@@ -70,6 +70,7 @@ type Args struct {
 	ContextBefore    int
 	ContextAfter     int
 	FilesOnly        bool
+	NoText           bool
 	IncludeHidden    bool
 	RespectGitignore bool
 	Exclude          string
@@ -131,6 +132,9 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 		return nil, perr
 	}
 	if a.FilesOnly, perr = argutil.OptionalBool(in, "files_only", false); perr != nil {
+		return nil, perr
+	}
+	if a.NoText, perr = argutil.OptionalBool(in, "no_text", false); perr != nil {
 		return nil, perr
 	}
 	if a.IncludeHidden, perr = argutil.OptionalBool(in, "include_hidden", false); perr != nil {
@@ -344,7 +348,11 @@ func (s *state) searchBody(path string, body []byte) bool {
 		matches := re.FindAllIndex(line, -1)
 		if len(matches) == 0 {
 			if pendingAfter > 0 && i > lastEmittedLine {
-				if appendRec(Match{Path: path, Line: i + 1, Text: clipText(line), Kind: "after"}, false) {
+				afterText := ""
+				if !a.NoText {
+					afterText = clipText(line)
+				}
+				if appendRec(Match{Path: path, Line: i + 1, Text: afterText, Kind: "after"}, false) {
 					return true
 				}
 				lastEmittedLine = i
@@ -363,7 +371,11 @@ func (s *state) searchBody(path string, body []byte) bool {
 			startCtx = lastEmittedLine + 1
 		}
 		for j := startCtx; j < i; j++ {
-			if appendRec(Match{Path: path, Line: j + 1, Text: clipText(lines[j]), Kind: "before"}, false) {
+			beforeText := ""
+			if !a.NoText {
+				beforeText = clipText(lines[j])
+			}
+			if appendRec(Match{Path: path, Line: j + 1, Text: beforeText, Kind: "before"}, false) {
 				return true
 			}
 			lastEmittedLine = j
@@ -371,7 +383,11 @@ func (s *state) searchBody(path string, body []byte) bool {
 
 		// Match line.
 		col := matches[0][0] + 1
-		if appendRec(Match{Path: path, Line: i + 1, Col: col, Text: clipText(line)}, true) {
+		matchText := ""
+		if !a.NoText {
+			matchText = clipText(line)
+		}
+		if appendRec(Match{Path: path, Line: i + 1, Col: col, Text: matchText}, true) {
 			return true
 		}
 		lastEmittedLine = i
@@ -490,12 +506,16 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	}
 	var b strings.Builder
 
+	noText := false
 	if req != nil {
 		// Files-only header
 		if v, ok := req.Args["files_only"]; ok {
 			if got, ok := argutil.ToBool(v); ok && got {
 				return prettyFilesOnly(req, r)
 			}
+		}
+		if v, ok := req.Args["no_text"]; ok {
+			noText, _ = argutil.ToBool(v)
 		}
 	}
 
@@ -517,7 +537,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 			return
 		}
 		group := r.Matches[curStart:end]
-		writeFileGroup(&b, curPath, group)
+		writeFileGroup(&b, curPath, group, noText)
 	}
 	for i, rec := range r.Matches {
 		if rec.Path != curPath {
@@ -573,7 +593,7 @@ func writeSkippedSummary(b *strings.Builder, r *Result) {
 	fmt.Fprintf(b, "[skipped: %s]\n", strings.Join(parts, ", "))
 }
 
-func writeFileGroup(b *strings.Builder, path string, group []Match) {
+func writeFileGroup(b *strings.Builder, path string, group []Match, noText bool) {
 	matchN := 0
 	for _, rec := range group {
 		if rec.Kind == "" {
@@ -582,11 +602,19 @@ func writeFileGroup(b *strings.Builder, path string, group []Match) {
 	}
 	fmt.Fprintf(b, "%s (%s)\n", path, plural(matchN, "match", "matches"))
 	for _, rec := range group {
-		sep := ":"
-		if rec.Kind == "before" || rec.Kind == "after" {
-			sep = "-"
+		if noText {
+			if rec.Kind == "" {
+				fmt.Fprintf(b, "  %d:%d\n", rec.Line, rec.Col)
+			} else {
+				fmt.Fprintf(b, "  %d-\n", rec.Line)
+			}
+		} else {
+			sep := ":"
+			if rec.Kind == "before" || rec.Kind == "after" {
+				sep = "-"
+			}
+			fmt.Fprintf(b, "  %d%s %s\n", rec.Line, sep, rec.Text)
 		}
-		fmt.Fprintf(b, "  %d%s %s\n", rec.Line, sep, rec.Text)
 	}
 }
 
@@ -626,6 +654,11 @@ func scopeFromArgs(req *proto.Request) string {
 	if v, ok := req.Args["include_hidden"]; ok {
 		if b, ok := argutil.ToBool(v); ok && b {
 			parts = append(parts, "include_hidden=true")
+		}
+	}
+	if v, ok := req.Args["no_text"]; ok {
+		if b, ok := argutil.ToBool(v); ok && b {
+			parts = append(parts, "no_text=true")
 		}
 	}
 	return strings.Join(parts, ", ")

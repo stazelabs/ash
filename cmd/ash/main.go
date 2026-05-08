@@ -161,7 +161,7 @@ verbs (phase 2):
                      [--fixed_string true|false] [--word true|false]
                      [--max_matches N] [--max_per_file N]
                      [--context_before N] [--context_after N]
-                     [--files_only true|false]
+                     [--files_only true|false] [--no_text true|false]
                      [--exclude <pattern>] [--max_depth N]
                      [--include_hidden true|false]
                      [--respect_gitignore true|false]   (default true)

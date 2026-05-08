@@ -81,6 +81,7 @@ var registry = []VerbSchema{
 			{Name: "context_before", Type: "int", Default: "0", Description: "Lines of context before each match. Max 50."},
 			{Name: "context_after", Type: "int", Default: "0", Description: "Lines of context after each match. Max 50."},
 			{Name: "files_only", Type: "bool", Default: "false", Description: "Return only the paths of files containing at least one match."},
+			{Name: "no_text", Type: "bool", Default: "false", Description: "Omit the matched line text from records; pretty form renders path:line:col only."},
 			{Name: "exclude", Type: "string", Default: "", Description: "Doublestar pattern; matching paths are skipped."},
 			{Name: "max_depth", Type: "int", Default: "0", Description: "Maximum directory depth to descend. 0 means unlimited."},
 			{Name: "include_hidden", Type: "bool", Default: "false", Description: "When false, directories starting with '.' are skipped."},
