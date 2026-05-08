@@ -21,6 +21,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/stazelabs/ash/internal/proto"
+	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
 
 const (
@@ -49,63 +50,21 @@ type Result struct {
 
 // ParseArgs validates and normalizes the loosely-typed args from the wire.
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
-	a := &Args{
-		LimitBytes: DefaultLimitBytes,
-		RangeKind:  "lines",
+	a := &Args{}
+	var perr *proto.Error
+	if a.Path, perr = argutil.RequireString(in, "path"); perr != nil {
+		return nil, perr
 	}
-	pv, ok := in["path"]
-	if !ok {
-		return nil, &proto.Error{Code: "args", Msg: "missing required arg: path"}
+	if a.Range, perr = argutil.OptionalString(in, "range", ""); perr != nil {
+		return nil, perr
 	}
-	ps, ok := pv.(string)
-	if !ok || ps == "" {
-		return nil, &proto.Error{Code: "args", Msg: "path must be a non-empty string"}
+	if a.RangeKind, perr = argutil.OptionalEnum(in, "range_kind", "lines", []string{"lines", "bytes"}); perr != nil {
+		return nil, perr
 	}
-	a.Path = ps
-	if v, ok := in["range"]; ok && v != nil {
-		s, ok := v.(string)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "range must be a string like \"10:50\""}
-		}
-		a.Range = s
-	}
-	if v, ok := in["range_kind"]; ok && v != nil {
-		s, ok := v.(string)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "range_kind must be \"lines\" or \"bytes\""}
-		}
-		switch s {
-		case "lines", "bytes":
-			a.RangeKind = s
-		default:
-			return nil, &proto.Error{Code: "args", Msg: "range_kind must be \"lines\" or \"bytes\""}
-		}
-	}
-	if v, ok := in["limit_bytes"]; ok && v != nil {
-		n, ok := toInt(v)
-		if !ok || n <= 0 {
-			return nil, &proto.Error{Code: "args", Msg: "limit_bytes must be a positive integer"}
-		}
-		if n > MaxLimitBytes {
-			n = MaxLimitBytes
-		}
-		a.LimitBytes = n
+	if a.LimitBytes, perr = argutil.OptionalPosInt(in, "limit_bytes", DefaultLimitBytes, MaxLimitBytes); perr != nil {
+		return nil, perr
 	}
 	return a, nil
-}
-
-func toInt(v any) (int, bool) {
-	switch n := v.(type) {
-	case int:
-		return n, true
-	case int64:
-		return int(n), true
-	case uint64:
-		return int(n), true
-	case float64:
-		return int(n), true
-	}
-	return 0, false
 }
 
 // Run executes the read. The path is interpreted as-is (relative paths resolve
@@ -298,13 +257,13 @@ func decodeResult(data any) (*Result, bool) {
 	if v, ok := m["encoding"].(string); ok {
 		r.Encoding = v
 	}
-	if v, ok := toInt64(m["size"]); ok {
+	if v, ok := argutil.ToInt64(m["size"]); ok {
 		r.Size = v
 	}
-	if v, ok := toInt64(m["mtime"]); ok {
+	if v, ok := argutil.ToInt64(m["mtime"]); ok {
 		r.Mtime = v
 	}
-	if v, ok := toInt(m["lines"]); ok {
+	if v, ok := argutil.ToInt(m["lines"]); ok {
 		r.Lines = v
 	}
 	if v, ok := m["range_returned"].(string); ok {
@@ -317,18 +276,4 @@ func decodeResult(data any) (*Result, bool) {
 		r.TruncationHint = v
 	}
 	return r, true
-}
-
-func toInt64(v any) (int64, bool) {
-	switch n := v.(type) {
-	case int:
-		return int64(n), true
-	case int64:
-		return n, true
-	case uint64:
-		return int64(n), true
-	case float64:
-		return int64(n), true
-	}
-	return 0, false
 }

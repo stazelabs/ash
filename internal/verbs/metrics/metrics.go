@@ -11,12 +11,12 @@ package metrics
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/stazelabs/ash/internal/ledger"
 	"github.com/stazelabs/ash/internal/proto"
+	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
 
 const (
@@ -51,23 +51,13 @@ type Result struct {
 }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
-	a := &Args{Last: DefaultLast}
-	if v, ok := in["last"]; ok && v != nil {
-		n, ok := toInt(v)
-		if !ok || n <= 0 {
-			return nil, &proto.Error{Code: "args", Msg: "last must be a positive integer"}
-		}
-		if n > MaxLast {
-			n = MaxLast
-		}
-		a.Last = n
+	a := &Args{}
+	var perr *proto.Error
+	if a.Last, perr = argutil.OptionalPosInt(in, "last", DefaultLast, MaxLast); perr != nil {
+		return nil, perr
 	}
-	if v, ok := in["verb"]; ok && v != nil {
-		s, ok := v.(string)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "verb must be a string"}
-		}
-		a.Verb = s
+	if a.Verb, perr = argutil.OptionalString(in, "verb", ""); perr != nil {
+		return nil, perr
 	}
 	return a, nil
 }
@@ -160,7 +150,7 @@ func scopeFromArgs(req *proto.Request) string {
 	}
 	var parts []string
 	if v, ok := req.Args["last"]; ok {
-		if n, ok := toInt(v); ok && n != DefaultLast {
+		if n, ok := argutil.ToInt(v); ok && n != DefaultLast {
 			parts = append(parts, fmt.Sprintf("last=%d", n))
 		}
 	}
@@ -186,7 +176,7 @@ func decodeResult(data any) (*Result, bool) {
 				continue
 			}
 			row := Row{}
-			if v, ok := toInt64(rm["ts"]); ok {
+			if v, ok := argutil.ToInt64(rm["ts"]); ok {
 				row.Timestamp = v
 			}
 			if v, ok := rm["verb"].(string); ok {
@@ -198,69 +188,39 @@ func decodeResult(data any) (*Result, bool) {
 			if v, ok := rm["err_code"].(string); ok {
 				row.ErrCode = v
 			}
-			if v, ok := toInt(rm["tokens_in"]); ok {
+			if v, ok := argutil.ToInt(rm["tokens_in"]); ok {
 				row.TokensIn = v
 			}
-			if v, ok := toInt(rm["tokens_out"]); ok {
+			if v, ok := argutil.ToInt(rm["tokens_out"]); ok {
 				row.TokensOut = v
 			}
-			if v, ok := toInt64(rm["latency_exec_us"]); ok {
+			if v, ok := argutil.ToInt64(rm["latency_exec_us"]); ok {
 				row.LatencyExecUs = v
 			}
-			if v, ok := toInt(rm["bytes_in"]); ok {
+			if v, ok := argutil.ToInt(rm["bytes_in"]); ok {
 				row.BytesIn = v
 			}
-			if v, ok := toInt(rm["bytes_out"]); ok {
+			if v, ok := argutil.ToInt(rm["bytes_out"]); ok {
 				row.BytesOut = v
 			}
 			if v, ok := rm["truncated"].(bool); ok {
 				row.Truncated = v
 			}
-			if v, ok := toInt64(rm["walk_us"]); ok {
+			if v, ok := argutil.ToInt64(rm["walk_us"]); ok {
 				row.WalkUs = v
 			}
-			if v, ok := toInt64(rm["io_us"]); ok {
+			if v, ok := argutil.ToInt64(rm["io_us"]); ok {
 				row.IOUs = v
 			}
-			if v, ok := toInt64(rm["regex_us"]); ok {
+			if v, ok := argutil.ToInt64(rm["regex_us"]); ok {
 				row.RegexUs = v
 			}
 			r.Rows = append(r.Rows, row)
 		}
 	}
-	if v, ok := toInt(m["count"]); ok {
+	if v, ok := argutil.ToInt(m["count"]); ok {
 		r.Count = v
 	}
 	return r, true
 }
 
-func toInt(v any) (int, bool) {
-	switch n := v.(type) {
-	case int:
-		return n, true
-	case int64:
-		return int(n), true
-	case uint64:
-		return int(n), true
-	case float64:
-		return int(n), true
-	case string:
-		i, err := strconv.Atoi(n)
-		return i, err == nil
-	}
-	return 0, false
-}
-
-func toInt64(v any) (int64, bool) {
-	switch n := v.(type) {
-	case int:
-		return int64(n), true
-	case int64:
-		return n, true
-	case uint64:
-		return int64(n), true
-	case float64:
-		return int64(n), true
-	}
-	return 0, false
-}

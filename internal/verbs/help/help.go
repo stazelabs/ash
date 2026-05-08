@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/stazelabs/ash/internal/proto"
+	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
 
 type ArgSchema struct {
@@ -130,12 +131,9 @@ var registry = []VerbSchema{
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	a := &Args{}
-	if v, ok := in["verb"]; ok && v != nil {
-		s, ok := v.(string)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "verb must be a string"}
-		}
-		a.Verb = s
+	var perr *proto.Error
+	if a.Verb, perr = argutil.OptionalString(in, "verb", ""); perr != nil {
+		return nil, perr
 	}
 	return a, nil
 }

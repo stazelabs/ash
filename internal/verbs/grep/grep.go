@@ -43,6 +43,7 @@ import (
 
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/stazelabs/ash/internal/proto"
+	"github.com/stazelabs/ash/internal/verbs/argutil"
 	"github.com/stazelabs/ash/internal/walker"
 )
 
@@ -97,136 +98,52 @@ type Result struct {
 }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
-	a := &Args{
-		Glob:             DefaultGlob,
-		Case:             "smart",
-		MaxMatches:       DefaultMaxMatches,
-		RespectGitignore: true,
+	a := &Args{}
+	var perr *proto.Error
+	if a.Pattern, perr = argutil.RequireString(in, "pattern"); perr != nil {
+		return nil, perr
 	}
-	pv, ok := in["pattern"]
-	if !ok {
-		return nil, &proto.Error{Code: "args", Msg: "missing required arg: pattern"}
+	if a.Path, perr = argutil.RequireString(in, "path"); perr != nil {
+		return nil, perr
 	}
-	ps, ok := pv.(string)
-	if !ok || ps == "" {
-		return nil, &proto.Error{Code: "args", Msg: "pattern must be a non-empty string"}
+	if a.Glob, perr = argutil.OptionalNonEmptyString(in, "glob", DefaultGlob); perr != nil {
+		return nil, perr
 	}
-	a.Pattern = ps
-
-	pathV, ok := in["path"]
-	if !ok {
-		return nil, &proto.Error{Code: "args", Msg: "missing required arg: path"}
+	if a.Case, perr = argutil.OptionalEnum(in, "case", "smart", []string{"smart", "sensitive", "insensitive"}); perr != nil {
+		return nil, perr
 	}
-	pathS, ok := pathV.(string)
-	if !ok || pathS == "" {
-		return nil, &proto.Error{Code: "args", Msg: "path must be a non-empty string"}
+	if a.FixedString, perr = argutil.OptionalBool(in, "fixed_string", false); perr != nil {
+		return nil, perr
 	}
-	a.Path = pathS
-
-	if v, ok := in["glob"]; ok && v != nil {
-		s, ok := v.(string)
-		if !ok || s == "" {
-			return nil, &proto.Error{Code: "args", Msg: "glob must be a non-empty string"}
-		}
-		a.Glob = s
+	if a.Word, perr = argutil.OptionalBool(in, "word", false); perr != nil {
+		return nil, perr
 	}
-	if v, ok := in["case"]; ok && v != nil {
-		s, ok := v.(string)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "case must be a string"}
-		}
-		switch s {
-		case "smart", "sensitive", "insensitive":
-			a.Case = s
-		default:
-			return nil, &proto.Error{Code: "args", Msg: `case must be one of: smart, sensitive, insensitive`}
-		}
+	if a.MaxMatches, perr = argutil.OptionalPosInt(in, "max_matches", DefaultMaxMatches, MaxMaxMatches); perr != nil {
+		return nil, perr
 	}
-	if v, ok := in["fixed_string"]; ok && v != nil {
-		b, ok := toBool(v)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "fixed_string must be a bool (true/false)"}
-		}
-		a.FixedString = b
+	if a.MaxPerFile, perr = argutil.OptionalNonNegInt(in, "max_per_file", 0, 0); perr != nil {
+		return nil, perr
 	}
-	if v, ok := in["word"]; ok && v != nil {
-		b, ok := toBool(v)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "word must be a bool (true/false)"}
-		}
-		a.Word = b
+	if a.ContextBefore, perr = argutil.OptionalNonNegInt(in, "context_before", 0, MaxContextLines); perr != nil {
+		return nil, perr
 	}
-	if v, ok := in["max_matches"]; ok && v != nil {
-		n, ok := toInt(v)
-		if !ok || n <= 0 {
-			return nil, &proto.Error{Code: "args", Msg: "max_matches must be a positive integer"}
-		}
-		if n > MaxMaxMatches {
-			n = MaxMaxMatches
-		}
-		a.MaxMatches = n
+	if a.ContextAfter, perr = argutil.OptionalNonNegInt(in, "context_after", 0, MaxContextLines); perr != nil {
+		return nil, perr
 	}
-	if v, ok := in["max_per_file"]; ok && v != nil {
-		n, ok := toInt(v)
-		if !ok || n < 0 {
-			return nil, &proto.Error{Code: "args", Msg: "max_per_file must be a non-negative integer (0 = unlimited)"}
-		}
-		a.MaxPerFile = n
+	if a.FilesOnly, perr = argutil.OptionalBool(in, "files_only", false); perr != nil {
+		return nil, perr
 	}
-	if v, ok := in["context_before"]; ok && v != nil {
-		n, ok := toInt(v)
-		if !ok || n < 0 {
-			return nil, &proto.Error{Code: "args", Msg: "context_before must be a non-negative integer"}
-		}
-		if n > MaxContextLines {
-			n = MaxContextLines
-		}
-		a.ContextBefore = n
+	if a.IncludeHidden, perr = argutil.OptionalBool(in, "include_hidden", false); perr != nil {
+		return nil, perr
 	}
-	if v, ok := in["context_after"]; ok && v != nil {
-		n, ok := toInt(v)
-		if !ok || n < 0 {
-			return nil, &proto.Error{Code: "args", Msg: "context_after must be a non-negative integer"}
-		}
-		if n > MaxContextLines {
-			n = MaxContextLines
-		}
-		a.ContextAfter = n
+	if a.RespectGitignore, perr = argutil.OptionalBool(in, "respect_gitignore", true); perr != nil {
+		return nil, perr
 	}
-	if v, ok := in["files_only"]; ok && v != nil {
-		b, ok := toBool(v)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "files_only must be a bool (true/false)"}
-		}
-		a.FilesOnly = b
+	if a.Exclude, perr = argutil.OptionalString(in, "exclude", ""); perr != nil {
+		return nil, perr
 	}
-	if v, ok := in["include_hidden"]; ok && v != nil {
-		b, ok := toBool(v)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "include_hidden must be a bool (true/false)"}
-		}
-		a.IncludeHidden = b
-	}
-	if v, ok := in["respect_gitignore"]; ok && v != nil {
-		b, ok := toBool(v)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "respect_gitignore must be a bool (true/false)"}
-		}
-		a.RespectGitignore = b
-	}
-	if v, ok := in["exclude"]; ok && v != nil {
-		s, ok := v.(string)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "exclude must be a string"}
-		}
-		a.Exclude = s
-	}
-	if v, ok := in["max_depth"]; ok && v != nil {
-		n, ok := toInt(v)
-		if !ok || n < 0 {
-			return nil, &proto.Error{Code: "args", Msg: "max_depth must be a non-negative integer"}
-		}
-		a.MaxDepth = n
+	if a.MaxDepth, perr = argutil.OptionalNonNegInt(in, "max_depth", 0, 0); perr != nil {
+		return nil, perr
 	}
 	if !doublestar.ValidatePathPattern(a.Glob) {
 		return nil, &proto.Error{Code: "args", Msg: "glob is not a valid pattern: " + a.Glob}
@@ -559,38 +476,6 @@ func clipText(b []byte) string {
 	return string(b)
 }
 
-func toInt(v any) (int, bool) {
-	switch n := v.(type) {
-	case int:
-		return n, true
-	case int64:
-		return int(n), true
-	case uint64:
-		return int(n), true
-	case float64:
-		return int(n), true
-	case string:
-		i, err := strconv.Atoi(n)
-		return i, err == nil
-	}
-	return 0, false
-}
-
-func toBool(v any) (bool, bool) {
-	switch n := v.(type) {
-	case bool:
-		return n, true
-	case string:
-		switch strings.ToLower(n) {
-		case "true", "1", "yes":
-			return true, true
-		case "false", "0", "no":
-			return false, true
-		}
-	}
-	return false, false
-}
-
 // PrettyResponse renders a grep response in canonical line-oriented form.
 // Matches are grouped by file: one header line per file, then one record
 // per emitted line. Match lines use "LINE:" and context lines use "LINE-".
@@ -608,7 +493,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if req != nil {
 		// Files-only header
 		if v, ok := req.Args["files_only"]; ok {
-			if got, ok := toBool(v); ok && got {
+			if got, ok := argutil.ToBool(v); ok && got {
 				return prettyFilesOnly(req, r)
 			}
 		}
@@ -723,23 +608,23 @@ func scopeFromArgs(req *proto.Request) string {
 		parts = append(parts, "case="+v)
 	}
 	if v, ok := req.Args["fixed_string"]; ok {
-		if b, ok := toBool(v); ok && b {
+		if b, ok := argutil.ToBool(v); ok && b {
 			parts = append(parts, "fixed_string=true")
 		}
 	}
 	if v, ok := req.Args["word"]; ok {
-		if b, ok := toBool(v); ok && b {
+		if b, ok := argutil.ToBool(v); ok && b {
 			parts = append(parts, "word=true")
 		}
 	}
 	// Hide defaults the way find does, surface only overrides.
 	if v, ok := req.Args["respect_gitignore"]; ok {
-		if b, ok := toBool(v); ok && !b {
+		if b, ok := argutil.ToBool(v); ok && !b {
 			parts = append(parts, "respect_gitignore=false")
 		}
 	}
 	if v, ok := req.Args["include_hidden"]; ok {
-		if b, ok := toBool(v); ok && b {
+		if b, ok := argutil.ToBool(v); ok && b {
 			parts = append(parts, "include_hidden=true")
 		}
 	}
@@ -765,10 +650,10 @@ func decodeResult(data any) (*Result, bool) {
 			if v, ok := rm["path"].(string); ok {
 				rec.Path = v
 			}
-			if v, ok := toInt(rm["line"]); ok {
+			if v, ok := argutil.ToInt(rm["line"]); ok {
 				rec.Line = v
 			}
-			if v, ok := toInt(rm["col"]); ok {
+			if v, ok := argutil.ToInt(rm["col"]); ok {
 				rec.Col = v
 			}
 			if v, ok := rm["text"].(string); ok {
@@ -787,22 +672,22 @@ func decodeResult(data any) (*Result, bool) {
 			}
 		}
 	}
-	if v, ok := toInt(m["count"]); ok {
+	if v, ok := argutil.ToInt(m["count"]); ok {
 		r.Count = v
 	}
-	if v, ok := toInt(m["match_count"]); ok {
+	if v, ok := argutil.ToInt(m["match_count"]); ok {
 		r.MatchCount = v
 	}
-	if v, ok := toInt(m["file_count"]); ok {
+	if v, ok := argutil.ToInt(m["file_count"]); ok {
 		r.FileCount = v
 	}
-	if v, ok := toInt(m["files_scanned"]); ok {
+	if v, ok := argutil.ToInt(m["files_scanned"]); ok {
 		r.FilesScanned = v
 	}
-	if v, ok := toInt(m["files_skipped_binary"]); ok {
+	if v, ok := argutil.ToInt(m["files_skipped_binary"]); ok {
 		r.FilesSkippedBinary = v
 	}
-	if v, ok := toInt(m["files_skipped_large"]); ok {
+	if v, ok := argutil.ToInt(m["files_skipped_large"]); ok {
 		r.FilesSkippedLarge = v
 	}
 	if v, ok := m["truncated"].(bool); ok {

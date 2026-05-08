@@ -34,6 +34,7 @@ import (
 
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/stazelabs/ash/internal/proto"
+	"github.com/stazelabs/ash/internal/verbs/argutil"
 	"github.com/stazelabs/ash/internal/walker"
 )
 
@@ -69,78 +70,31 @@ type Result struct {
 }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
-	a := &Args{
-		Glob:             DefaultGlob,
-		Type:             "any",
-		Limit:            DefaultLimit,
-		RespectGitignore: true,
+	a := &Args{}
+	var perr *proto.Error
+	if a.Path, perr = argutil.RequireString(in, "path"); perr != nil {
+		return nil, perr
 	}
-	pv, ok := in["path"]
-	if !ok {
-		return nil, &proto.Error{Code: "args", Msg: "missing required arg: path"}
+	if a.Glob, perr = argutil.OptionalNonEmptyString(in, "glob", DefaultGlob); perr != nil {
+		return nil, perr
 	}
-	ps, ok := pv.(string)
-	if !ok || ps == "" {
-		return nil, &proto.Error{Code: "args", Msg: "path must be a non-empty string"}
+	if a.Type, perr = argutil.OptionalEnum(in, "type", "any", []string{"any", "file", "dir", "symlink"}); perr != nil {
+		return nil, perr
 	}
-	a.Path = ps
-
-	if v, ok := in["glob"]; ok && v != nil {
-		s, ok := v.(string)
-		if !ok || s == "" {
-			return nil, &proto.Error{Code: "args", Msg: "glob must be a non-empty string"}
-		}
-		a.Glob = s
+	if a.MaxDepth, perr = argutil.OptionalNonNegInt(in, "max_depth", 0, 0); perr != nil {
+		return nil, perr
 	}
-	if v, ok := in["type"]; ok && v != nil {
-		s, ok := v.(string)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "type must be a string"}
-		}
-		switch s {
-		case "any", "file", "dir", "symlink":
-			a.Type = s
-		default:
-			return nil, &proto.Error{Code: "args", Msg: `type must be one of: any, file, dir, symlink`}
-		}
+	if a.Limit, perr = argutil.OptionalPosInt(in, "limit", DefaultLimit, MaxLimit); perr != nil {
+		return nil, perr
 	}
-	if v, ok := in["max_depth"]; ok && v != nil {
-		n, ok := toInt(v)
-		if !ok || n < 0 {
-			return nil, &proto.Error{Code: "args", Msg: "max_depth must be a non-negative integer"}
-		}
-		a.MaxDepth = n
+	if a.Exclude, perr = argutil.OptionalString(in, "exclude", ""); perr != nil {
+		return nil, perr
 	}
-	if v, ok := in["limit"]; ok && v != nil {
-		n, ok := toInt(v)
-		if !ok || n <= 0 {
-			return nil, &proto.Error{Code: "args", Msg: "limit must be a positive integer"}
-		}
-		if n > MaxLimit {
-			n = MaxLimit
-		}
-		a.Limit = n
+	if a.IncludeHidden, perr = argutil.OptionalBool(in, "include_hidden", false); perr != nil {
+		return nil, perr
 	}
-	if v, ok := in["exclude"]; ok && v != nil {
-		s, ok := v.(string)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "exclude must be a string"}
-		}
-		a.Exclude = s
-	}
-	if v, ok := in["include_hidden"]; ok && v != nil {
-		b, ok := toBool(v)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "include_hidden must be a bool (true/false)"}
-		}
-		a.IncludeHidden = b
-	}
-	if v, ok := in["respect_gitignore"]; ok && v != nil {
-		b, ok := toBool(v)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "respect_gitignore must be a bool (true/false)"}
-		}
-		a.RespectGitignore = b
+	if a.RespectGitignore, perr = argutil.OptionalBool(in, "respect_gitignore", true); perr != nil {
+		return nil, perr
 	}
 	if !doublestar.ValidatePathPattern(a.Glob) {
 		return nil, &proto.Error{Code: "args", Msg: "glob is not a valid pattern: " + a.Glob}
@@ -149,38 +103,6 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 		return nil, &proto.Error{Code: "args", Msg: "exclude is not a valid pattern: " + a.Exclude}
 	}
 	return a, nil
-}
-
-func toInt(v any) (int, bool) {
-	switch n := v.(type) {
-	case int:
-		return n, true
-	case int64:
-		return int(n), true
-	case uint64:
-		return int(n), true
-	case float64:
-		return int(n), true
-	case string:
-		i, err := strconv.Atoi(n)
-		return i, err == nil
-	}
-	return 0, false
-}
-
-func toBool(v any) (bool, bool) {
-	switch n := v.(type) {
-	case bool:
-		return n, true
-	case string:
-		switch strings.ToLower(n) {
-		case "true", "1", "yes":
-			return true, true
-		case "false", "0", "no":
-			return false, true
-		}
-	}
-	return false, false
 }
 
 // Run walks the tree and produces records matching the args. tr may be
@@ -336,12 +258,12 @@ func scopeFromArgs(req *proto.Request) string {
 	// the default. Same idea for include_hidden: hide the default, show the
 	// override.
 	if v, ok := req.Args["respect_gitignore"]; ok {
-		if b, ok := toBool(v); ok && !b {
+		if b, ok := argutil.ToBool(v); ok && !b {
 			parts = append(parts, "respect_gitignore=false")
 		}
 	}
 	if v, ok := req.Args["include_hidden"]; ok {
-		if b, ok := toBool(v); ok && b {
+		if b, ok := argutil.ToBool(v); ok && b {
 			parts = append(parts, "include_hidden=true")
 		}
 	}
@@ -370,16 +292,16 @@ func decodeResult(data any) (*Result, bool) {
 			if v, ok := rm["type"].(string); ok {
 				rec.Type = v
 			}
-			if v, ok := toInt64(rm["size"]); ok {
+			if v, ok := argutil.ToInt64(rm["size"]); ok {
 				rec.Size = v
 			}
-			if v, ok := toInt64(rm["mtime"]); ok {
+			if v, ok := argutil.ToInt64(rm["mtime"]); ok {
 				rec.Mtime = v
 			}
 			r.Records = append(r.Records, rec)
 		}
 	}
-	if v, ok := toInt(m["count"]); ok {
+	if v, ok := argutil.ToInt(m["count"]); ok {
 		r.Count = v
 	}
 	if v, ok := m["truncated"].(bool); ok {
@@ -391,16 +313,3 @@ func decodeResult(data any) (*Result, bool) {
 	return r, true
 }
 
-func toInt64(v any) (int64, bool) {
-	switch n := v.(type) {
-	case int:
-		return int64(n), true
-	case int64:
-		return n, true
-	case uint64:
-		return int64(n), true
-	case float64:
-		return int64(n), true
-	}
-	return 0, false
-}

@@ -19,6 +19,7 @@ import (
 
 	"github.com/stazelabs/ash/internal/ledger"
 	"github.com/stazelabs/ash/internal/proto"
+	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
 
 const MaxLast = 5000
@@ -67,41 +68,28 @@ type Result struct {
 }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
-	a := &Args{Session: "current"}
-	if v, ok := in["session"]; ok && v != nil {
-		s, ok := v.(string)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "session must be a string"}
-		}
-		a.Session = s
+	a := &Args{}
+	var perr *proto.Error
+	if a.Session, perr = argutil.OptionalNonEmptyString(in, "session", "current"); perr != nil {
+		return nil, perr
 	}
-	if v, ok := in["since"]; ok && v != nil {
-		s, ok := v.(string)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "since must be a duration string (e.g. '1h', '24h', '7d')"}
-		}
-		d, err := parseDuration(s)
+	if since, perr := argutil.OptionalString(in, "since", ""); perr != nil {
+		return nil, perr
+	} else if since != "" {
+		d, err := parseDuration(since)
 		if err != nil {
 			return nil, &proto.Error{Code: "args", Msg: "since: " + err.Error()}
 		}
 		a.Since = d
 	}
-	if v, ok := in["last"]; ok && v != nil {
-		n, ok := toInt(v)
-		if !ok || n <= 0 {
-			return nil, &proto.Error{Code: "args", Msg: "last must be a positive integer"}
-		}
-		if n > MaxLast {
-			n = MaxLast
-		}
-		a.Last = n
+	if a.Last, perr = argutil.OptionalPosInt(in, "last", 0, MaxLast); perr != nil {
+		// last is optional with no implicit default — but OptionalPosInt
+		// rejects 0 when the value is set. The default-0 path produces 0
+		// from "absent" cleanly, so a 0 from the helper means "absent."
+		return nil, perr
 	}
-	if v, ok := in["verb"]; ok && v != nil {
-		s, ok := v.(string)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "verb must be a string"}
-		}
-		a.Verb = s
+	if a.Verb, perr = argutil.OptionalString(in, "verb", ""); perr != nil {
+		return nil, perr
 	}
 	return a, nil
 }
@@ -275,7 +263,7 @@ func decodeResult(data any) (*Result, bool) {
 		if v, ok := sm["since"].(string); ok {
 			r.Scope.Since = v
 		}
-		if v, ok := toInt(sm["last"]); ok {
+		if v, ok := argutil.ToInt(sm["last"]); ok {
 			r.Scope.Last = v
 		}
 		if v, ok := sm["verb"].(string); ok {
@@ -283,22 +271,22 @@ func decodeResult(data any) (*Result, bool) {
 		}
 	}
 	if tm, ok := m["totals"].(map[string]any); ok {
-		if v, ok := toInt(tm["calls"]); ok {
+		if v, ok := argutil.ToInt(tm["calls"]); ok {
 			r.Totals.Calls = v
 		}
-		if v, ok := toInt(tm["ok"]); ok {
+		if v, ok := argutil.ToInt(tm["ok"]); ok {
 			r.Totals.OK = v
 		}
-		if v, ok := toInt(tm["errors"]); ok {
+		if v, ok := argutil.ToInt(tm["errors"]); ok {
 			r.Totals.Errors = v
 		}
-		if v, ok := toInt64(tm["tokens_in"]); ok {
+		if v, ok := argutil.ToInt64(tm["tokens_in"]); ok {
 			r.Totals.TokensIn = v
 		}
-		if v, ok := toInt64(tm["tokens_out"]); ok {
+		if v, ok := argutil.ToInt64(tm["tokens_out"]); ok {
 			r.Totals.TokensOut = v
 		}
-		if v, ok := toInt64(tm["exec_sum_us"]); ok {
+		if v, ok := argutil.ToInt64(tm["exec_sum_us"]); ok {
 			r.Totals.ExecSumUs = v
 		}
 	}
@@ -312,28 +300,28 @@ func decodeResult(data any) (*Result, bool) {
 			if v, ok := vm["verb"].(string); ok {
 				vs.Verb = v
 			}
-			if v, ok := toInt(vm["n"]); ok {
+			if v, ok := argutil.ToInt(vm["n"]); ok {
 				vs.N = v
 			}
-			if v, ok := toInt(vm["ok_count"]); ok {
+			if v, ok := argutil.ToInt(vm["ok_count"]); ok {
 				vs.OKCount = v
 			}
 			if v, ok := toFloat64(vm["ok_pct"]); ok {
 				vs.OKPct = v
 			}
-			if v, ok := toInt64(vm["p50_exec_us"]); ok {
+			if v, ok := argutil.ToInt64(vm["p50_exec_us"]); ok {
 				vs.P50ExecUs = v
 			}
-			if v, ok := toInt64(vm["p95_exec_us"]); ok {
+			if v, ok := argutil.ToInt64(vm["p95_exec_us"]); ok {
 				vs.P95ExecUs = v
 			}
-			if v, ok := toInt64(vm["p50_tokens_out"]); ok {
+			if v, ok := argutil.ToInt64(vm["p50_tokens_out"]); ok {
 				vs.P50TokensOut = v
 			}
-			if v, ok := toInt64(vm["p95_tokens_out"]); ok {
+			if v, ok := argutil.ToInt64(vm["p95_tokens_out"]); ok {
 				vs.P95TokensOut = v
 			}
-			if v, ok := toInt(vm["truncated_n"]); ok {
+			if v, ok := argutil.ToInt(vm["truncated_n"]); ok {
 				vs.TruncatedN = v
 			}
 			if v, ok := toFloat64(vm["truncated_pct"]); ok {
@@ -361,34 +349,6 @@ func parseInt(s string) (int, error) {
 	var n int
 	_, err := fmt.Sscanf(s, "%d", &n)
 	return n, err
-}
-
-func toInt(v any) (int, bool) {
-	switch n := v.(type) {
-	case int:
-		return n, true
-	case int64:
-		return int(n), true
-	case uint64:
-		return int(n), true
-	case float64:
-		return int(n), true
-	}
-	return 0, false
-}
-
-func toInt64(v any) (int64, bool) {
-	switch n := v.(type) {
-	case int:
-		return int64(n), true
-	case int64:
-		return n, true
-	case uint64:
-		return int64(n), true
-	case float64:
-		return int64(n), true
-	}
-	return 0, false
 }
 
 func toFloat64(v any) (float64, bool) {

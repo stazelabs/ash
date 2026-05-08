@@ -24,10 +24,8 @@
 package git
 
 import (
-	"strconv"
-	"strings"
-
 	"github.com/stazelabs/ash/internal/proto"
+	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
 
 // Result is the wire envelope. Op is always set; the populated payload
@@ -55,88 +53,39 @@ type Args struct {
 }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
-	a := &Args{
-		Path:      ".",
-		Untracked: true,
-		Limit:     LogDefaultLimit,
+	a := &Args{}
+	var perr *proto.Error
+	if a.Op, perr = argutil.RequireString(in, "op"); perr != nil {
+		return nil, perr
 	}
-	opV, ok := in["op"]
-	if !ok {
-		return nil, &proto.Error{Code: "args", Msg: "missing required arg: op"}
+	if a.Path, perr = argutil.OptionalNonEmptyString(in, "path", "."); perr != nil {
+		return nil, perr
 	}
-	op, ok := opV.(string)
-	if !ok || op == "" {
-		return nil, &proto.Error{Code: "args", Msg: "op must be a non-empty string"}
+	if a.Untracked, perr = argutil.OptionalBool(in, "untracked", true); perr != nil {
+		return nil, perr
 	}
-	a.Op = op
-
-	if v, ok := in["path"]; ok && v != nil {
-		s, ok := v.(string)
-		if !ok || s == "" {
-			return nil, &proto.Error{Code: "args", Msg: "path must be a non-empty string"}
-		}
-		a.Path = s
-	}
-	if v, ok := in["untracked"]; ok && v != nil {
-		b, ok := toBool(v)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "untracked must be a bool (true/false)"}
-		}
-		a.Untracked = b
-	}
-	if v, ok := in["ignored"]; ok && v != nil {
-		b, ok := toBool(v)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "ignored must be a bool (true/false)"}
-		}
-		a.Ignored = b
+	if a.Ignored, perr = argutil.OptionalBool(in, "ignored", false); perr != nil {
+		return nil, perr
 	}
 	// log-op flags. Strings pass through to git unmodified; git itself is
 	// the validator for date formats, refspecs, and pathspecs.
-	if v, ok := in["limit"]; ok && v != nil {
-		n, ok := toInt(v)
-		if !ok || n <= 0 {
-			return nil, &proto.Error{Code: "args", Msg: "limit must be a positive integer"}
-		}
-		if n > LogMaxLimit {
-			n = LogMaxLimit
-		}
-		a.Limit = n
+	if a.Limit, perr = argutil.OptionalPosInt(in, "limit", LogDefaultLimit, LogMaxLimit); perr != nil {
+		return nil, perr
 	}
-	if v, ok := in["range"]; ok && v != nil {
-		s, ok := v.(string)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "range must be a string"}
-		}
-		a.Range = s
+	if a.Range, perr = argutil.OptionalString(in, "range", ""); perr != nil {
+		return nil, perr
 	}
-	if v, ok := in["author"]; ok && v != nil {
-		s, ok := v.(string)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "author must be a string"}
-		}
-		a.Author = s
+	if a.Author, perr = argutil.OptionalString(in, "author", ""); perr != nil {
+		return nil, perr
 	}
-	if v, ok := in["since"]; ok && v != nil {
-		s, ok := v.(string)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "since must be a string"}
-		}
-		a.Since = s
+	if a.Since, perr = argutil.OptionalString(in, "since", ""); perr != nil {
+		return nil, perr
 	}
-	if v, ok := in["until"]; ok && v != nil {
-		s, ok := v.(string)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "until must be a string"}
-		}
-		a.Until = s
+	if a.Until, perr = argutil.OptionalString(in, "until", ""); perr != nil {
+		return nil, perr
 	}
-	if v, ok := in["pathspec"]; ok && v != nil {
-		s, ok := v.(string)
-		if !ok {
-			return nil, &proto.Error{Code: "args", Msg: "pathspec must be a string"}
-		}
-		a.Pathspec = s
+	if a.Pathspec, perr = argutil.OptionalString(in, "pathspec", ""); perr != nil {
+		return nil, perr
 	}
 	return a, nil
 }
@@ -203,48 +152,3 @@ func decodeResult(data any) (*Result, bool) {
 	return r, true
 }
 
-func toBool(v any) (bool, bool) {
-	switch n := v.(type) {
-	case bool:
-		return n, true
-	case string:
-		switch strings.ToLower(n) {
-		case "true", "1", "yes":
-			return true, true
-		case "false", "0", "no":
-			return false, true
-		}
-	}
-	return false, false
-}
-
-func toInt(v any) (int, bool) {
-	switch n := v.(type) {
-	case int:
-		return n, true
-	case int64:
-		return int(n), true
-	case uint64:
-		return int(n), true
-	case float64:
-		return int(n), true
-	case string:
-		i, err := strconv.Atoi(n)
-		return i, err == nil
-	}
-	return 0, false
-}
-
-func toInt64(v any) (int64, bool) {
-	switch n := v.(type) {
-	case int:
-		return int64(n), true
-	case int64:
-		return n, true
-	case uint64:
-		return int64(n), true
-	case float64:
-		return int64(n), true
-	}
-	return 0, false
-}

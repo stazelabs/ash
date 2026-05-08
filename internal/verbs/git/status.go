@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stazelabs/ash/internal/proto"
+	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
 
 // StatusResult mirrors `git status --porcelain=v2 --branch`, with the
@@ -287,10 +288,10 @@ func decodeStatus(m map[string]any) *StatusResult {
 	if v, ok := m["upstream"].(string); ok {
 		s.Upstream = v
 	}
-	if v, ok := toInt(m["ahead"]); ok {
+	if v, ok := argutil.ToInt(m["ahead"]); ok {
 		s.Ahead = v
 	}
-	if v, ok := toInt(m["behind"]); ok {
+	if v, ok := argutil.ToInt(m["behind"]); ok {
 		s.Behind = v
 	}
 	if v, ok := m["detached"].(bool); ok {

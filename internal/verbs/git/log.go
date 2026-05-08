@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stazelabs/ash/internal/proto"
+	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
 
 const (
@@ -252,7 +253,7 @@ func decodeLog(m map[string]any) *LogResult {
 			if v, ok := cm["author_email"].(string); ok {
 				c.AuthorEmail = v
 			}
-			if v, ok := toInt64(cm["author_time"]); ok {
+			if v, ok := argutil.ToInt64(cm["author_time"]); ok {
 				c.AuthorTime = v
 			}
 			if v, ok := cm["committer_name"].(string); ok {
@@ -261,7 +262,7 @@ func decodeLog(m map[string]any) *LogResult {
 			if v, ok := cm["committer_email"].(string); ok {
 				c.CommitterEmail = v
 			}
-			if v, ok := toInt64(cm["committer_time"]); ok {
+			if v, ok := argutil.ToInt64(cm["committer_time"]); ok {
 				c.CommitterTime = v
 			}
 			if v, ok := cm["subject"].(string); ok {
@@ -280,7 +281,7 @@ func decodeLog(m map[string]any) *LogResult {
 			l.Commits = append(l.Commits, c)
 		}
 	}
-	if v, ok := toInt(m["count"]); ok {
+	if v, ok := argutil.ToInt(m["count"]); ok {
 		l.Count = v
 	}
 	if v, ok := m["truncated"].(bool); ok {
