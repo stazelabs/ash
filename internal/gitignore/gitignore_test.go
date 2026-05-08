@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestLoadFromDir_NoFileReturnsNilNil(t *testing.T) {
@@ -70,5 +71,95 @@ func TestExcludes_AbsolutePathNormalized(t *testing.T) {
 	abs := filepath.Join(dir, "bin", "ash")
 	if !m.Excludes(abs, false) {
 		t.Errorf("absolute path %q should match bin/ rule", abs)
+	}
+}
+
+func TestLoadFromDir_CacheHit(t *testing.T) {
+	dir := t.TempDir()
+	body := []byte("bin/\n*.log\n")
+	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m1, err := LoadFromDir(dir)
+	if err != nil {
+		t.Fatalf("first load: %v", err)
+	}
+	m2, err := LoadFromDir(dir)
+	if err != nil {
+		t.Fatalf("second load: %v", err)
+	}
+	if m1 != m2 {
+		t.Fatalf("cache miss: got distinct *Matcher pointers (%p vs %p), expected same", m1, m2)
+	}
+}
+
+func TestLoadFromDir_MtimeInvalidatesCache(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gitignore")
+	if err := os.WriteFile(path, []byte("bin/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m1, err := LoadFromDir(dir)
+	if err != nil {
+		t.Fatalf("first load: %v", err)
+	}
+	if m1 == nil || !m1.Excludes("bin", true) {
+		t.Fatal("first load should match bin/")
+	}
+	// Replace contents and bump mtime forward to ensure the cache
+	// guard fires regardless of filesystem mtime resolution.
+	if err := os.WriteFile(path, []byte("vendor/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	future := time.Now().Add(2 * time.Second)
+	if err := os.Chtimes(path, future, future); err != nil {
+		t.Fatal(err)
+	}
+	m2, err := LoadFromDir(dir)
+	if err != nil {
+		t.Fatalf("second load: %v", err)
+	}
+	if m2 == m1 {
+		t.Fatal("cache should have invalidated on mtime change")
+	}
+	if !m2.Excludes("vendor", true) {
+		t.Error("new rules not applied: vendor/ should match")
+	}
+	if m2.Excludes("bin", true) {
+		t.Error("old rules still applied: bin/ should no longer match")
+	}
+}
+
+func TestLoadFromDir_SizeInvalidatesCacheOnSameMtime(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gitignore")
+	if err := os.WriteFile(path, []byte("bin/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Pin mtime so only size changes between loads. Guards against
+	// rapid same-second edits that mtime alone would miss.
+	t0 := time.Unix(1_700_000_000, 0)
+	if err := os.Chtimes(path, t0, t0); err != nil {
+		t.Fatal(err)
+	}
+	m1, err := LoadFromDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("vendor/\nnode_modules/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(path, t0, t0); err != nil {
+		t.Fatal(err)
+	}
+	m2, err := LoadFromDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m2 == m1 {
+		t.Fatal("cache should have invalidated on size change despite identical mtime")
+	}
+	if !m2.Excludes("vendor", true) {
+		t.Error("new rules not applied")
 	}
 }

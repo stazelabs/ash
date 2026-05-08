@@ -6,6 +6,11 @@
 //     yet honored. Verbs document this.
 //   - No global gitignore (~/.gitconfig core.excludesFile) and no
 //     .git/info/exclude. Add when needed.
+//
+// Compiled matchers are cached by load directory and invalidated by mtime
+// + size of the underlying .gitignore file. The daemon is long-lived and
+// .gitignore changes rarely, so amortizing the regex-compile cost across
+// every Walk is a meaningful win — see ASH-36.
 package gitignore
 
 import (
@@ -13,6 +18,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
 
 	ignore "github.com/sabhiram/go-gitignore"
 )
@@ -28,9 +35,26 @@ type Matcher struct {
 	root  string
 }
 
+// cacheEntry holds a compiled matcher plus the staleness-check fields
+// from the .gitignore file at load time.
+type cacheEntry struct {
+	matcher *Matcher
+	mtime   time.Time
+	size    int64
+}
+
+var (
+	cacheMu sync.RWMutex
+	cache   = map[string]cacheEntry{}
+)
+
 // LoadFromDir reads .gitignore at dir if present. Returns (nil, nil) when no
 // .gitignore exists (the common case for many directories). A non-nil error
 // only signals filesystem trouble reading an existing file.
+//
+// Compiled matchers are cached per dir; subsequent calls re-stat the file
+// and return the cached matcher when mtime + size are unchanged. This is
+// load-bearing for walker perf — every ash find/grep call hits this path.
 func LoadFromDir(dir string) (*Matcher, error) {
 	path := filepath.Join(dir, ".gitignore")
 	info, err := os.Stat(path)
@@ -43,11 +67,28 @@ func LoadFromDir(dir string) (*Matcher, error) {
 	if info.IsDir() {
 		return nil, nil
 	}
+
+	mtime := info.ModTime()
+	size := info.Size()
+
+	cacheMu.RLock()
+	entry, ok := cache[dir]
+	cacheMu.RUnlock()
+	if ok && entry.mtime.Equal(mtime) && entry.size == size {
+		return entry.matcher, nil
+	}
+
 	rules, err := ignore.CompileIgnoreFile(path)
 	if err != nil {
 		return nil, err
 	}
-	return &Matcher{rules: rules, root: dir}, nil
+	m := &Matcher{rules: rules, root: dir}
+
+	cacheMu.Lock()
+	cache[dir] = cacheEntry{matcher: m, mtime: mtime, size: size}
+	cacheMu.Unlock()
+
+	return m, nil
 }
 
 // Excludes reports whether p is excluded by the loaded rules. isDir tells the
