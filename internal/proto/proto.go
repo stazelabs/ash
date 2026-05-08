@@ -21,42 +21,42 @@ const (
 )
 
 type Request struct {
-	V    int            `msgpack:"v"`
-	ID   uint64         `msgpack:"id"`
-	Verb string         `msgpack:"verb"`
-	Args map[string]any `msgpack:"args"`
+	V    int            `msgpack:"v"    json:"v"`
+	ID   uint64         `msgpack:"id"   json:"id"`
+	Verb string         `msgpack:"verb" json:"verb"`
+	Args map[string]any `msgpack:"args" json:"args"`
 }
 
 type Response struct {
-	V       int      `msgpack:"v"`
-	ID      uint64   `msgpack:"id"`
-	OK      bool     `msgpack:"ok"`
-	Data    any      `msgpack:"data,omitempty"`
-	Err     *Error   `msgpack:"err,omitempty"`
-	Metrics *Metrics `msgpack:"metrics,omitempty"`
+	V       int      `msgpack:"v"                json:"v"`
+	ID      uint64   `msgpack:"id"               json:"id"`
+	OK      bool     `msgpack:"ok"               json:"ok"`
+	Data    any      `msgpack:"data,omitempty"    json:"data,omitempty"`
+	Err     *Error   `msgpack:"err,omitempty"     json:"err,omitempty"`
+	Metrics *Metrics `msgpack:"metrics,omitempty" json:"metrics,omitempty"`
 }
 
 type Error struct {
-	Code string `msgpack:"code"`
-	Msg  string `msgpack:"msg"`
+	Code string `msgpack:"code" json:"code"`
+	Msg  string `msgpack:"msg"  json:"msg"`
 }
 
 type Metrics struct {
-	LatencyParseUs     int64  `msgpack:"latency_parse_us"`
-	LatencyExecUs      int64  `msgpack:"latency_exec_us"`
-	LatencySerializeUs int64  `msgpack:"latency_serialize_us"`
-	TokensIn           int    `msgpack:"tokens_in"`
-	TokensOut          int    `msgpack:"tokens_out"`
-	TokensMethod       string `msgpack:"tokens_method"`
-	BytesIn            int    `msgpack:"bytes_in"`
-	BytesOut           int    `msgpack:"bytes_out"`
-	Truncated          bool   `msgpack:"truncated,omitempty"`
+	LatencyParseUs     int64  `msgpack:"latency_parse_us"     json:"latency_parse_us"`
+	LatencyExecUs      int64  `msgpack:"latency_exec_us"      json:"latency_exec_us"`
+	LatencySerializeUs int64  `msgpack:"latency_serialize_us" json:"latency_serialize_us"`
+	TokensIn           int    `msgpack:"tokens_in"            json:"tokens_in"`
+	TokensOut          int    `msgpack:"tokens_out"           json:"tokens_out"`
+	TokensMethod       string `msgpack:"tokens_method"        json:"tokens_method"`
+	BytesIn            int    `msgpack:"bytes_in"             json:"bytes_in"`
+	BytesOut           int    `msgpack:"bytes_out"            json:"bytes_out"`
+	Truncated          bool   `msgpack:"truncated,omitempty"  json:"truncated,omitempty"`
 	// LedgerError is set by the daemon when persisting the call to the
 	// instrumentation ledger failed. The verb itself may have succeeded; the
 	// ledger row did not. Empty in the normal case (omitempty drops it from
 	// the wire). This is the project's main "loud failure" signal: a quiet
 	// ledger failure undermines every claim ash makes about itself.
-	LedgerError string `msgpack:"ledger_error,omitempty"`
+	LedgerError string `msgpack:"ledger_error,omitempty" json:"ledger_error,omitempty"`
 }
 
 func WriteFrame(w io.Writer, payload []byte) error {

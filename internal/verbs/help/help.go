@@ -1,0 +1,215 @@
+// Package help implements the `help` verb.
+//
+// Args:
+//
+//	verb   string  (optional) - return schema for a specific verb; omit for all verbs
+//
+// Returns structured argument schemas for all live verbs (or one verb).
+// The schema is static — it mirrors what ParseArgs in each verb package enforces.
+package help
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/stazelabs/ash/internal/proto"
+)
+
+type ArgSchema struct {
+	Name        string   `msgpack:"name"`
+	Type        string   `msgpack:"type"`             // "string" | "int" | "bool"
+	Required    bool     `msgpack:"required,omitempty"`
+	Default     string   `msgpack:"default,omitempty"`
+	Description string   `msgpack:"description"`
+	Values      []string `msgpack:"values,omitempty"` // valid enum values
+}
+
+type VerbSchema struct {
+	Verb        string      `msgpack:"verb"`
+	Description string      `msgpack:"description"`
+	Args        []ArgSchema `msgpack:"args"`
+}
+
+type Result struct {
+	Verbs []VerbSchema `msgpack:"verbs"`
+	Count int          `msgpack:"count"`
+}
+
+type Args struct {
+	Verb string // empty = all verbs
+}
+
+var registry = []VerbSchema{
+	{
+		Verb:        "read",
+		Description: "Read a file (or a byte/line range of one). UTF-8 is returned as-is; binary is base64-encoded.",
+		Args: []ArgSchema{
+			{Name: "path", Type: "string", Required: true, Description: "Absolute or relative path to the file."},
+			{Name: "range", Type: "string", Default: "", Description: "Range to read, formatted as start:end (e.g. 1:100)."},
+			{Name: "range_kind", Type: "string", Default: "lines", Values: []string{"lines", "bytes"}, Description: "Unit for the range argument."},
+			{Name: "limit_bytes", Type: "int", Default: "262144", Description: "Maximum bytes to return. Hard cap is 256 KiB."},
+		},
+	},
+	{
+		Verb:        "find",
+		Description: "Walk a directory tree and return matching paths. Respects .gitignore by default.",
+		Args: []ArgSchema{
+			{Name: "path", Type: "string", Required: true, Description: "Starting directory for the walk."},
+			{Name: "glob", Type: "string", Default: "**", Description: "Doublestar glob pattern; matched against the path relative to --path."},
+			{Name: "type", Type: "string", Default: "any", Values: []string{"any", "file", "dir", "symlink"}, Description: "Filter by entry type."},
+			{Name: "max_depth", Type: "int", Default: "0", Description: "Maximum directory depth to descend. 0 means unlimited."},
+			{Name: "limit", Type: "int", Default: "256", Description: "Maximum number of results. Hard cap is 4096."},
+			{Name: "exclude", Type: "string", Default: "", Description: "Doublestar pattern; matching entries are skipped entirely."},
+			{Name: "include_hidden", Type: "bool", Default: "false", Description: "When false, directories starting with '.' are skipped. Leaf dotfiles remain findable."},
+			{Name: "respect_gitignore", Type: "bool", Default: "true", Description: "When true, .gitignore at the walk root is loaded and applied. Pass false for a raw walk."},
+		},
+	},
+	{
+		Verb:        "metrics",
+		Description: "Query recent call history from the ledger without shelling out to sqlite3.",
+		Args: []ArgSchema{
+			{Name: "last", Type: "int", Default: "20", Description: "Number of most-recent calls to return. Maximum is 200."},
+			{Name: "verb", Type: "string", Default: "", Description: "Filter results to calls for a specific verb (e.g. 'find')."},
+		},
+	},
+	{
+		Verb:        "help",
+		Description: "Return the structured argument schema for one verb or all verbs.",
+		Args: []ArgSchema{
+			{Name: "verb", Type: "string", Default: "", Description: "Verb name to describe. Omit to return schemas for all verbs."},
+		},
+	},
+}
+
+func ParseArgs(in map[string]any) (*Args, *proto.Error) {
+	a := &Args{}
+	if v, ok := in["verb"]; ok && v != nil {
+		s, ok := v.(string)
+		if !ok {
+			return nil, &proto.Error{Code: "args", Msg: "verb must be a string"}
+		}
+		a.Verb = s
+	}
+	return a, nil
+}
+
+func Run(a *Args) (*Result, *proto.Error) {
+	if a.Verb == "" {
+		r := &Result{Verbs: registry, Count: len(registry)}
+		return r, nil
+	}
+	for _, vs := range registry {
+		if vs.Verb == a.Verb {
+			return &Result{Verbs: []VerbSchema{vs}, Count: 1}, nil
+		}
+	}
+	return nil, &proto.Error{Code: "not_found", Msg: "unknown verb: " + a.Verb}
+}
+
+func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
+	if !rsp.OK {
+		return proto.PrettyResponseHeader(rsp)
+	}
+	r, ok := decodeResult(rsp.Data)
+	if !ok {
+		return "ok\n<unrecognized help result>"
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "=== ash help: %d verb(s) ===\n", r.Count)
+	for i, vs := range r.Verbs {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		fmt.Fprintf(&b, "verb: %s\n", vs.Verb)
+		fmt.Fprintf(&b, "  %s\n", vs.Description)
+		for _, arg := range vs.Args {
+			writeArg(&b, arg)
+		}
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+func writeArg(b *strings.Builder, a ArgSchema) {
+	req := "optional"
+	if a.Required {
+		req = "required"
+	}
+	fmt.Fprintf(b, "  --%-20s %-8s %-8s", a.Name, a.Type, req)
+	if a.Default != "" {
+		fmt.Fprintf(b, " default=%-10s", a.Default)
+	} else {
+		fmt.Fprintf(b, " %-17s", "")
+	}
+	b.WriteString(a.Description)
+	if len(a.Values) > 0 {
+		fmt.Fprintf(b, " [%s]", strings.Join(a.Values, "|"))
+	}
+	b.WriteByte('\n')
+}
+
+func decodeResult(data any) (*Result, bool) {
+	if r, ok := data.(*Result); ok {
+		return r, true
+	}
+	m, ok := data.(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	r := &Result{}
+	if raw, ok := m["verbs"].([]any); ok {
+		for _, x := range raw {
+			vm, ok := x.(map[string]any)
+			if !ok {
+				continue
+			}
+			vs := VerbSchema{}
+			if v, ok := vm["verb"].(string); ok {
+				vs.Verb = v
+			}
+			if v, ok := vm["description"].(string); ok {
+				vs.Description = v
+			}
+			if args, ok := vm["args"].([]any); ok {
+				for _, ax := range args {
+					am, ok := ax.(map[string]any)
+					if !ok {
+						continue
+					}
+					arg := ArgSchema{}
+					if v, ok := am["name"].(string); ok {
+						arg.Name = v
+					}
+					if v, ok := am["type"].(string); ok {
+						arg.Type = v
+					}
+					if v, ok := am["required"].(bool); ok {
+						arg.Required = v
+					}
+					if v, ok := am["default"].(string); ok {
+						arg.Default = v
+					}
+					if v, ok := am["description"].(string); ok {
+						arg.Description = v
+					}
+					if vals, ok := am["values"].([]any); ok {
+						for _, val := range vals {
+							if s, ok := val.(string); ok {
+								arg.Values = append(arg.Values, s)
+							}
+						}
+					}
+					vs.Args = append(vs.Args, arg)
+				}
+			}
+			r.Verbs = append(r.Verbs, vs)
+		}
+	}
+	if v, ok := m["count"].(int); ok {
+		r.Count = v
+	} else if v, ok := m["count"].(int64); ok {
+		r.Count = int(v)
+	} else if v, ok := m["count"].(uint64); ok {
+		r.Count = int(v)
+	}
+	return r, true
+}

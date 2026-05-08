@@ -8,7 +8,7 @@ This file is the operational counterpart to `README.md`. The README is the desig
 
 This repo is also a deliberate experiment in *recursive* tool development: as soon as primordial `ash` exists (Phase 1: `find` + `grep` + `read` + daemon + bash shim + ledger), agents working on this repo start using `ash` for those operations. Every session feeds the next phase's design.
 
-**Current phase:** Phase 1, ship 2 — `ash read` and `ash find` are live. Daemon (`ashd`) auto-starts on first invocation, persists per-call instrumentation to a SQLite ledger at `.ash/ledger.db`, and tokenizes every response with `cl100k_base` for honest token counts. Ledger failures surface in `Metrics.LedgerError` and the client prints a `WARNING` line if any call's metrics didn't persist.
+**Current phase:** Phase 1, ship 3 — `ash read`, `ash find`, and `ash metrics` are live. Daemon (`ashd`) auto-starts on first invocation, persists per-call instrumentation to a SQLite ledger at `.ash/ledger.db`, and tokenizes every response with `cl100k_base` for honest token counts. Ledger failures surface in `Metrics.LedgerError` and the client prints a `WARNING` line if any call's metrics didn't persist.
 
 ## Project constraints
 
@@ -21,7 +21,7 @@ These are hard rules. If a change would violate one, stop and discuss before pro
 
 This is the operational checklist. It is **gated by which verbs are live**. Do not try to invoke a verb that hasn't shipped yet.
 
-### Phase 1 ship 2 (now) — `read` and `find` are live
+### Phase 1 ship 3 (now) — `read`, `find`, and `metrics` are live
 
 Build the binaries first (one-time per session, cheap to redo):
 
@@ -41,19 +41,22 @@ Then any `ash` invocation auto-starts the daemon. Use `bin/ash` from the repo ro
    - Hidden directories (`.git`, `.ash`, `.vscode`) are skipped by default. Pass `--include_hidden true` if you actually want them.
    - `.gitignore` at the walk root is respected by default. Pass `--respect_gitignore false` for a raw walk (e.g. when you genuinely need to inspect generated artifacts in `bin/` or `dist/`).
 2. **Reads of files in this repo** — use `ash read` deliberately at least a few times per session, even when the harness Read tool would suffice. We need ledger data to compare.
-3. Bash `find`, `cat`, `head`, `tail`, `ls -R` should be replaced by their `ash` equivalents in this repo. Bash `grep` stays until ship 3.
+3. **Ledger queries** — use `ash metrics` instead of `sqlite3 .ash/ledger.db`. The `--last N` and `--verb <verb>` filters cover the common cases.
+4. Bash `find`, `cat`, `head`, `tail`, `ls -R` should be replaced by their `ash` equivalents in this repo. Bash `grep` stays until `ash grep` ships.
 
 **The whole point** is that you are the first user. If `ash find` or `ash read` errors, hangs, or feels heavier than the bash equivalent, that's a bug or a design gap — investigate, don't paper over. Write the session note.
 
-### Phase 1 ship 3 (next) — `grep` will land here
+### Phase 1 ship 4 (next) — `grep` will land here
 
 When `ash grep` ships: any pattern search across more than one file uses `ash grep`. Until then, those operations stay in bash.
 
 ## How to invoke ash
 
 ```sh
-ash <verb> [--key value | --key=value]...
+ash <verb> [--key value | --key=value]... [--format pretty|json|msgpack]
 ```
+
+`--format` is a global client flag stripped before the request is sent to the daemon. `pretty` (default) is human-readable; `json` emits the full response envelope as indented JSON; `msgpack` writes the raw wire bytes to stdout.
 
 The client is `bin/ash`; the daemon is `bin/ashd`. The client auto-starts the daemon on first invocation by exec'ing `bin/ashd` (sibling lookup, then `$PATH`, then `$ASH_DAEMON`). Subsequent calls reuse the same daemon over a per-project Unix domain socket.
 
@@ -67,6 +70,16 @@ The daemon also prints a one-line metrics summary to stderr on every call, which
 
 ### Inspecting the ledger
 
+Use `ash metrics` — no sqlite3 required:
+
+```sh
+ash metrics                        # last 20 calls
+ash metrics --last 50              # last 50 calls
+ash metrics --verb find            # only find calls
+```
+
+If you need raw SQL access that `ash metrics` can't express yet:
+
 ```sh
 sqlite3 .ash/ledger.db "SELECT verb, ok, tokens_in, tokens_out, latency_exec_us FROM calls ORDER BY id DESC LIMIT 20"
 ```
@@ -77,6 +90,8 @@ The ledger is the substrate for the recursive-development experiment. If a sessi
 
 - `ash read --path <p> [--range start:end] [--range_kind lines|bytes] [--limit_bytes N]` — read a file (or a line/byte range of one). UTF-8 returned as-is; binary returned base64-encoded with `encoding=base64` in the response. Default size cap is 256 KiB.
 - `ash find --path <p> [--glob <pattern>] [--type any|file|dir|symlink] [--max_depth N] [--limit N] [--exclude <pattern>] [--include_hidden true|false] [--respect_gitignore true|false]` — list paths under `<p>`. `glob` and `exclude` are doublestar patterns (`**` for recursive, `*.{go,md}` for alternation, etc.). `include_hidden` defaults to false (directories starting with `.` are skipped; leaf dotfiles like `.gitignore` are still findable). `respect_gitignore` defaults to **true** — the `.gitignore` at the walk root (`<p>`) is loaded and applied. Pass `--respect_gitignore false` for a raw filesystem walk. Nested `.gitignore` files are not yet honored. Default `limit` is 256, hard cap 4096; truncation produces a hint about how to narrow. Symlinks are reported but never followed.
+- `ash metrics [--last N] [--verb <verb>]` — query recent call history from the ledger. Returns a table of timestamp / verb / ok / tokens_in / tokens_out / latency_exec_us. `last` defaults to 20, max 200. `verb` filters to a single verb (e.g. `--verb find`). Use this instead of shelling out to `sqlite3`.
+- `ash help [--verb <verb>]` — return the structured argument schema for one verb or all live verbs. Omit `--verb` to see all schemas. Useful for checking defaults and valid values without reading source.
 
 ## Session feedback ritual
 

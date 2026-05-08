@@ -104,6 +104,55 @@ type Call struct {
 	Truncated          bool
 }
 
+// QueryRecent returns up to n calls in reverse chronological order.
+// If verbFilter is non-empty, only calls with that verb are returned.
+func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if verbFilter != "" {
+		rows, err = l.db.Query(`
+			SELECT ts, verb, ok, err_code,
+			       latency_parse_us, latency_exec_us, latency_serialize_us,
+			       tokens_in, tokens_out, tokens_method,
+			       bytes_in, bytes_out, truncated
+			FROM calls WHERE verb = ?
+			ORDER BY id DESC LIMIT ?`, verbFilter, n)
+	} else {
+		rows, err = l.db.Query(`
+			SELECT ts, verb, ok, err_code,
+			       latency_parse_us, latency_exec_us, latency_serialize_us,
+			       tokens_in, tokens_out, tokens_method,
+			       bytes_in, bytes_out, truncated
+			FROM calls ORDER BY id DESC LIMIT ?`, n)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var calls []Call
+	for rows.Next() {
+		var c Call
+		var ts int64
+		var okInt, truncInt int
+		if err := rows.Scan(
+			&ts, &c.Verb, &okInt, &c.ErrCode,
+			&c.LatencyParseUs, &c.LatencyExecUs, &c.LatencySerializeUs,
+			&c.TokensIn, &c.TokensOut, &c.TokensMethod,
+			&c.BytesIn, &c.BytesOut, &truncInt,
+		); err != nil {
+			return nil, err
+		}
+		c.Timestamp = time.Unix(0, ts)
+		c.OK = okInt != 0
+		c.Truncated = truncInt != 0
+		calls = append(calls, c)
+	}
+	return calls, rows.Err()
+}
+
 func (l *Ledger) Record(c *Call) error {
 	_, err := l.db.Exec(`INSERT INTO calls (
 		session_id, request_id, ts, verb, args_msgpack,

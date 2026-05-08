@@ -16,6 +16,8 @@ import (
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/session"
 	"github.com/stazelabs/ash/internal/verbs/find"
+	"github.com/stazelabs/ash/internal/verbs/help"
+	"github.com/stazelabs/ash/internal/verbs/metrics"
 	"github.com/stazelabs/ash/internal/verbs/read"
 )
 
@@ -131,6 +133,36 @@ func handle(conn net.Conn, led *ledger.Ledger) {
 					rsp.Data = result
 				}
 			}
+		case "metrics":
+			margs, perr := metrics.ParseArgs(req.Args)
+			if perr != nil {
+				rsp.OK = false
+				rsp.Err = perr
+			} else {
+				calls, qerr := led.QueryRecent(margs.Last, margs.Verb)
+				if qerr != nil {
+					rsp.OK = false
+					rsp.Err = &proto.Error{Code: "ledger", Msg: qerr.Error()}
+				} else {
+					rsp.OK = true
+					rsp.Data = metrics.ResultFromCalls(calls)
+				}
+			}
+		case "help":
+			hargs, perr := help.ParseArgs(req.Args)
+			if perr != nil {
+				rsp.OK = false
+				rsp.Err = perr
+			} else {
+				result, perr := help.Run(hargs)
+				if perr != nil {
+					rsp.OK = false
+					rsp.Err = perr
+				} else {
+					rsp.OK = true
+					rsp.Data = result
+				}
+			}
 		default:
 			rsp.OK = false
 			rsp.Err = &proto.Error{Code: "unknown_verb", Msg: "unknown verb: " + req.Verb}
@@ -147,6 +179,10 @@ func handle(conn net.Conn, led *ledger.Ledger) {
 			prettyRsp = read.PrettyResponse(req, rsp)
 		case "find":
 			prettyRsp = find.PrettyResponse(req, rsp)
+		case "metrics":
+			prettyRsp = metrics.PrettyResponse(req, rsp)
+		case "help":
+			prettyRsp = help.PrettyResponse(req, rsp)
 		default:
 			prettyRsp = proto.PrettyResponseHeader(rsp)
 		}

@@ -6,8 +6,10 @@ package main
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"net"
 	"os"
@@ -20,6 +22,8 @@ import (
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/session"
 	"github.com/stazelabs/ash/internal/verbs/find"
+	"github.com/stazelabs/ash/internal/verbs/help"
+	"github.com/stazelabs/ash/internal/verbs/metrics"
 	"github.com/stazelabs/ash/internal/verbs/read"
 )
 
@@ -30,7 +34,8 @@ func main() {
 	}
 
 	verb := os.Args[1]
-	args, err := parseFlags(os.Args[2:])
+	format, remaining := extractFormat(os.Args[2:])
+	args, err := parseFlags(remaining)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "ash:", err)
 		os.Exit(2)
@@ -82,20 +87,35 @@ func main() {
 		os.Exit(1)
 	}
 
-	out := prettyResponse(verb, req, rsp)
-	fmt.Println(out)
-	if rsp.Metrics != nil {
-		fmt.Fprintf(os.Stderr,
-			"\n[ash metrics: bytes_in=%d bytes_out=%d tokens_in=%d tokens_out=%d (%s) latency_us=%d/%d/%d]\n",
-			rsp.Metrics.BytesIn, rsp.Metrics.BytesOut,
-			rsp.Metrics.TokensIn, rsp.Metrics.TokensOut, rsp.Metrics.TokensMethod,
-			rsp.Metrics.LatencyParseUs, rsp.Metrics.LatencyExecUs, rsp.Metrics.LatencySerializeUs,
-		)
-		if rsp.Metrics.LedgerError != "" {
+	switch format {
+	case "json":
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(rsp); err != nil {
+			fmt.Fprintln(os.Stderr, "ash: json encode:", err)
+			os.Exit(1)
+		}
+	case "msgpack":
+		if _, err := os.Stdout.Write(respBuf); err != nil {
+			fmt.Fprintln(os.Stderr, "ash: write msgpack:", err)
+			os.Exit(1)
+		}
+	default: // "pretty"
+		out := prettyResponse(verb, req, rsp)
+		fmt.Println(out)
+		if rsp.Metrics != nil {
 			fmt.Fprintf(os.Stderr,
-				"[ash WARNING: ledger record FAILED: %s -- this call's metrics did not persist]\n",
-				rsp.Metrics.LedgerError,
+				"\n[ash metrics: bytes_in=%d bytes_out=%d tokens_in=%d tokens_out=%d (%s) latency_us=%d/%d/%d]\n",
+				rsp.Metrics.BytesIn, rsp.Metrics.BytesOut,
+				rsp.Metrics.TokensIn, rsp.Metrics.TokensOut, rsp.Metrics.TokensMethod,
+				rsp.Metrics.LatencyParseUs, rsp.Metrics.LatencyExecUs, rsp.Metrics.LatencySerializeUs,
 			)
+			if rsp.Metrics.LedgerError != "" {
+				fmt.Fprintf(os.Stderr,
+					"[ash WARNING: ledger record FAILED: %s -- this call's metrics did not persist]\n",
+					rsp.Metrics.LedgerError,
+				)
+			}
 		}
 	}
 	if !rsp.OK {
@@ -104,16 +124,39 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Fprintln(os.Stderr, `usage: ash <verb> [--key value | --key=value]...
+	fmt.Fprintln(os.Stderr, `usage: ash <verb> [--key value | --key=value]... [--format pretty|json|msgpack]
 
 verbs (phase 1, work in progress):
-  read --path <p> [--range start:end] [--range_kind lines|bytes] [--limit_bytes N]
-  find --path <p> [--glob <pattern>] [--type any|file|dir|symlink]
-                  [--max_depth N] [--limit N] [--exclude <pattern>]
-                  [--include_hidden true|false]
-                  [--respect_gitignore true|false]   (default true)
+  read    --path <p> [--range start:end] [--range_kind lines|bytes] [--limit_bytes N]
+  find    --path <p> [--glob <pattern>] [--type any|file|dir|symlink]
+                     [--max_depth N] [--limit N] [--exclude <pattern>]
+                     [--include_hidden true|false]
+                     [--respect_gitignore true|false]   (default true)
+  metrics [--last N]  [--verb <verb>]                  (default last=20)
+  help    [--verb <verb>]                               (omit for all verbs)
+
+global flags:
+  --format pretty|json|msgpack   output format (default: pretty)
 
 ash auto-starts the daemon (ashd) on first call.`)
+}
+
+// extractFormat pulls --format out of argv before verb flag parsing so it
+// doesn't get forwarded to the daemon as an unknown arg.
+func extractFormat(argv []string) (format string, rest []string) {
+	format = "pretty"
+	for i := 0; i < len(argv); i++ {
+		a := argv[i]
+		if strings.HasPrefix(a, "--format=") {
+			format = a[len("--format="):]
+		} else if a == "--format" && i+1 < len(argv) {
+			i++
+			format = argv[i]
+		} else {
+			rest = append(rest, a)
+		}
+	}
+	return format, rest
 }
 
 // parseFlags converts agent-friendly long flags into an args map. Both
@@ -162,10 +205,31 @@ func dialOrStart(root, sock string) (net.Conn, error) {
 			return conn, nil
 		}
 		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("daemon did not come up within 2s: %w", err)
+			msg := fmt.Sprintf("daemon did not come up within 2s: %v", err)
+			if tail := tailLog(session.LogPath(root), 20); tail != "" {
+				msg += "\n\nashd log (last lines):\n" + tail
+			}
+			return nil, errors.New(msg)
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
+}
+
+func tailLog(path string, n int) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	data, err := io.ReadAll(f)
+	if err != nil || len(data) == 0 {
+		return ""
+	}
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	return strings.Join(lines, "\n")
 }
 
 func startDaemon(root, sock string) error {
@@ -235,6 +299,10 @@ func prettyResponse(verb string, req *proto.Request, rsp *proto.Response) string
 		return read.PrettyResponse(req, rsp)
 	case "find":
 		return find.PrettyResponse(req, rsp)
+	case "metrics":
+		return metrics.PrettyResponse(req, rsp)
+	case "help":
+		return help.PrettyResponse(req, rsp)
 	default:
 		return proto.PrettyResponseHeader(rsp)
 	}
