@@ -10,6 +10,13 @@ This repo is also a deliberate experiment in *recursive* tool development: as so
 
 **Current phase:** Phase 1, ship 1 — `ash read` is live. Daemon (`ashd`) auto-starts on first invocation, persists per-call instrumentation to a SQLite ledger at `.ash/ledger.db`, and tokenizes every response with `cl100k_base` for honest token counts.
 
+## Project constraints
+
+These are hard rules. If a change would violate one, stop and discuss before proceeding.
+
+- **No CGO.** All dependencies must be pure Go. We're prioritizing portability — every developer should be able to clone, `go build`, and run, on any platform Go cross-compiles to, with no native toolchain required. This rules out `mattn/go-sqlite3`, CGO-bound tree-sitter, and similar. We've already paid the perf cost on SQLite (`modernc.org/sqlite`) and accept it.
+- **All paths are explicit and absolute-friendly.** No verb relies on `cwd` for path resolution beyond the daemon's project root. The agent passes the full path it cares about; the daemon canonicalizes and validates. Beyond removing a class of mistakes, this gives us a "sandbox-lite" hook for free: a verb can refuse paths outside the project root, reject symlink-escapes, or apply per-path policy *before* the verb body runs. We're not a sandbox today, but we are deliberately keeping the affordance open.
+
 ## When to prefer ash over bash
 
 This is the operational checklist. It is **gated by which verbs are live**. Do not try to invoke a verb that hasn't shipped yet.

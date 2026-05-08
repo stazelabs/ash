@@ -72,7 +72,7 @@ That's the entire surface. Every coding task is a composition of these.
 
 ## What's deliberately gone
 
-- **No `cd`, no `pwd`.** Every command takes an explicit path. State-free.
+- **No `cd`, no `pwd`.** Every command takes an explicit path. State-free. The path-explicit shape has a quiet second benefit: it makes per-call sanitization tractable. Because every operation arrives with its full target path in the args, the daemon can validate, normalize, and (when desired) reject paths *before* the verb runs — a "sandbox-lite" that bash never offers because bash never sees the canonical form. We're not building a sandbox today; we're keeping the option open for free by refusing implicit state.
 - **No `cat`, `head`, `tail`, `wc`, `sort`, `uniq`, `cut`, `awk`, `sed`, `xargs`, `tr`, `tee`.** All of these are operations *on* the result of another verb. `find ... | head 10` becomes `find --limit 10`. Arguments live on the producer.
 - **No subshells, command substitution, backticks.** Object references replace them.
 - **No shell globbing.** Verbs take patterns as explicit arguments.
@@ -204,6 +204,8 @@ Same five operations. One mental model. Structured results throughout. Roughly 2
 ## Why Go
 
 Cross-compilation that just works. Single static binary per platform. Strong concurrency model for a daemon serving multiple agents. Stdlib breadth that minimizes dependencies. Ecosystem alignment — most agent-tooling projects ship in Go.
+
+**No CGO.** A hard constraint, not a preference. CGO destroys cross-compilation and turns "single static binary" into "pile of platform-specific shared-library hunts." Every dependency must be pure Go. This already costs us — we use `modernc.org/sqlite` (pure-Go transpile) instead of the faster `mattn/go-sqlite3`, and similarly avoid CGO-bound tree-sitter bindings — and we accept that cost. Portability is a precondition for self-hosting on any developer's machine without ceremony.
 
 The honest tradeoff: the killer libraries for the search and semantic layers (ripgrep's internals, tree-sitter's bindings) are best-in-class in Rust. We accept that tradeoff in exchange for build velocity and the ability to ship across platforms without scaffolding. If `ash` finds traction, a Rust rewrite of the hot paths is on the table; until then, shipped Go beats unshipped Rust.
 
