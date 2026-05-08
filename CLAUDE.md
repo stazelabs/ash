@@ -64,6 +64,12 @@ Then any `ash` invocation auto-starts the daemon. Use `bin/ash` from the repo ro
 
 **The whole point** is that you are the first user. If a verb errors, hangs, or feels heavier than the bash equivalent, that's a bug or a design gap — investigate, don't paper over. Write the session note.
 
+### Enforcement
+
+The repo ships a `PreToolUse` hook at `.claude/hooks/prefer-ash.py` (registered in `.claude/settings.json`) that denies the harness's built-in `Grep`/`Glob`/`Read` tools and bash `grep`/`rg`/`find`/`cat`/`head`/`tail`/`ls -R`/`git status`/`git log` in this project, returning the equivalent `ash` invocation as the deny reason. Image/PDF/notebook reads are allowed through (`ash read` can't render them). `git diff`/`blame`/`show` and other not-yet-shipped ops are allowed through. See [docs/PreToolUse.md](docs/PreToolUse.md) for the full design and behavior matrix.
+
+If `ash` genuinely doesn't fit (a verb that hasn't shipped, a non-text artifact, etc.), the hook is best-effort — when it gets in the way, that is a session-note finding, not a hook bug to "work around" with `--no-verify`-style escape hatches.
+
 ## How to invoke ash
 
 ```sh
