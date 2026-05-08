@@ -233,7 +233,7 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 		vs := VerbStats{Verb: verb, N: len(cs)}
 		execUs := make([]int64, len(cs))
 		tokOut := make([]int64, len(cs))
-		var sumExec, sumWalk, sumIO, sumRegex int64
+		var sumExec, sumWalk, sumIO, sumRegex, sumRegexCompile int64
 		var sumTokOut, sumBytesOut int64
 		for i, c := range cs {
 			if c.OK {
@@ -251,6 +251,7 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 			sumWalk += c.WalkUs
 			sumIO += c.IOUs
 			sumRegex += c.RegexUs
+			sumRegexCompile += c.RegexCompileUs
 			sumTokOut += int64(c.TokensOut)
 			sumBytesOut += int64(c.BytesOut)
 		}
@@ -264,15 +265,16 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 		// Sub-phase breakdown: only emit when at least one call had phase data.
 		// walk% is exclusive walker overhead (WalkUs minus its IO/regex subsets).
 		// other% is exec time outside walker.Walk entirely.
-		if sumExec > 0 && (sumWalk > 0 || sumIO > 0 || sumRegex > 0) {
-			walkExcl := sumWalk - sumIO - sumRegex
+		if sumExec > 0 && (sumWalk > 0 || sumIO > 0 || sumRegex > 0 || sumRegexCompile > 0) {
+			walkExcl := sumWalk - sumIO - sumRegex - sumRegexCompile
 			if walkExcl < 0 {
 				walkExcl = 0
 			}
 			walkPct := pctOf(walkExcl, sumExec)
 			ioPct := pctOf(sumIO, sumExec)
 			regexPct := pctOf(sumRegex, sumExec)
-			otherPct := 100.0 - walkPct - ioPct - regexPct
+			regexCompilePct := pctOf(sumRegexCompile, sumExec)
+			otherPct := 100.0 - walkPct - ioPct - regexPct - regexCompilePct
 			if otherPct < 0 {
 				otherPct = 0
 			}
@@ -280,6 +282,7 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 				{Name: "walk", Pct: walkPct},
 				{Name: "io", Pct: ioPct},
 				{Name: "regex", Pct: regexPct},
+				{Name: "regex_compile", Pct: regexCompilePct},
 				{Name: "other", Pct: otherPct},
 			}
 		}

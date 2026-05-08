@@ -44,7 +44,9 @@ CREATE TABLE IF NOT EXISTS calls (
 	truncated INTEGER NOT NULL DEFAULT 0,
 	walk_us INTEGER NOT NULL DEFAULT 0,
 	io_us INTEGER NOT NULL DEFAULT 0,
-	regex_us INTEGER NOT NULL DEFAULT 0
+	regex_us INTEGER NOT NULL DEFAULT 0,
+	regex_compile_us INTEGER NOT NULL DEFAULT 0,
+	latency_dispatch_us INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_calls_session ON calls(session_id);
 CREATE INDEX IF NOT EXISTS idx_calls_verb ON calls(verb);
@@ -69,6 +71,8 @@ func migrateSchema(db *sql.DB) error {
 		{"walk_us", "INTEGER NOT NULL DEFAULT 0"},
 		{"io_us", "INTEGER NOT NULL DEFAULT 0"},
 		{"regex_us", "INTEGER NOT NULL DEFAULT 0"},
+		{"regex_compile_us", "INTEGER NOT NULL DEFAULT 0"},
+		{"latency_dispatch_us", "INTEGER NOT NULL DEFAULT 0"},
 	}
 	for _, c := range additions {
 		if _, ok := cols[c.name]; ok {
@@ -167,9 +171,11 @@ type Call struct {
 	// Sub-phase latencies (microseconds). Optional; verbs that don't
 	// instrument leave them at 0. They overlap by design (walk_us is the
 	// wall time of walker.Walk, which contains visitor IO/regex time).
-	WalkUs  int64
-	IOUs    int64
-	RegexUs int64
+	WalkUs             int64
+	IOUs               int64
+	RegexUs            int64
+	RegexCompileUs     int64
+	LatencyDispatchUs  int64
 }
 
 // QueryOpts filters for QueryWindow.
@@ -226,7 +232,7 @@ func (l *Ledger) QueryWindow(opts QueryOpts) ([]Call, error) {
 		       latency_parse_us, latency_exec_us, latency_serialize_us,
 		       tokens_in, tokens_out, tokens_method,
 		       bytes_in, bytes_out, truncated,
-		       walk_us, io_us, regex_us,
+		       walk_us, io_us, regex_us, regex_compile_us, latency_dispatch_us,
 		       args_msgpack
 		FROM calls `+clause+`ORDER BY id DESC LIMIT ?`, args...)
 	if err != nil {
@@ -244,7 +250,7 @@ func (l *Ledger) QueryWindow(opts QueryOpts) ([]Call, error) {
 			&c.LatencyParseUs, &c.LatencyExecUs, &c.LatencySerializeUs,
 			&c.TokensIn, &c.TokensOut, &c.TokensMethod,
 			&c.BytesIn, &c.BytesOut, &truncInt,
-			&c.WalkUs, &c.IOUs, &c.RegexUs,
+			&c.WalkUs, &c.IOUs, &c.RegexUs, &c.RegexCompileUs, &c.LatencyDispatchUs,
 			&c.ArgsMsgpack,
 		); err != nil {
 			return nil, err
@@ -270,7 +276,7 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 			       latency_parse_us, latency_exec_us, latency_serialize_us,
 			       tokens_in, tokens_out, tokens_method,
 			       bytes_in, bytes_out, truncated,
-			       walk_us, io_us, regex_us
+			       walk_us, io_us, regex_us, regex_compile_us, latency_dispatch_us
 			FROM calls WHERE verb = ?
 			ORDER BY id DESC LIMIT ?`, verbFilter, n)
 	} else {
@@ -279,7 +285,7 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 			       latency_parse_us, latency_exec_us, latency_serialize_us,
 			       tokens_in, tokens_out, tokens_method,
 			       bytes_in, bytes_out, truncated,
-			       walk_us, io_us, regex_us
+			       walk_us, io_us, regex_us, regex_compile_us, latency_dispatch_us
 			FROM calls ORDER BY id DESC LIMIT ?`, n)
 	}
 	if err != nil {
@@ -297,7 +303,7 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 			&c.LatencyParseUs, &c.LatencyExecUs, &c.LatencySerializeUs,
 			&c.TokensIn, &c.TokensOut, &c.TokensMethod,
 			&c.BytesIn, &c.BytesOut, &truncInt,
-			&c.WalkUs, &c.IOUs, &c.RegexUs,
+			&c.WalkUs, &c.IOUs, &c.RegexUs, &c.RegexCompileUs, &c.LatencyDispatchUs,
 		); err != nil {
 			return nil, err
 		}
@@ -316,14 +322,14 @@ func (l *Ledger) Record(c *Call) error {
 		latency_parse_us, latency_exec_us, latency_serialize_us,
 		tokens_in, tokens_out, tokens_method,
 		bytes_in, bytes_out, truncated,
-		walk_us, io_us, regex_us
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		walk_us, io_us, regex_us, regex_compile_us, latency_dispatch_us
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		l.sessionID, int64(c.RequestID), c.Timestamp.UnixNano(), c.Verb, c.ArgsMsgpack,
 		boolToInt(c.OK), c.ErrCode, c.ErrMsg,
 		c.LatencyParseUs, c.LatencyExecUs, c.LatencySerializeUs,
 		c.TokensIn, c.TokensOut, c.TokensMethod,
 		c.BytesIn, c.BytesOut, boolToInt(c.Truncated),
-		c.WalkUs, c.IOUs, c.RegexUs,
+		c.WalkUs, c.IOUs, c.RegexUs, c.RegexCompileUs, c.LatencyDispatchUs,
 	)
 	return err
 }

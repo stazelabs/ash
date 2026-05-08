@@ -16,9 +16,10 @@ import (
 // Add* are atomic so a verb can fan out internally without losing counts;
 // none of today's verbs do, but it makes the contract worry-free.
 type Tracer struct {
-	walkUs  atomic.Int64
-	ioUs    atomic.Int64
-	regexUs atomic.Int64
+	walkUs         atomic.Int64
+	ioUs           atomic.Int64
+	regexUs        atomic.Int64
+	regexCompileUs atomic.Int64
 }
 
 func (t *Tracer) AddWalk(d time.Duration) {
@@ -39,14 +40,21 @@ func (t *Tracer) AddRegex(d time.Duration) {
 	}
 }
 
+func (t *Tracer) AddRegexCompile(d time.Duration) {
+	if t != nil {
+		t.regexCompileUs.Add(d.Microseconds())
+	}
+}
+
 // Snapshot returns the accumulated phases. Safe on a nil receiver.
 func (t *Tracer) Snapshot() Phases {
 	if t == nil {
 		return Phases{}
 	}
 	return Phases{
-		WalkUs:  t.walkUs.Load(),
-		IOUs:    t.ioUs.Load(),
-		RegexUs: t.regexUs.Load(),
+		WalkUs:         t.walkUs.Load(),
+		IOUs:           t.ioUs.Load(),
+		RegexUs:        t.regexUs.Load(),
+		RegexCompileUs: t.regexCompileUs.Load(),
 	}
 }

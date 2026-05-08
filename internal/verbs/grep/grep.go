@@ -164,7 +164,7 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	regexStart := time.Now()
 	re, perr := compilePattern(a)
-	tr.AddRegex(time.Since(regexStart))
+	tr.AddRegexCompile(time.Since(regexStart))
 	if perr != nil {
 		return nil, perr
 	}
@@ -307,6 +307,8 @@ func (s *state) searchOne(path string, fi fs.FileInfo) bool {
 // searchBody scans body line-by-line and appends records. Returns true if the
 // global cap was hit and the walk should stop.
 func (s *state) searchBody(path string, body []byte) bool {
+	matchStart := time.Now()
+	defer func() { s.tr.AddRegex(time.Since(matchStart)) }()
 	a := s.a
 	re := s.re
 

@@ -40,9 +40,11 @@ type Row struct {
 	BytesIn       int    `msgpack:"bytes_in"`
 	BytesOut      int    `msgpack:"bytes_out"`
 	Truncated     bool   `msgpack:"truncated,omitempty"`
-	WalkUs        int64  `msgpack:"walk_us,omitempty"`
-	IOUs          int64  `msgpack:"io_us,omitempty"`
-	RegexUs       int64  `msgpack:"regex_us,omitempty"`
+	WalkUs            int64  `msgpack:"walk_us,omitempty"`
+	IOUs              int64  `msgpack:"io_us,omitempty"`
+	RegexUs           int64  `msgpack:"regex_us,omitempty"`
+	RegexCompileUs    int64  `msgpack:"regex_compile_us,omitempty"`
+	LatencyDispatchUs int64  `msgpack:"latency_dispatch_us,omitempty"`
 }
 
 type Result struct {
@@ -87,9 +89,11 @@ func ResultFromCalls(calls []ledger.Call) *Result {
 			BytesIn:       c.BytesIn,
 			BytesOut:      c.BytesOut,
 			Truncated:     c.Truncated,
-			WalkUs:        c.WalkUs,
-			IOUs:          c.IOUs,
-			RegexUs:       c.RegexUs,
+			WalkUs:            c.WalkUs,
+			IOUs:              c.IOUs,
+			RegexUs:           c.RegexUs,
+			RegexCompileUs:    c.RegexCompileUs,
+			LatencyDispatchUs: c.LatencyDispatchUs,
 		})
 	}
 	return &Result{Rows: rows, Count: len(rows)}
@@ -134,6 +138,12 @@ func writeRow(b *strings.Builder, r Row) {
 	}
 	if r.RegexUs > 0 {
 		fmt.Fprintf(b, "  regex_us=%-5d", r.RegexUs)
+	}
+	if r.RegexCompileUs > 0 {
+		fmt.Fprintf(b, "  regex_compile_us=%-5d", r.RegexCompileUs)
+	}
+	if r.LatencyDispatchUs > 0 {
+		fmt.Fprintf(b, "  dispatch_us=%-5d", r.LatencyDispatchUs)
 	}
 	if r.ErrCode != "" {
 		fmt.Fprintf(b, "  err=%s", r.ErrCode)
@@ -214,6 +224,12 @@ func decodeResult(data any) (*Result, bool) {
 			}
 			if v, ok := argutil.ToInt64(rm["regex_us"]); ok {
 				row.RegexUs = v
+			}
+			if v, ok := argutil.ToInt64(rm["regex_compile_us"]); ok {
+				row.RegexCompileUs = v
+			}
+			if v, ok := argutil.ToInt64(rm["latency_dispatch_us"]); ok {
+				row.LatencyDispatchUs = v
 			}
 			r.Rows = append(r.Rows, row)
 		}

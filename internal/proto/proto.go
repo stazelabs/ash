@@ -42,9 +42,10 @@ type Error struct {
 }
 
 type Metrics struct {
-	LatencyParseUs     int64  `msgpack:"latency_parse_us"     json:"latency_parse_us"`
-	LatencyExecUs      int64  `msgpack:"latency_exec_us"      json:"latency_exec_us"`
-	LatencySerializeUs int64  `msgpack:"latency_serialize_us" json:"latency_serialize_us"`
+	LatencyParseUs     int64  `msgpack:"latency_parse_us"                json:"latency_parse_us"`
+	LatencyExecUs      int64  `msgpack:"latency_exec_us"                 json:"latency_exec_us"`
+	LatencySerializeUs int64  `msgpack:"latency_serialize_us"            json:"latency_serialize_us"`
+	LatencyDispatchUs  int64  `msgpack:"latency_dispatch_us,omitempty"   json:"latency_dispatch_us,omitempty"`
 	TokensIn           int    `msgpack:"tokens_in"            json:"tokens_in"`
 	TokensOut          int    `msgpack:"tokens_out"           json:"tokens_out"`
 	TokensMethod       string `msgpack:"tokens_method"        json:"tokens_method"`
@@ -70,15 +71,16 @@ type Metrics struct {
 // the agent "of the exec time, here's how much was each subsystem" not
 // to provide a strict tree decomposition.
 type Phases struct {
-	WalkUs  int64 `msgpack:"walk_us,omitempty"  json:"walk_us,omitempty"`
-	IOUs    int64 `msgpack:"io_us,omitempty"    json:"io_us,omitempty"`
-	RegexUs int64 `msgpack:"regex_us,omitempty" json:"regex_us,omitempty"`
+	WalkUs         int64 `msgpack:"walk_us,omitempty"          json:"walk_us,omitempty"`
+	IOUs           int64 `msgpack:"io_us,omitempty"            json:"io_us,omitempty"`
+	RegexUs        int64 `msgpack:"regex_us,omitempty"         json:"regex_us,omitempty"`
+	RegexCompileUs int64 `msgpack:"regex_compile_us,omitempty" json:"regex_compile_us,omitempty"`
 }
 
 // IsZero reports whether all phases are zero — used by the daemon to
 // decide whether to attach a Phases pointer at all.
 func (p Phases) IsZero() bool {
-	return p.WalkUs == 0 && p.IOUs == 0 && p.RegexUs == 0
+	return p.WalkUs == 0 && p.IOUs == 0 && p.RegexUs == 0 && p.RegexCompileUs == 0
 }
 
 func WriteFrame(w io.Writer, payload []byte) error {

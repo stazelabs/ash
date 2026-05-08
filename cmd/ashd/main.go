@@ -112,10 +112,12 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 		execStart := time.Now()
 		tracer := &proto.Tracer{}
 		runner, ok := runners[req.Verb]
+		var dispatchUs int64
 		if !ok {
 			rsp.OK = false
 			rsp.Err = &proto.Error{Code: "unknown_verb", Msg: "unknown verb: " + req.Verb}
 		} else {
+			dispatchUs = time.Since(execStart).Microseconds()
 			data, perr := runner.Run(req.Args, tracer)
 			if perr != nil {
 				rsp.OK = false
@@ -159,6 +161,7 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 			LatencyParseUs:     parseUs,
 			LatencyExecUs:      execUs,
 			LatencySerializeUs: serFirstUs * 2,
+			LatencyDispatchUs:  dispatchUs,
 			TokensIn:           tokensIn,
 			TokensOut:          tokensOut,
 			TokensMethod:       ledger.TokensMethod,
@@ -199,6 +202,8 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 			WalkUs:             phases.WalkUs,
 			IOUs:               phases.IOUs,
 			RegexUs:            phases.RegexUs,
+			RegexCompileUs:     phases.RegexCompileUs,
+			LatencyDispatchUs:  dispatchUs,
 		})
 		if recordErr != nil {
 			log.Printf("ashd: ledger record: %v", recordErr)

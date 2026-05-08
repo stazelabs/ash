@@ -125,6 +125,12 @@ func main() {
 			)
 			if p := rsp.Metrics.Phases; p != nil {
 				fmt.Fprintf(os.Stderr, " phases=walk:%d/io:%d/regex:%d", p.WalkUs, p.IOUs, p.RegexUs)
+				if p.RegexCompileUs > 0 {
+					fmt.Fprintf(os.Stderr, "/regex_compile:%d", p.RegexCompileUs)
+				}
+			}
+			if rsp.Metrics.LatencyDispatchUs > 0 {
+				fmt.Fprintf(os.Stderr, " dispatch_us=%d", rsp.Metrics.LatencyDispatchUs)
 			}
 			fmt.Fprintln(os.Stderr, "]")
 			if rsp.Metrics.LedgerError != "" {
@@ -251,6 +257,9 @@ func resolveStdin(args map[string]any) error {
 	}
 	if stdinKey == "" {
 		return nil
+	}
+	if fi, err := os.Stdin.Stat(); err == nil && (fi.Mode()&os.ModeCharDevice) != 0 {
+		return fmt.Errorf("stdin_not_piped: --%s uses \"-\" to read from stdin, but stdin is a terminal\n  pipe content in: echo '...' | ash %s\n  or pass the value directly: --%s '...'", stdinKey, os.Args[1], stdinKey)
 	}
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
