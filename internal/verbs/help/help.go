@@ -108,6 +108,17 @@ var registry = []VerbSchema{
 		},
 	},
 	{
+		Verb:        "write",
+		Description: "Write content to a file. Creates parent directories by default. Atomic write via temp-file+rename to avoid partial files on crash.",
+		Args: []ArgSchema{
+			{Name: "path", Type: "string", Required: true, Description: "File path to write. Absolute or relative to the daemon's project root."},
+			{Name: "content", Type: "string", Required: true, Description: "File content. UTF-8 text by default; base64-encoded bytes when encoding=base64."},
+			{Name: "encoding", Type: "string", Default: "utf-8", Values: []string{"utf-8", "base64"}, Description: "Content encoding. Use base64 for binary files."},
+			{Name: "mkdir", Type: "bool", Default: "true", Description: "Create missing parent directories. Pass false to require the parent to already exist."},
+			{Name: "create_only", Type: "bool", Default: "false", Description: "Fail with 'exists' error if the file already exists. Useful as a safety guard against accidental overwrites."},
+		},
+	},
+	{
 		Verb:        "metrics",
 		Description: "Query recent call history from the ledger without shelling out to sqlite3.",
 		Args: []ArgSchema{

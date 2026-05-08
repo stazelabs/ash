@@ -19,6 +19,7 @@ import (
 	"github.com/stazelabs/ash/internal/verbs/read"
 	"github.com/stazelabs/ash/internal/verbs/report"
 	"github.com/stazelabs/ash/internal/verbs/stat"
+	"github.com/stazelabs/ash/internal/verbs/write"
 )
 
 // Pretty renders a single response. The signature is identical for every
@@ -49,6 +50,7 @@ func PrettyHandlers() map[string]Pretty {
 		"report":  report.PrettyResponse,
 		"help":    help.PrettyResponse,
 		"stat":    stat.PrettyResponse,
+		"write":   write.PrettyResponse,
 		"bench":   bench.PrettyResponse,
 	}
 }
@@ -153,6 +155,15 @@ func Runners(led *ledger.Ledger) map[string]Runner {
 					return nil, perr
 				}
 				return stat.Run(a, tr)
+			},
+		},
+		"write": {
+			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
+				a, perr := write.ParseArgs(args)
+				if perr != nil {
+					return nil, perr
+				}
+				return write.Run(a, tr)
 			},
 		},
 	}
