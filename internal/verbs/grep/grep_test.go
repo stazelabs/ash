@@ -714,3 +714,85 @@ func equalInt(a, b []int) bool {
 	}
 	return true
 }
+
+// TestParseArgs_WireShape verifies that every numeric and bool arg accepts
+// string-typed values (the wire shape from CLI parseFlags) and rejects
+// garbage. Guards against a future verb skipping argutil and silently
+// breaking the string-coercion path.
+func TestParseArgs_WireShape(t *testing.T) {
+	root := makeTree(t)
+	a, perr := ParseArgs(map[string]any{
+		"pattern":           "foo",
+		"path":              root,
+		"max_matches":       "100",
+		"max_per_file":      "5",
+		"context_before":    "2",
+		"context_after":     "3",
+		"max_depth":         "4",
+		"fixed_string":      "true",
+		"word":              "false",
+		"files_only":        "true",
+		"no_text":           "false",
+		"include_hidden":    "true",
+		"respect_gitignore": "false",
+	})
+	if perr != nil {
+		t.Fatalf("valid string args rejected: %v", perr)
+	}
+	if a.MaxMatches != 100 {
+		t.Errorf("max_matches: got %d, want 100", a.MaxMatches)
+	}
+	if a.MaxPerFile != 5 {
+		t.Errorf("max_per_file: got %d, want 5", a.MaxPerFile)
+	}
+	if a.ContextBefore != 2 {
+		t.Errorf("context_before: got %d, want 2", a.ContextBefore)
+	}
+	if a.ContextAfter != 3 {
+		t.Errorf("context_after: got %d, want 3", a.ContextAfter)
+	}
+	if a.MaxDepth != 4 {
+		t.Errorf("max_depth: got %d, want 4", a.MaxDepth)
+	}
+	if !a.FixedString {
+		t.Error("fixed_string: want true")
+	}
+	if a.Word {
+		t.Error("word: want false")
+	}
+	if !a.FilesOnly {
+		t.Error("files_only: want true")
+	}
+	if a.NoText {
+		t.Error("no_text: want false")
+	}
+	if !a.IncludeHidden {
+		t.Error("include_hidden: want true")
+	}
+	if a.RespectGitignore {
+		t.Error("respect_gitignore: want false")
+	}
+
+	for _, bad := range []struct{ key, val string }{
+		{"max_matches", "abc"},
+		{"max_per_file", "abc"},
+		{"context_before", "abc"},
+		{"context_after", "abc"},
+		{"max_depth", "abc"},
+		{"fixed_string", "maybe"},
+		{"word", "maybe"},
+		{"files_only", "maybe"},
+		{"no_text", "maybe"},
+		{"include_hidden", "maybe"},
+		{"respect_gitignore", "maybe"},
+	} {
+		_, perr := ParseArgs(map[string]any{
+			"pattern": "foo",
+			"path":    root,
+			bad.key:   bad.val,
+		})
+		if perr == nil {
+			t.Errorf("expected error for %s=%q", bad.key, bad.val)
+		}
+	}
+}

@@ -45,6 +45,40 @@ func TestParseArgs_StringModeDefaults(t *testing.T) {
 	}
 }
 
+// TestParseArgs_WireShape verifies that every bool arg accepts string-typed
+// values (the wire shape from CLI parseFlags) and rejects garbage.
+func TestParseArgs_WireShape(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{
+		"path":        "f.go",
+		"old_string":  "old",
+		"replace_all": "true",
+		"dry_run":     "true",
+	})
+	if perr != nil {
+		t.Fatalf("valid string args rejected: %v", perr)
+	}
+	if !a.ReplaceAll {
+		t.Error("replace_all: want true")
+	}
+	if !a.DryRun {
+		t.Error("dry_run: want true")
+	}
+
+	for _, bad := range []struct{ key, val string }{
+		{"replace_all", "maybe"},
+		{"dry_run", "maybe"},
+	} {
+		_, perr := ParseArgs(map[string]any{
+			"path":       "f.go",
+			"old_string": "old",
+			bad.key:      bad.val,
+		})
+		if perr == nil {
+			t.Errorf("expected error for %s=%q", bad.key, bad.val)
+		}
+	}
+}
+
 func TestParseArgs_RangeModeDefaults(t *testing.T) {
 	a, perr := ParseArgs(map[string]any{"path": "f.go", "range": "1:3"})
 	if perr != nil {

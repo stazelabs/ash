@@ -149,3 +149,21 @@ func TestRun_DirIsError(t *testing.T) {
 		t.Fatalf("expected is_dir error, got %+v", perr)
 	}
 }
+
+// TestParseArgs_WireShape verifies that the limit_bytes int arg accepts a
+// string-typed value (the wire shape from the CLI's parseFlags) and rejects
+// garbage. Guards against a future implementation skipping argutil and
+// silently breaking the string→int coercion path.
+func TestParseArgs_WireShape(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{"path": "f.go", "limit_bytes": "2048"})
+	if perr != nil {
+		t.Fatalf("string limit_bytes rejected: %v", perr)
+	}
+	if a.LimitBytes != 2048 {
+		t.Errorf("limit_bytes: got %d, want 2048", a.LimitBytes)
+	}
+	_, perr = ParseArgs(map[string]any{"path": "f.go", "limit_bytes": "abc"})
+	if perr == nil {
+		t.Error("expected error for limit_bytes=abc")
+	}
+}

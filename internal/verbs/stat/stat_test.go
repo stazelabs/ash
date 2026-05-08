@@ -200,6 +200,13 @@ func TestParseArgs_followSymlinks_default(t *testing.T) {
 	}
 }
 
+func TestParseArgs_followSymlinks_badString(t *testing.T) {
+	_, perr := ParseArgs(map[string]any{"paths": "f.go", "follow_symlinks": "maybe"})
+	if perr == nil {
+		t.Error("expected error for follow_symlinks=maybe")
+	}
+}
+
 func TestRun_notFound(t *testing.T) {
 	root := t.TempDir()
 	res, perr := Run(&Args{Paths: []string{filepath.Join(root, "no_such_file")}}, nil)

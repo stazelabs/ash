@@ -141,6 +141,37 @@ func TestParseArgs_StatDefault(t *testing.T) {
 	}
 }
 
+// TestParseArgs_WireShape verifies that context (int) and stat (bool) accept
+// string-typed values (the wire shape from CLI parseFlags) and that invalid
+// strings are rejected. stat=true is already covered by TestParseArgs_StatFlag;
+// this test adds context and the invalid-string path.
+func TestParseArgs_WireShape(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{
+		"path":    "a.go",
+		"other":   "b.go",
+		"context": "5",
+		"stat":    "false",
+	})
+	if perr != nil {
+		t.Fatalf("valid string args rejected: %v", perr)
+	}
+	if a.Context != 5 {
+		t.Errorf("context: got %d, want 5", a.Context)
+	}
+	if a.Stat {
+		t.Error("stat: want false")
+	}
+
+	_, perr = ParseArgs(map[string]any{"path": "a.go", "other": "b.go", "context": "abc"})
+	if perr == nil {
+		t.Error("expected error for context=abc")
+	}
+	_, perr = ParseArgs(map[string]any{"path": "a.go", "other": "b.go", "stat": "maybe"})
+	if perr == nil {
+		t.Error("expected error for stat=maybe")
+	}
+}
+
 func TestRun_StatMode_Changed(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "f.txt")

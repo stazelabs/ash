@@ -191,6 +191,62 @@ func TestParseArgs_DefaultsAndStatus(t *testing.T) {
 	}
 }
 
+// TestParseArgs_WireShape verifies that every numeric and bool arg accepts
+// string-typed values (the wire shape from CLI parseFlags) and rejects
+// garbage. Guards against a future verb skipping argutil and silently
+// breaking the string-coercion path.
+func TestParseArgs_WireShape(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{
+		"op":          "log",
+		"limit":       "5",
+		"context":     "2",
+		"limit_bytes": "512",
+		"untracked":   "false",
+		"ignored":     "true",
+		"staged":      "true",
+		"stat":        "true",
+	})
+	if perr != nil {
+		t.Fatalf("valid string args rejected: %v", perr)
+	}
+	if a.Limit != 5 {
+		t.Errorf("limit: got %d, want 5", a.Limit)
+	}
+	if a.Context != 2 {
+		t.Errorf("context: got %d, want 2", a.Context)
+	}
+	if a.LimitBytes != 512 {
+		t.Errorf("limit_bytes: got %d, want 512", a.LimitBytes)
+	}
+	if a.Untracked {
+		t.Error("untracked: want false")
+	}
+	if !a.Ignored {
+		t.Error("ignored: want true")
+	}
+	if !a.Staged {
+		t.Error("staged: want true")
+	}
+	if !a.StatOnly {
+		t.Error("stat: want true")
+	}
+
+	for _, bad := range []struct{ key, val string }{
+		{"limit", "abc"},
+		{"context", "abc"},
+		{"limit_bytes", "abc"},
+		{"untracked", "maybe"},
+		{"ignored", "maybe"},
+		{"staged", "maybe"},
+		{"stat", "maybe"},
+	} {
+		_, perr := ParseArgs(map[string]any{"op": "status", bad.key: bad.val})
+		if perr == nil {
+			t.Errorf("expected error for %s=%q", bad.key, bad.val)
+		}
+	}
+}
+
 // -- integration smoke test ----------------------------------------------
 //
 // Builds a real repo via `git init`, exercises Run, and asserts the

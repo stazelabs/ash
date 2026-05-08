@@ -39,6 +39,35 @@ func TestParseArgs_InvalidEncoding(t *testing.T) {
 	}
 }
 
+// TestParseArgs_WireShape verifies that every bool arg accepts string-typed
+// values (the wire shape from CLI parseFlags) and rejects garbage.
+func TestParseArgs_WireShape(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{
+		"path":        "f.go",
+		"mkdir":       "false",
+		"create_only": "true",
+	})
+	if perr != nil {
+		t.Fatalf("valid string args rejected: %v", perr)
+	}
+	if a.Mkdir {
+		t.Error("mkdir: want false")
+	}
+	if !a.CreateOnly {
+		t.Error("create_only: want true")
+	}
+
+	for _, bad := range []struct{ key, val string }{
+		{"mkdir", "maybe"},
+		{"create_only", "maybe"},
+	} {
+		_, perr := ParseArgs(map[string]any{"path": "f.go", bad.key: bad.val})
+		if perr == nil {
+			t.Errorf("expected error for %s=%q", bad.key, bad.val)
+		}
+	}
+}
+
 // -- Run unit tests -------------------------------------------------------
 
 func TestRun_CreateNewFile(t *testing.T) {

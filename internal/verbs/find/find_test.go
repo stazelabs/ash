@@ -334,3 +334,49 @@ func equalSlices(a, b []string) bool {
 	}
 	return true
 }
+
+// TestParseArgs_WireShape verifies that every numeric and bool arg accepts
+// string-typed values (the wire shape from CLI parseFlags) and rejects
+// garbage. Guards against a future verb skipping argutil and silently
+// breaking the string-coercion path.
+func TestParseArgs_WireShape(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{
+		"path":              ".",
+		"limit":             "10",
+		"max_depth":         "3",
+		"include_hidden":    "true",
+		"respect_gitignore": "false",
+		"with_meta":         "true",
+	})
+	if perr != nil {
+		t.Fatalf("valid string args rejected: %v", perr)
+	}
+	if a.Limit != 10 {
+		t.Errorf("limit: got %d, want 10", a.Limit)
+	}
+	if a.MaxDepth != 3 {
+		t.Errorf("max_depth: got %d, want 3", a.MaxDepth)
+	}
+	if !a.IncludeHidden {
+		t.Error("include_hidden: want true")
+	}
+	if a.RespectGitignore {
+		t.Error("respect_gitignore: want false")
+	}
+	if !a.WithMeta {
+		t.Error("with_meta: want true")
+	}
+
+	for _, bad := range []struct{ key, val string }{
+		{"limit", "abc"},
+		{"max_depth", "abc"},
+		{"include_hidden", "maybe"},
+		{"respect_gitignore", "maybe"},
+		{"with_meta", "maybe"},
+	} {
+		_, perr := ParseArgs(map[string]any{"path": ".", bad.key: bad.val})
+		if perr == nil {
+			t.Errorf("expected error for %s=%q", bad.key, bad.val)
+		}
+	}
+}

@@ -648,3 +648,33 @@ func TestPrettyResponse_NoArgDists_WhenNoMsgpack(t *testing.T) {
 		t.Errorf("unexpected arg distributions section when no ArgsMsgpack:\n%s", out)
 	}
 }
+
+// TestParseArgs_WireShape verifies that the last and top int args accept
+// string-typed values (the wire shape from CLI parseFlags) and reject
+// garbage. Guards against a future implementation skipping argutil and
+// silently breaking the string→int coercion path.
+func TestParseArgs_WireShape(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{
+		"last": "100",
+		"top":  "10",
+	})
+	if perr != nil {
+		t.Fatalf("valid string args rejected: %v", perr)
+	}
+	if a.Last != 100 {
+		t.Errorf("last: got %d, want 100", a.Last)
+	}
+	if a.TopN != 10 {
+		t.Errorf("top: got %d, want 10", a.TopN)
+	}
+
+	for _, bad := range []struct{ key, val string }{
+		{"last", "abc"},
+		{"top", "abc"},
+	} {
+		_, perr := ParseArgs(map[string]any{bad.key: bad.val})
+		if perr == nil {
+			t.Errorf("expected error for %s=%q", bad.key, bad.val)
+		}
+	}
+}
