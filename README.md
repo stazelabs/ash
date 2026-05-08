@@ -232,7 +232,7 @@ Pre-alpha. Issues and design discussion are welcome; PRs are premature until Pha
 
 ## License
 
-TBD — likely MIT or Apache 2.0.
+MIT
 
 ---
 
