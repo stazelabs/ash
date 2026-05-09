@@ -282,8 +282,8 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 	return calls, rows.Err()
 }
 
-func (l *Ledger) Record(c *Call) error {
-	_, err := l.db.Exec(`INSERT INTO calls (
+func (l *Ledger) Record(c *Call) (int64, error) {
+	res, err := l.db.Exec(`INSERT INTO calls (
 		session_id, request_id, ts, verb, args_msgpack,
 		ok, err_code, err_msg,
 		latency_parse_us, latency_exec_us, latency_serialize_us,
@@ -297,6 +297,18 @@ func (l *Ledger) Record(c *Call) error {
 		c.TokensIn, c.TokensOut, c.TokensMethod,
 		c.BytesIn, c.BytesOut, boolToInt(c.Truncated),
 		c.WalkUs, c.IOUs, c.RegexUs, c.RegexCompileUs, c.LatencyDispatchUs,
+	)
+	if err != nil {
+		return 0, err
+	}
+	id, err := res.LastInsertId()
+	return id, err
+}
+
+func (l *Ledger) UpdateSerializeStats(rowID int64, bytesOut int, serializeUs int64) error {
+	_, err := l.db.Exec(
+		`UPDATE calls SET bytes_out = ?, latency_serialize_us = ? WHERE id = ?`,
+		bytesOut, serializeUs, rowID,
 	)
 	return err
 }

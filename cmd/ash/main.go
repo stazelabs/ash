@@ -104,6 +104,12 @@ func main() {
 		fmt.Fprintln(os.Stderr, "ash: decode:", err)
 		os.Exit(1)
 	}
+	// bytes_out in the wire metrics is zero (it cannot be known until after
+	// encoding, creating a circular dependency). Compute it from the actual
+	// received frame length instead.
+	if rsp.Metrics != nil {
+		rsp.Metrics.BytesOut = len(respBuf)
+	}
 
 	switch format {
 	case "json":
@@ -123,10 +129,10 @@ func main() {
 		fmt.Println(out)
 		if rsp.Metrics != nil {
 			fmt.Fprintf(os.Stderr,
-				"\n[ash metrics: bytes_in=%d bytes_out=%d tokens_in=%d tokens_out=%d (%s) latency_us=%d/%d/%d",
+				"\n[ash metrics: bytes_in=%d bytes_out=%d tokens_in=%d tokens_out=%d (%s) latency_us=%d/%d",
 				rsp.Metrics.BytesIn, rsp.Metrics.BytesOut,
 				rsp.Metrics.TokensIn, rsp.Metrics.TokensOut, rsp.Metrics.TokensMethod,
-				rsp.Metrics.LatencyParseUs, rsp.Metrics.LatencyExecUs, rsp.Metrics.LatencySerializeUs,
+				rsp.Metrics.LatencyParseUs, rsp.Metrics.LatencyExecUs,
 			)
 			if p := rsp.Metrics.Phases; p != nil {
 				fmt.Fprintf(os.Stderr, " phases=walk:%d/io:%d/regex:%d", p.WalkUs, p.IOUs, p.RegexUs)

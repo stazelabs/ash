@@ -149,32 +149,22 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 		tokensIn := led.Counter().Count(prettyReq)
 		tokensOut := led.Counter().Count(prettyRsp)
 
-		// Encode once to learn bytes_out for the wire metrics, then build the
-		// metrics, record to the ledger, then re-encode for the wire. The
-		// record-before-send ordering means a ledger-write failure becomes a
-		// signal the client sees in rsp.Metrics.LedgerError.
-		serStart := time.Now()
-		first, err := proto.EncodeResponse(rsp)
-		if err != nil {
-			log.Printf("ashd: encode: %v", err)
-			return
-		}
-		serFirstUs := time.Since(serStart).Microseconds()
-		bytesOut := len(first)
-
-		// LatencySerializeUs is an estimate: the second encode hasn't happened
-		// yet, but it costs roughly the same as the first. Close enough; the
-		// alternative is encoding three times.
+		// BytesOut and LatencySerializeUs cannot be known until after the wire
+		// encode (circular dependency: both values are in the metrics envelope
+		// that is itself encoded). We insert placeholder zeros here, then patch
+		// the ledger row with accurate values via UpdateSerializeStats once the
+		// encode is done. The record-before-encode ordering is preserved so a
+		// ledger failure is still visible in rsp.Metrics.LedgerError.
 		metrics := &proto.Metrics{
 			LatencyParseUs:     parseUs,
 			LatencyExecUs:      execUs,
-			LatencySerializeUs: serFirstUs * 2,
+			LatencySerializeUs: 0,
 			LatencyDispatchUs:  dispatchUs,
 			TokensIn:           tokensIn,
 			TokensOut:          tokensOut,
 			TokensMethod:       ledger.TokensMethod,
 			BytesIn:            len(reqBuf),
-			BytesOut:           bytesOut,
+			BytesOut:           0,
 			Truncated:          truncatedFromResult(rsp, runners[req.Verb]),
 		}
 		// Phases is attached only when the verb actually instrumented
@@ -190,7 +180,7 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 			errCode = rsp.Err.Code
 			errMsg = rsp.Err.Msg
 		}
-		recordErr := led.Record(&ledger.Call{
+		rowID, recordErr := led.Record(&ledger.Call{
 			RequestID:          req.ID,
 			Timestamp:          time.Now(),
 			Verb:               req.Verb,
@@ -200,12 +190,12 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 			ErrMsg:             errMsg,
 			LatencyParseUs:     parseUs,
 			LatencyExecUs:      execUs,
-			LatencySerializeUs: metrics.LatencySerializeUs,
+			LatencySerializeUs: 0,
 			TokensIn:           tokensIn,
 			TokensOut:          tokensOut,
 			TokensMethod:       ledger.TokensMethod,
 			BytesIn:            len(reqBuf),
-			BytesOut:           bytesOut,
+			BytesOut:           0,
 			Truncated:          metrics.Truncated,
 			WalkUs:             phases.WalkUs,
 			IOUs:               phases.IOUs,
@@ -219,10 +209,18 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 		}
 
 		rsp.Metrics = metrics
+		serStart := time.Now()
 		final, err := proto.EncodeResponse(rsp)
 		if err != nil {
-			log.Printf("ashd: encode (final): %v", err)
+			log.Printf("ashd: encode: %v", err)
 			return
+		}
+		serUs := time.Since(serStart).Microseconds()
+
+		if recordErr == nil {
+			if err := led.UpdateSerializeStats(rowID, len(final), serUs); err != nil {
+				log.Printf("ashd: ledger update serialize: %v", err)
+			}
 		}
 
 		if err := proto.WriteFrame(conn, final); err != nil {

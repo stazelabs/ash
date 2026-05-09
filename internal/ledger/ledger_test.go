@@ -18,7 +18,7 @@ func TestRecord_DetectsClosedDB(t *testing.T) {
 	}
 
 	// Successful record on a healthy DB.
-	if err := led.Record(&Call{
+	if _, err := led.Record(&Call{
 		RequestID:    1,
 		Timestamp:    time.Now(),
 		Verb:         "read",
@@ -32,7 +32,7 @@ func TestRecord_DetectsClosedDB(t *testing.T) {
 	if err := led.Close(); err != nil {
 		t.Fatalf("close: %v", err)
 	}
-	err = led.Record(&Call{
+	_, err = led.Record(&Call{
 		RequestID: 2,
 		Timestamp: time.Now(),
 		Verb:      "read",
