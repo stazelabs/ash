@@ -23,14 +23,14 @@ These are hard rules. If a change would violate one, stop and discuss before pro
 
 - **`[jail]`** — `enabled = true` makes every path-taking verb refuse paths outside the project root or `allow_paths`. Returns `path_denied` on denial. Recorded in the ledger like any other verb error; query via `ash report --verb <v>`.
 - **`[daemon]`** — `max_concurrent_handlers` (default 0 = unlimited; opt-in cap), `read_deadline` (default 30s per-frame socket timeout), `shutdown_grace` (default 5s bounded drain on SIGTERM). Enforced as of ASH-49.
-- **`[git]`** — `backend = "shellout"` (default) or `"go-git"`. The go-git backend ships under ASH-35; setting it today returns `not_implemented`.
+- **`[git]`** — `backend = "go-git"` (default, in-process via go-git/v5; no system git required) or `"shellout"` (forks system git). gogit backend has full functionality for `status`, `log`, `--range` diff, and `show`. For `--staged` or unstaged worktree diff with patch text (not just counts), opt back to shellout.
 
 Restart the daemon (`pkill ashd`, then any ash invocation auto-restarts it) after editing `ash.toml`. Hot reload is deliberately deferred. Full design: [docs/configuration.md](docs/configuration.md). Sample config: `ash.toml.example` at repo root.
 
 ### Error codes touching this
 
 - `path_denied` — verb path arg fell outside the active jail policy.
-- `not_implemented` — currently only `ash git --op <op>` with `[git].backend = "go-git"` (until ASH-35 lands).
+- `not_implemented` — reserved for future ops a backend genuinely cannot perform. No live verb returns this today.
 
 ## When to prefer ash over bash
 

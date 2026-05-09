@@ -11,8 +11,8 @@ func TestDefaults(t *testing.T) {
 	if c.Jail.Enabled {
 		t.Errorf("jail must default to disabled")
 	}
-	if c.Git.Backend != GitBackendShellout {
-		t.Errorf("git backend default: want %q, got %q", GitBackendShellout, c.Git.Backend)
+	if c.Git.Backend != GitBackendGoGit {
+		t.Errorf("git backend default: want %q (in-process, zero-dep), got %q", GitBackendGoGit, c.Git.Backend)
 	}
 	if c.Daemon.MaxConcurrentHandlers != 0 {
 		t.Errorf("max_concurrent_handlers default: want 0 (unlimited), got %d", c.Daemon.MaxConcurrentHandlers)
@@ -81,7 +81,7 @@ func TestLoad_MissingFiles(t *testing.T) {
 	if source != "defaults" {
 		t.Errorf("source: want %q, got %q", "defaults", source)
 	}
-	if cfg.Git.Backend != GitBackendShellout {
+	if cfg.Git.Backend != GitBackendGoGit {
 		t.Errorf("default git backend not preserved: %q", cfg.Git.Backend)
 	}
 }

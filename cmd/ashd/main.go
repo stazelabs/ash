@@ -21,6 +21,7 @@ import (
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/session"
 	"github.com/stazelabs/ash/internal/verbs"
+	"github.com/stazelabs/ash/internal/verbs/git"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
@@ -57,6 +58,9 @@ func main() {
 		log.Fatalf("ashd: config: %v", err)
 	}
 	jail.SetPolicy(jail.FromConfig(cfg.Jail.Enabled, rootFlag, cfg.Jail.AllowPaths, cfg.Jail.DenyPaths))
+	if err := git.SetBackend(cfg.Git.Backend); err != nil {
+		log.Fatalf("ashd: git backend: %v", err)
+	}
 
 	led, err := ledger.Open(session.LedgerPath(rootFlag), rootFlag, "ashd/v0.1")
 	if err != nil {

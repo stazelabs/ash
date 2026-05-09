@@ -42,7 +42,9 @@ type DiffFile struct {
 	Patch      string `msgpack:"patch,omitempty"`
 }
 
-func runDiff(a *Args, tr *proto.Tracer) (*DiffResult, *proto.Error) {
+// runDiffShellout shells out to system git for the diff op.
+// Selected by [git].backend = "shellout" in ash.toml.
+func runDiffShellout(a *Args, tr *proto.Tracer) (*DiffResult, *proto.Error) {
 	if a.StatOnly {
 		return runDiffStat(a, tr)
 	}

@@ -8,9 +8,9 @@
 
 - **ASH-16** — "jail" the daemon to the project root, optionally with extra allow/deny paths. Needs a policy you can write down once and have every path-taking verb honor.
 - **ASH-49** — daemon resilience (read deadlines, graceful shutdown, optional concurrency cap). The cap and timeouts are exactly the kind of thing that wants a config file. _Resolved._
-- **ASH-35** — option to swap the git verb's shell-out for `go-git`. Backend choice belongs in config, not in a flag the agent has to repeat.
+- **ASH-35** — option to swap the git verb's shell-out for `go-git`. Backend choice belongs in config, not in a flag the agent has to repeat. _Resolved (default switched to go-git)._
 
-ASH-61 landed the **substrate** (the package, the file format, the schema, the load/layer/wire) plus the **first real use** (ASH-16 jail enforcement) so the substrate is proven end-to-end. ASH-49 followed up to wire the `[daemon]` section. ASH-35 still ships schema only.
+ASH-61 landed the **substrate** (the package, the file format, the schema, the load/layer/wire) plus the **first real use** (ASH-16 jail enforcement) so the substrate is proven end-to-end. ASH-49 followed up to wire the `[daemon]` section. ASH-35 wired `[git].backend` and switched the default to `go-git` (in-process, zero-dep on system git).
 
 ## Decisions
 
@@ -19,7 +19,7 @@ ASH-61 landed the **substrate** (the package, the file format, the schema, the l
 - **User-global file:** `$XDG_CONFIG_HOME/ash/config.toml` (with `~/.config/ash/config.toml` fallback, matching the registry path resolver in [internal/registry/registry.go:27-39](../internal/registry/registry.go#L27-L39)).
 - **Layering (last wins):** compiled defaults → user-global → project → `ASH_CONFIG` env override (explicit path) → CLI flags (existing `--root`/`--socket`/`--log` only — no new flags this ticket).
 - **Jail default:** `enabled = false`. Existing repos behave identically with no `ash.toml` present.
-- **Initial enforcement scope:** ASH-61 landed substrate + ASH-16 jail enforcement. ASH-49 wired the `[daemon]` section: per-frame read deadlines, WaitGroup-based graceful shutdown drain, optional concurrency cap. ASH-35 still ships schema only.
+- **Initial enforcement scope:** ASH-61 landed substrate + ASH-16 jail enforcement. ASH-49 wired the `[daemon]` section: per-frame read deadlines, WaitGroup-based graceful shutdown drain, optional concurrency cap. ASH-35 wired `[git].backend` with `go-git` as the default (in-process, no system git required); `shellout` is opt-in for users who want git-CLI semantics.
 
 ## Schema
 
@@ -45,7 +45,7 @@ type JailConfig struct {
 }
 
 type GitConfig struct {
-    Backend string `toml:"backend"` // "shellout" (default) | "go-git" (ASH-35 will wire)
+    Backend string `toml:"backend"` // "go-git" (default, in-process) | "shellout" (forks system git)
 }
 ```
 
@@ -140,7 +140,7 @@ Verbs to touch (path-arg sites confirmed via `ash grep`):
 ## Out of scope (deliberately)
 
 - ~~ASH-49 enforcement: the schema lands but `daemon.max_concurrent_handlers`, `daemon.read_deadline`, `daemon.shutdown_grace` are not yet read by the accept loop. ASH-49 picks them up.~~ _Done — see acceptLoop / drainHandlers in [cmd/ashd/main.go](../cmd/ashd/main.go) and tests in [cmd/ashd/resilience_test.go](../cmd/ashd/resilience_test.go)._
-- ASH-35 enforcement: `git.backend = "go-git"` returns a typed `not_implemented` error from the git verb until ASH-35 spikes go-git. `git.backend = "shellout"` (default) preserves today's behavior.
+- ~~ASH-35 enforcement: `git.backend = "go-git"` returns a typed `not_implemented` error from the git verb until ASH-35 spikes go-git.~~ _Done — go-git is the default backend. shellout is now the opt-in for callers who need full patch text on `--staged` or unstaged worktree diffs (gogit returns counts only for those modes; range diffs and show have full patch text)._
 - Per-verb default-knob overrides (`read.limit_bytes`, `find.limit`, etc.). Easy to add later; not needed for this rollout.
 - A new `ash config` verb (effective-config printer). Deferred.
 - Hot reload on `ash.toml` change. Deferred.
