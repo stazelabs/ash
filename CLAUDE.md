@@ -15,7 +15,22 @@ This repo is also a deliberate experiment in *recursive* tool development: as so
 These are hard rules. If a change would violate one, stop and discuss before proceeding.
 
 - **No CGO.** All dependencies must be pure Go. We're prioritizing portability — every developer should be able to clone, `go build`, and run, on any platform Go cross-compiles to, with no native toolchain required. This rules out `mattn/go-sqlite3`, CGO-bound tree-sitter, and similar. We've already paid the perf cost on SQLite (`modernc.org/sqlite`) and accept it.
-- **All paths are explicit and absolute-friendly.** No verb relies on `cwd` for path resolution beyond the daemon's project root. The agent passes the full path it cares about; the daemon canonicalizes and validates. Beyond removing a class of mistakes, this gives us a "sandbox-lite" hook for free: a verb can refuse paths outside the project root, reject symlink-escapes, or apply per-path policy *before* the verb body runs. We're not a sandbox today, but we are deliberately keeping the affordance open.
+- **All paths are explicit and absolute-friendly.** No verb relies on `cwd` for path resolution beyond the daemon's project root. The agent passes the full path it cares about; the daemon canonicalizes and validates. As of ASH-61, projects can opt in to a "jail" policy via `ash.toml` `[jail]` that refuses paths outside the project root (plus optional `allow_paths`) and rejects symlink-escapes. Denied calls record a `path_denied` error in the ledger.
+
+## Configuration
+
+`ashd` reads optional TOML configuration from `<root>/ash.toml` (project-level, committed) and `$XDG_CONFIG_HOME/ash/config.toml` (user-global). Layering is last-wins: defaults → user-global → project → `$ASH_CONFIG=<path>` (explicit override). With no file present, behavior is identical to the pre-config era.
+
+- **`[jail]`** — `enabled = true` makes every path-taking verb refuse paths outside the project root or `allow_paths`. Returns `path_denied` on denial. Recorded in the ledger like any other verb error; query via `ash report --verb <v>`.
+- **`[daemon]`** — `max_concurrent_handlers`, `read_deadline`, `shutdown_grace`. Schema accepted, enforcement ships under ASH-49.
+- **`[git]`** — `backend = "shellout"` (default) or `"go-git"`. The go-git backend ships under ASH-35; setting it today returns `not_implemented`.
+
+Restart the daemon (`pkill ashd`, then any ash invocation auto-restarts it) after editing `ash.toml`. Hot reload is deliberately deferred. Full design: [docs/configuration.md](docs/configuration.md). Sample config: `ash.toml.example` at repo root.
+
+### Error codes touching this
+
+- `path_denied` — verb path arg fell outside the active jail policy.
+- `not_implemented` — currently only `ash git --op <op>` with `[git].backend = "go-git"` (until ASH-35 lands).
 
 ## When to prefer ash over bash
 

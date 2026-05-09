@@ -8,6 +8,7 @@
 package verbs
 
 import (
+	"github.com/stazelabs/ash/internal/config"
 	"github.com/stazelabs/ash/internal/ledger"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/verbs/bench"
@@ -76,7 +77,12 @@ func PrettyHandlers() map[string]Pretty {
 // response. The closure binds the maps by reference; by the time bench
 // fires the maps are fully populated, so self-dispatch (`ash bench` →
 // `ash bench`) works too — though it's a degenerate case.
-func Runners(led *ledger.Ledger) map[string]Runner {
+func Runners(led *ledger.Ledger, cfg *config.Config) map[string]Runner {
+	if cfg == nil {
+		cfg = config.Defaults()
+	}
+	_ = cfg // future-proof: ASH-35 git backend selection will read cfg.Git.Backend here.
+
 	pretty := PrettyHandlers()
 	runners := map[string]Runner{
 		"read":    wrap(read.ParseArgs, read.Run, func(r *read.Result) bool { return r.Truncated }),

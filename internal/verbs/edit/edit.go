@@ -36,6 +36,7 @@ import (
 
 	"github.com/stazelabs/ash/internal/atomicwrite"
 	"github.com/stazelabs/ash/internal/diff"
+	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
@@ -107,6 +108,11 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 		return nil, &proto.Error{Code: "args", Msg: "specify exactly one of: old_string, range, or patch"}
 	case modeCount == 0:
 		return nil, &proto.Error{Code: "args", Msg: "one of old_string, range, or patch is required"}
+	}
+	if perr := jail.CheckPaths(map[string]string{
+		"path": a.Path,
+	}); perr != nil {
+		return nil, perr
 	}
 	return a, nil
 }

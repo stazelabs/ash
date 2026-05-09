@@ -19,6 +19,7 @@ import (
 	"time"
 
 	idiff "github.com/stazelabs/ash/internal/diff"
+	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
@@ -67,6 +68,12 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 		return nil, &proto.Error{Code: "args", Msg: "specify either other or content, not both"}
 	case !hasOther && !hasContent:
 		return nil, &proto.Error{Code: "args", Msg: "one of other or content is required"}
+	}
+	if perr := jail.CheckPaths(map[string]string{
+		"path": a.Path,
+		"other": a.Other,
+	}); perr != nil {
+		return nil, perr
 	}
 	return a, nil
 }

@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/stazelabs/ash/internal/config"
+	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/ledger"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/session"
@@ -48,13 +50,19 @@ func main() {
 	}
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 
+	cfg, cfgSource, err := config.Load(rootFlag)
+	if err != nil {
+		log.Fatalf("ashd: config: %v", err)
+	}
+	jail.SetPolicy(jail.FromConfig(cfg.Jail.Enabled, rootFlag, cfg.Jail.AllowPaths, cfg.Jail.DenyPaths))
+
 	led, err := ledger.Open(session.LedgerPath(rootFlag), rootFlag, "ashd/v0.1")
 	if err != nil {
 		log.Fatalf("ashd: ledger: %v", err)
 	}
 	defer led.Close()
 
-	runners := verbs.Runners(led)
+	runners := verbs.Runners(led, cfg)
 	pretty := verbs.PrettyHandlers()
 
 	_ = os.Remove(sockFlag)
@@ -82,7 +90,7 @@ func main() {
 		defer os.Remove(pidPath)
 	}
 
-	log.Printf("ashd ready: root=%s socket=%s session=%s", rootFlag, sockFlag, led.SessionID())
+	log.Printf("ashd ready: root=%s socket=%s session=%s config=%s", rootFlag, sockFlag, led.SessionID(), cfgSource)
 
 	for {
 		conn, err := listener.Accept()

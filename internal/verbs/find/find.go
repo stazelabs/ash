@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/bmatcuk/doublestar/v4"
+	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
 	"github.com/stazelabs/ash/internal/walker"
@@ -105,6 +106,11 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	}
 	if a.Exclude != "" && !doublestar.ValidatePathPattern(a.Exclude) {
 		return nil, &proto.Error{Code: "args", Msg: "exclude is not a valid pattern: " + a.Exclude}
+	}
+	if perr := jail.CheckPaths(map[string]string{
+		"path": a.Path,
+	}); perr != nil {
+		return nil, perr
 	}
 	return a, nil
 }

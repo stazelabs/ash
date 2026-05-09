@@ -57,6 +57,18 @@ ash report --all_roots             # aggregate across every repo `ash init` has 
 
 Symlinks (not copies) so a rebuild of `ash` auto-updates every target — the daemon detects a stale binary and restarts on the next call. `ash uninit --path <p>` reverses everything except the captured `.ash/ledger.db` (kept for retroactive analysis). See [docs/install.md](docs/install.md) for the full design.
 
+## Configuration
+
+`ashd` reads optional TOML configuration from `<root>/ash.toml` (project-level, committed) and `$XDG_CONFIG_HOME/ash/config.toml` (user-global). Layering is last-wins: defaults → user-global → project → `$ASH_CONFIG=<path>` (explicit override). With no file present, behavior is identical to today.
+
+The schema covers three sections:
+
+- `[jail]` — when `enabled = true`, every path-taking verb refuses paths outside the project root or `allow_paths`, and rejects paths under `deny_paths`. Symlink escapes are caught by canonical-path resolution. Denied calls record a `path_denied` error in the ledger so deny rate is queryable via `ash report --verb <v>`.
+- `[daemon]` — `max_concurrent_handlers`, `read_deadline`, `shutdown_grace`. Schema accepted today; enforcement ships under ASH-49.
+- `[git]` — `backend = "shellout"` (default) or `"go-git"`. Schema accepted today; the `go-git` backend ships under ASH-35 and currently returns `not_implemented`.
+
+Copy `ash.toml.example` to `ash.toml` and uncomment the sections you want. The daemon must be restarted (`pkill ashd`, then any ash invocation auto-restarts it) for changes to take effect — hot reload is deliberately deferred. The full design lives in [docs/configuration.md](docs/configuration.md).
+
 ## Design principles
 
 1. **Robot-first, human-second.** Every design decision optimizes for agent token efficiency and machine parseability. Human-readable rendering is a separate output mode, not the default.

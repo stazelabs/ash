@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
@@ -77,6 +78,13 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	follow, perr2 := argutil.OptionalBool(in, "follow_symlinks", false)
 	if perr2 != nil {
 		return nil, perr2
+	}
+	check := make(map[string]string, len(paths))
+	for i, p := range paths {
+		check[fmt.Sprintf("paths[%d]", i)] = p
+	}
+	if perr := jail.CheckPaths(check); perr != nil {
+		return nil, perr
 	}
 	return &Args{Paths: paths, FollowSymlinks: follow}, nil
 }
