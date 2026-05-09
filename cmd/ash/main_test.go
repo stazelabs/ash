@@ -86,3 +86,69 @@ func TestParseFlags_FlagMissingValue(t *testing.T) {
 		t.Fatal("expected error for flag without value, got nil")
 	}
 }
+
+func TestParseFlags_RepeatedListFlagAccumulates(t *testing.T) {
+	got, err := parseFlags("test", []string{"--packages", "./internal/a/...", "--packages", "./internal/b/..."})
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	want := map[string]any{"packages": "./internal/a/...,./internal/b/..."}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestParseFlags_RepeatedListFlagAccumulatesEqualsForm(t *testing.T) {
+	got, err := parseFlags("test", []string{"--packages=a", "--packages=b", "--packages=c"})
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	want := map[string]any{"packages": "a,b,c"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestParseFlags_RepeatedListFlagMixedWithComma(t *testing.T) {
+	got, err := parseFlags("test", []string{"--packages", "a,b", "--packages", "c"})
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	want := map[string]any{"packages": "a,b,c"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestParseFlags_RepeatedListFlagStatPaths(t *testing.T) {
+	got, err := parseFlags("stat", []string{"--paths", "a.go", "--paths", "b.go"})
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	want := map[string]any{"paths": "a.go,b.go"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestParseFlags_RepeatedNonListFlagErrors(t *testing.T) {
+	_, err := parseFlags("read", []string{"--path", "a.go", "--path", "b.go"})
+	if err == nil {
+		t.Fatal("expected error for repeated --path, got nil")
+	}
+}
+
+func TestParseFlags_RepeatedListFlagOnNonListVerbErrors(t *testing.T) {
+	// packages is a list flag for "test" but not for any other verb.
+	_, err := parseFlags("read", []string{"--packages", "a", "--packages", "b"})
+	if err == nil {
+		t.Fatal("expected error: packages is not a list flag on read")
+	}
+}
+
+func TestParseFlags_PositionalThenSameKeyFlagErrors(t *testing.T) {
+	_, err := parseFlags("read", []string{"foo.go", "--path", "bar.go"})
+	if err == nil {
+		t.Fatal("expected error when --path is set after the path positional, got nil")
+	}
+}
