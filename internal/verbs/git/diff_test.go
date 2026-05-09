@@ -264,6 +264,23 @@ func TestRunDiff_Integration(t *testing.T) {
 	if err != nil {
 		t.Skip("git not on PATH, skipping integration")
 	}
+	// This test asserts full patch text on an unstaged worktree change.
+	// gogit backend returns counts-only for that mode (see
+	// gogit_diff.go); pin to shellout for this case. The gogit
+	// equivalent (counts present, Patch empty) is covered by a
+	// separate test.
+	prev := currentBackend()
+	if err := SetBackend("shellout"); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		switch prev {
+		case backendShellout:
+			_ = SetBackend("shellout")
+		default:
+			_ = SetBackend("go-git")
+		}
+	}()
 
 	dir := t.TempDir()
 	mustRun := func(name string, args ...string) {

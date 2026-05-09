@@ -42,7 +42,9 @@ type FileChange struct {
 // runStatus shells out to `git status --porcelain=v2 --branch [--ignored]`
 // and parses the output. The exec phase is timed as IO since the cost is
 // dominated by git's own filesystem traversal of the index.
-func runStatus(a *Args, tr *proto.Tracer) (*StatusResult, *proto.Error) {
+// runStatusShellout shells out to system git for the status op.
+// Selected by [git].backend = "shellout" in ash.toml.
+func runStatusShellout(a *Args, tr *proto.Tracer) (*StatusResult, *proto.Error) {
 	gitArgs := []string{"-C", a.Path, "status", "--porcelain=v2", "--branch"}
 	if !a.Untracked {
 		gitArgs = append(gitArgs, "--untracked-files=no")

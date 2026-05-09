@@ -49,9 +49,11 @@
 # deny_paths = [".env", "secrets/"]
 
 # [git]
-# # Backend for the `ash git` verb. Default "shellout" forks system git
-# # and parses its machine-readable output.
-# # "go-git" is reserved for ASH-35 — setting it today returns
-# # not_implemented from the git verb. The schema is accepted now so
-# # ASH-35 is purely about wiring up the backend.
-# backend = "shellout"
+# # Backend for the `ash git` verb. Default "go-git" runs in-process via
+# # github.com/go-git/go-git/v5 — no system git required, faster on small
+# # repos (no fork+exec overhead). Set to "shellout" to fork system git
+# # instead, which is needed for: (a) full patch text on --staged or
+# # default unstaged diffs (go-git returns counts only for those modes),
+# # (b) git-CLI rename-detection thresholds, (c) relative date forms in
+# # log --since "1 week ago".
+# backend = "go-git"

@@ -61,7 +61,9 @@ type Commit struct {
 	Parents        []string `msgpack:"parents,omitempty"`
 }
 
-func runLog(a *Args, tr *proto.Tracer) (*LogResult, *proto.Error) {
+// runLogShellout shells out to system git for the log op.
+// Selected by [git].backend = "shellout" in ash.toml.
+func runLogShellout(a *Args, tr *proto.Tracer) (*LogResult, *proto.Error) {
 	gitArgs := []string{"-C", a.Path, "log", "-z", "--format=" + logFormat,
 		"-n", strconv.Itoa(a.Limit + 1), // +1 so we can detect truncation cheaply
 	}

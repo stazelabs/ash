@@ -102,7 +102,7 @@ func Defaults() *Config {
 			ShutdownGrace:         Duration(DefaultShutdownGrace),
 		},
 		Jail: JailConfig{},
-		Git:  GitConfig{Backend: GitBackendShellout},
+		Git:  GitConfig{Backend: GitBackendGoGit},
 	}
 }
 

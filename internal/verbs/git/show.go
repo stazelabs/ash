@@ -26,7 +26,9 @@ type ShowResult struct {
 // calls: one for metadata via `git log -1 --format=...`, one for the
 // diff via `git diff <parent>..<ref>` (or empty-tree..ref for root
 // commits). Both reuse the parsers from log.go and diff.go.
-func runShow(a *Args, tr *proto.Tracer) (*ShowResult, *proto.Error) {
+// runShowShellout shells out to system git for the show op.
+// Selected by [git].backend = "shellout" in ash.toml.
+func runShowShellout(a *Args, tr *proto.Tracer) (*ShowResult, *proto.Error) {
 	if a.Ref == "" {
 		return nil, &proto.Error{Code: "args", Msg: "show requires --ref"}
 	}
