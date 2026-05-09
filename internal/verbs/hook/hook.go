@@ -392,8 +392,14 @@ func pickPath(candidates ...string) string {
 //   - Backslash outside single-quotes: next byte is escaped and passed through.
 //   - Parentheses (bare and via $(...)): depth-tracked; no splitting inside.
 //   - Backtick substitutions: depth-tracked; no splitting inside.
-//   - Heredocs (<<EOF...EOF) are NOT parsed; they almost always appear inside
-//     $(...) which is already tracked transitively.
+//   - Heredocs (<<EOF, <<-EOF, <<'EOF', <<"EOF") at top level:
+//     scanHeredoc locates the body and the operator + delimiter stay in
+//     the segment, but the body bytes never enter cur. Without this,
+//     content like markdown tables (| find | path |) or prose mentions
+//     of redirected programs in `ash write --content - <<EOF...EOF`
+//     would produce false segments and false denies. Heredocs inside
+//     $(...) or quoted contexts are still opaque via paren/quote
+//     tracking and don't need separate handling.
 func segments(command string) []string {
 	var segs []string
 	var cur strings.Builder
@@ -495,6 +501,22 @@ func segments(command string) []string {
 			}
 			cur.WriteByte(c)
 			i++
+		case c == '<' && i+1 < n && command[i+1] == '<' && parenDepth == 0 && backtickDepth == 0:
+			if delimEnd, bodyEnd, ok := scanHeredoc(command, i); ok {
+				// Preserve <<DELIM in the segment text; drop the body so
+				// content like markdown tables or prose mentions cannot
+				// produce false splits or false program matches. Flush
+				// after consumption so anything on subsequent lines (the
+				// terminator is followed by its own newline) starts a
+				// fresh segment, matching bash semantics where a newline
+				// after a heredoc terminator separates commands.
+				cur.WriteString(command[i:delimEnd])
+				i = bodyEnd
+				flush()
+			} else {
+				cur.WriteByte(c)
+				i++
+			}
 		case (c == ';' || c == '|' || c == '&') && parenDepth == 0 && backtickDepth == 0:
 			if (c == '|' || c == '&') && i+1 < n && command[i+1] == c {
 				// Two-character operator: || or &&
@@ -516,6 +538,101 @@ func segments(command string) []string {
 	}
 	flush()
 	return segs
+}
+
+// scanHeredoc parses a heredoc operator at s[start] (which must be "<<")
+// and returns:
+//   - delimEnd: position just after the delimiter token (and any closing
+//     quote). Bytes s[start:delimEnd] are the literal "<<DELIM" portion
+//     that should be preserved in the segment text.
+//   - bodyEnd: position just after the heredoc body terminator line
+//     (including its trailing newline). Bytes between delimEnd and
+//     bodyEnd are the body and must NOT be in the segment text — that
+//     is the whole point of this function.
+//   - ok: false if "<<" is not at start, or if the delimiter word is
+//     empty. Caller should fall back to literal handling in that case.
+//
+// Recognises <<W, <<-W (strip-tabs), <<'W', <<"W", and <<\W (escaped).
+// Unterminated heredocs (no matching delimiter line before EOF) report
+// ok=true with bodyEnd=len(s) so the caller cleanly stops scanning.
+//
+// Simplification: if other tokens follow <<DELIM on the same line
+// (e.g. `cmd <<EOF arg2`), they are skipped along with the body. This
+// is exotic in practice; for the false-positives we care about
+// (markdown tables, prose, code blocks in `ash write` heredocs) the
+// simpler version is sufficient.
+func scanHeredoc(s string, start int) (delimEnd, bodyEnd int, ok bool) {
+	n := len(s)
+	if start+1 >= n || s[start] != '<' || s[start+1] != '<' {
+		return 0, 0, false
+	}
+	j := start + 2
+	stripTabs := false
+	if j < n && s[j] == '-' {
+		stripTabs = true
+		j++
+	}
+	quote := byte(0)
+	if j < n && (s[j] == '\'' || s[j] == '"') {
+		quote = s[j]
+		j++
+	} else if j < n && s[j] == '\\' {
+		j++
+	}
+	delimStart := j
+	for j < n {
+		c := s[j]
+		if quote != 0 {
+			if c == quote {
+				break
+			}
+			j++
+			continue
+		}
+		if c == ' ' || c == '\t' || c == '\n' || c == ';' ||
+			c == '|' || c == '&' || c == '<' || c == '>' ||
+			c == '(' || c == ')' {
+			break
+		}
+		j++
+	}
+	if j == delimStart {
+		return 0, 0, false
+	}
+	delim := s[delimStart:j]
+	if quote != 0 && j < n && s[j] == quote {
+		j++
+	}
+	delimEnd = j
+	nl := strings.IndexByte(s[j:], '\n')
+	if nl < 0 {
+		return delimEnd, n, true
+	}
+	pos := j + nl + 1
+	for pos < n {
+		lineEnd := strings.IndexByte(s[pos:], '\n')
+		var line string
+		if lineEnd < 0 {
+			line = s[pos:]
+		} else {
+			line = s[pos : pos+lineEnd]
+		}
+		candidate := line
+		if stripTabs {
+			candidate = strings.TrimLeft(candidate, "\t")
+		}
+		if candidate == delim {
+			if lineEnd < 0 {
+				return delimEnd, n, true
+			}
+			return delimEnd, pos + lineEnd + 1, true
+		}
+		if lineEnd < 0 {
+			break
+		}
+		pos += lineEnd + 1
+	}
+	return delimEnd, n, true
 }
 
 // firstToken returns the first program in a bash segment after stripping
