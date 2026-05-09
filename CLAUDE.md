@@ -36,7 +36,7 @@ Restart the daemon (`pkill ashd`, then any ash invocation auto-restarts it) afte
 
 This is the operational checklist. It is **gated by which verbs are live**. Do not try to invoke a verb that hasn't shipped yet.
 
-### Phase 2 ship 11 (now) — `read`, `find`, `grep`, `git status/log/diff`, `metrics`, `report`, `stat`, `bench`, `write`, `edit`, and `diff` are live
+### Phase 2 ship 13 (now) — `read`, `find`, `grep`, `git` (status/log/diff/show), `metrics`, `report`, `stat`, `bench`, `write`, `edit`, `diff`, `test`, `hook`, `help`, `init`, and `uninit` are live
 
 Build the binaries first (one-time per session, cheap to redo):
 

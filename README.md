@@ -34,7 +34,7 @@ This project is two experiments at once: the shell itself, and a deliberate stud
 
 ## Status
 
-**Alpha.** Phase 2 is underway and self-hosting. Eight verbs are live: `find`, `grep`, `read`, `git` (status + log), `metrics`, `report`, `stat`, `bench`, and `help`. The daemon auto-starts, persists per-call instrumentation to a SQLite ledger, and tokenizes every response with `cl100k_base`. `ash bench` answers "is ash actually saving tokens?" by running canonical cases against the bash equivalent and reporting per-case Δtokens / Δlatency — see [docs/bench.md](docs/bench.md). Agents working on this repo use `ash` for all covered operations; session notes in `docs/session-notes/` capture the experience. Remaining Phase 2 verbs (`write`, `edit`, `test`, `build`, `fmt`) and Phase 3 (`lang`) are upcoming. Expect breaking changes.
+**Alpha.** Phase 2 is underway and self-hosting. Sixteen verbs are live: `find`, `grep`, `read`, `write`, `edit`, `stat`, `git` (status, log, diff, show), `test`, `diff`, `bench`, `metrics`, `report`, `hook`, `help`, `init`, and `uninit`. The daemon auto-starts, persists per-call instrumentation to a SQLite ledger, and tokenizes every response with `cl100k_base`. `ash bench` answers "is ash actually saving tokens?" by running canonical cases against the bash equivalent and reporting per-case Δtokens / Δlatency — see [docs/bench.md](docs/bench.md). Agents working on this repo use `ash` for all covered operations; session notes in `docs/session-notes/` capture the experience. Remaining Phase 2 verbs (`build`, `fmt`) and Phase 3 (`lang`) are upcoming. Expect breaking changes.
 
 ## Installing into a target repo
 
@@ -65,7 +65,7 @@ The schema covers three sections:
 
 - `[jail]` — when `enabled = true`, every path-taking verb refuses paths outside the project root or `allow_paths`, and rejects paths under `deny_paths`. Symlink escapes are caught by canonical-path resolution. Denied calls record a `path_denied` error in the ledger so deny rate is queryable via `ash report --verb <v>`.
 - `[daemon]` — `max_concurrent_handlers`, `read_deadline`, `shutdown_grace`. Schema accepted today; enforcement ships under ASH-49.
-- `[git]` — `backend = "shellout"` (default) or `"go-git"`. Schema accepted today; the `go-git` backend ships under ASH-35 and currently returns `not_implemented`.
+- `[git]` — `backend = "go-git"` (default, in-process via go-git/v5; no system git required) or `"shellout"` (forks system git). The go-git backend supports `status`, `log`, `diff` (range), and `show`; for `--staged` or worktree patch text, opt back to shellout.
 
 Copy `ash.toml.example` to `ash.toml` and uncomment the sections you want. The daemon must be restarted (`pkill ashd`, then any ash invocation auto-restarts it) for changes to take effect — hot reload is deliberately deferred. The full design lives in [docs/configuration.md](docs/configuration.md).
 
@@ -209,7 +209,8 @@ Same five operations. One mental model. Structured results throughout. Roughly 2
 
 ### Phase 2 — Coding-agent core
 
-- Add `write`, `edit`, `stat`, `git`, `test`, `build`, `fmt`
+- Shipped: `write`, `edit`, `stat`, `git` (status, log, diff, show), `test`, `diff`, `bench`, `metrics`, `report`, `hook`, `help`, `init`, `uninit`
+- Upcoming: `build`, `fmt`
 - Persistent session and object store
 - Job ledger for async operations
 - Reference Go client library
