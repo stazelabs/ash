@@ -176,14 +176,15 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "edit",
-		Description: "In-place file mutation. String-replacement mode (old_string/new_string) or line-range mode (range/new_content). Atomic write via temp-file+rename.",
+		Description: "In-place file mutation. String-replacement mode (old_string/new_string), line-range mode (range/new_content), or patch mode (patch). Atomic write via temp-file+rename.",
 		Args: []ArgSchema{
 			{Name: "path", Type: "string", Required: true, Description: "File to edit."},
-			{Name: "old_string", Type: "string", Description: "[string mode] Exact text to find (required if range not provided). Must appear exactly once unless replace_all=true."},
+			{Name: "old_string", Type: "string", Description: "[string mode] Exact text to find (required if range/patch not provided). Must appear exactly once unless replace_all=true."},
 			{Name: "new_string", Type: "string", Default: "", Description: "[string mode] Replacement text. Empty string deletes the matched text."},
 			{Name: "replace_all", Type: "bool", Default: "false", Description: "[string mode] Replace every occurrence of old_string. If false, errors when old_string appears more than once."},
-			{Name: "range", Type: "string", Description: "[range mode] Line range to replace, formatted as start:end, 1-based inclusive (required if old_string not provided)."},
+			{Name: "range", Type: "string", Description: "[range mode] Line range to replace, formatted as start:end, 1-based inclusive (required if old_string/patch not provided)."},
 			{Name: "new_content", Type: "string", Default: "", Description: "[range mode] Replacement text for the specified lines. Empty string deletes the lines."},
+			{Name: "patch", Type: "string", Description: "[patch mode] Unified diff to apply (required if old_string/range not provided). Pass '-' to read from stdin. Error codes: patch_parse_error, patch_failed."},
 			{Name: "dry_run", Type: "bool", Default: "false", Description: "Compute the replacement but do not write. Result includes a unified diff in the patch field."},
 		},
 	},

@@ -16,7 +16,11 @@
 //	range        string (required) — "start:end" line range, 1-based inclusive
 //	new_content  string (optional, default "") — replacement text; empty = deletion
 //
-// Exactly one of old_string or range must be provided.
+// Patch mode (requires patch):
+//
+//	patch        string (required) — unified diff to apply; pass "-" to read from stdin
+//
+// Exactly one of old_string, range, or patch must be provided.
 // The write is atomic (temp-file + rename on the same filesystem).
 // With dry_run=true the replacement is computed but not written; Patch contains
 // a unified diff of what would change.
@@ -42,6 +46,7 @@ type Args struct {
 	NewString  string
 	Range      string
 	NewContent string
+	Patch      string // unified diff to apply; "-" means caller resolved stdin already
 	ReplaceAll bool
 	DryRun     bool
 }
@@ -50,7 +55,7 @@ type Result struct {
 	Path         string `msgpack:"path"`
 	BytesWritten int    `msgpack:"bytes_written"`
 	LinesTotal   int    `msgpack:"lines_total"`
-	Occurrences  int    `msgpack:"occurrences"` // replacements made; always 1 for range mode
+	Occurrences  int    `msgpack:"occurrences"` // replacements made; hunk count in patch mode
 	DryRun       bool   `msgpack:"dry_run,omitempty"`
 	Patch        string `msgpack:"patch,omitempty"` // unified diff when dry_run=true
 }
@@ -74,6 +79,9 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.NewContent, perr = argutil.OptionalString(in, "new_content", ""); perr != nil {
 		return nil, perr
 	}
+	if a.Patch, perr = argutil.OptionalString(in, "patch", ""); perr != nil {
+		return nil, perr
+	}
 	if a.ReplaceAll, perr = argutil.OptionalBool(in, "replace_all", false); perr != nil {
 		return nil, perr
 	}
@@ -83,11 +91,22 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 
 	hasOld := a.OldString != ""
 	hasRange := a.Range != ""
+	hasPatch := a.Patch != ""
+	modeCount := 0
+	if hasOld {
+		modeCount++
+	}
+	if hasRange {
+		modeCount++
+	}
+	if hasPatch {
+		modeCount++
+	}
 	switch {
-	case hasOld && hasRange:
-		return nil, &proto.Error{Code: "args", Msg: "specify either old_string or range, not both"}
-	case !hasOld && !hasRange:
-		return nil, &proto.Error{Code: "args", Msg: "one of old_string or range is required"}
+	case modeCount > 1:
+		return nil, &proto.Error{Code: "args", Msg: "specify exactly one of: old_string, range, or patch"}
+	case modeCount == 0:
+		return nil, &proto.Error{Code: "args", Msg: "one of old_string, range, or patch is required"}
 	}
 	return a, nil
 }
@@ -119,19 +138,26 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	var newContent string
 	var occurrences int
 
-	if a.OldString != "" {
+	switch {
+	case a.OldString != "":
 		var perr *proto.Error
 		newContent, occurrences, perr = applyStringReplace(content, a.OldString, a.NewString, a.ReplaceAll)
 		if perr != nil {
 			return nil, perr
 		}
-	} else {
+	case a.Range != "":
 		var perr *proto.Error
 		newContent, perr = applyLineRange(content, a.Range, a.NewContent)
 		if perr != nil {
 			return nil, perr
 		}
 		occurrences = 1
+	default: // patch mode
+		var perr *proto.Error
+		newContent, occurrences, perr = applyPatch(content, a.Patch)
+		if perr != nil {
+			return nil, perr
+		}
 	}
 
 	if a.DryRun {
@@ -173,6 +199,230 @@ func computePatch(oldContent, newContent, path string) string {
 		return fmt.Sprintf("(diff unavailable: %v)", err)
 	}
 	return diff.Unified(edits, path, path, diff.DefaultContext)
+}
+
+// patchHunk is one hunk parsed from a unified diff.
+type patchHunk struct {
+	oldStart int
+	oldCount int
+	newStart int
+	newCount int
+	lines    []string // body lines including prefix char (' ', '-', '+')
+}
+
+// parseHunkHeader extracts (oldStart, oldCount, newStart, newCount) from a
+// unified diff hunk header line of the form "@@ -N[,M] +N[,M] @@".
+func parseHunkHeader(line string) (oldStart, oldCount, newStart, newCount int, err error) {
+	if !strings.HasPrefix(line, "@@ ") {
+		return 0, 0, 0, 0, fmt.Errorf("not a hunk header: %q", line)
+	}
+	rest := line[3:]
+
+	// Parse the old-file range: -start[,count]
+	oldPart, rest2, ok := strings.Cut(rest, " ")
+	if !ok || !strings.HasPrefix(oldPart, "-") {
+		return 0, 0, 0, 0, fmt.Errorf("malformed hunk header (missing -range): %q", line)
+	}
+	oldPart = oldPart[1:]
+	if comma := strings.IndexByte(oldPart, ','); comma >= 0 {
+		if oldStart, err = strconv.Atoi(oldPart[:comma]); err != nil {
+			return 0, 0, 0, 0, fmt.Errorf("malformed hunk header (old start): %q", line)
+		}
+		if oldCount, err = strconv.Atoi(oldPart[comma+1:]); err != nil {
+			return 0, 0, 0, 0, fmt.Errorf("malformed hunk header (old count): %q", line)
+		}
+	} else {
+		if oldStart, err = strconv.Atoi(oldPart); err != nil {
+			return 0, 0, 0, 0, fmt.Errorf("malformed hunk header (old start): %q", line)
+		}
+		oldCount = 1
+	}
+
+	// Parse the new-file range: +start[,count]
+	newPart, _, _ := strings.Cut(rest2, " ")
+	if !strings.HasPrefix(newPart, "+") {
+		return 0, 0, 0, 0, fmt.Errorf("malformed hunk header (missing +range): %q", line)
+	}
+	newPart = newPart[1:]
+	if comma := strings.IndexByte(newPart, ','); comma >= 0 {
+		if newStart, err = strconv.Atoi(newPart[:comma]); err != nil {
+			return 0, 0, 0, 0, fmt.Errorf("malformed hunk header (new start): %q", line)
+		}
+		if newCount, err = strconv.Atoi(newPart[comma+1:]); err != nil {
+			return 0, 0, 0, 0, fmt.Errorf("malformed hunk header (new count): %q", line)
+		}
+	} else {
+		if newStart, err = strconv.Atoi(newPart); err != nil {
+			return 0, 0, 0, 0, fmt.Errorf("malformed hunk header (new start): %q", line)
+		}
+		newCount = 1
+	}
+	return
+}
+
+// parsePatch parses a unified diff into hunks. Accepts diffs produced by
+// ash diff / internal/diff as well as standard GNU unified-diff format.
+func parsePatch(patchText string) ([]patchHunk, error) {
+	if strings.TrimSpace(patchText) == "" {
+		return nil, fmt.Errorf("patch is empty")
+	}
+
+	rawLines := strings.Split(patchText, "\n")
+	if len(rawLines) > 0 && rawLines[len(rawLines)-1] == "" {
+		rawLines = rawLines[:len(rawLines)-1]
+	}
+
+	// Skip preamble (--- / +++ header lines and any leading context)
+	i := 0
+	for i < len(rawLines) && !strings.HasPrefix(rawLines[i], "@@") {
+		i++
+	}
+	if i >= len(rawLines) {
+		return nil, fmt.Errorf("no hunks found in patch")
+	}
+
+	var hunks []patchHunk
+	for i < len(rawLines) {
+		line := rawLines[i]
+		if !strings.HasPrefix(line, "@@") {
+			break
+		}
+		oldStart, oldCount, newStart, newCount, err := parseHunkHeader(line)
+		if err != nil {
+			return nil, fmt.Errorf("patch_parse_error: %w", err)
+		}
+		i++
+
+		var bodyLines []string
+		for i < len(rawLines) && !strings.HasPrefix(rawLines[i], "@@") {
+			bl := rawLines[i]
+			// Skip "\ No newline at end of file" markers from external tools.
+			if strings.HasPrefix(bl, `\ `) {
+				i++
+				continue
+			}
+			bodyLines = append(bodyLines, bl)
+			i++
+		}
+
+		hunks = append(hunks, patchHunk{
+			oldStart: oldStart, oldCount: oldCount,
+			newStart: newStart, newCount: newCount,
+			lines:    bodyLines,
+		})
+	}
+
+	if len(hunks) == 0 {
+		return nil, fmt.Errorf("no hunks found in patch")
+	}
+	return hunks, nil
+}
+
+// applyPatch applies a unified diff to content and returns (newContent,
+// hunksApplied, error). Error codes: patch_parse_error, patch_failed.
+func applyPatch(content, patchText string) (string, int, *proto.Error) {
+	hunks, err := parsePatch(patchText)
+	if err != nil {
+		return "", 0, &proto.Error{Code: "patch_parse_error", Msg: err.Error()}
+	}
+
+	// Split file into lines without trailing newlines (mirrors internal/diff.SplitLines).
+	var fileLines []string
+	if content != "" {
+		parts := strings.Split(content, "\n")
+		if len(parts) > 0 && parts[len(parts)-1] == "" {
+			parts = parts[:len(parts)-1]
+		}
+		fileLines = parts
+	}
+
+	var out []string
+	srcPos := 0 // 0-indexed cursor into fileLines
+
+	for _, h := range hunks {
+		// hunkStart is 0-indexed; oldStart=0 means insert before first line.
+		hunkStart := h.oldStart - 1
+		if hunkStart < 0 {
+			hunkStart = 0
+		}
+
+		// Copy untouched lines up to this hunk's start.
+		for srcPos < hunkStart {
+			if srcPos >= len(fileLines) {
+				return "", 0, &proto.Error{
+					Code: "patch_failed",
+					Msg:  fmt.Sprintf("hunk at line %d extends beyond file length (%d lines)", h.oldStart, len(fileLines)),
+				}
+			}
+			out = append(out, fileLines[srcPos])
+			srcPos++
+		}
+
+		// Apply hunk body.
+		for _, bl := range h.lines {
+			// An empty body line represents a context line with empty content
+			// (some tools strip the trailing space from " \n").
+			if len(bl) == 0 {
+				if srcPos >= len(fileLines) || fileLines[srcPos] != "" {
+					got := "<EOF>"
+					if srcPos < len(fileLines) {
+						got = fmt.Sprintf("%q", fileLines[srcPos])
+					}
+					return "", 0, &proto.Error{
+						Code: "patch_failed",
+						Msg:  fmt.Sprintf("hunk mismatch at line %d: expected empty context, got %s", srcPos+1, got),
+					}
+				}
+				out = append(out, "")
+				srcPos++
+				continue
+			}
+			prefix := bl[0]
+			lineContent := bl[1:]
+			switch prefix {
+			case ' ': // context — must match
+				if srcPos >= len(fileLines) || fileLines[srcPos] != lineContent {
+					got := "<EOF>"
+					if srcPos < len(fileLines) {
+						got = fmt.Sprintf("%q", fileLines[srcPos])
+					}
+					return "", 0, &proto.Error{
+						Code: "patch_failed",
+						Msg:  fmt.Sprintf("hunk mismatch at line %d: expected context %q, got %s", srcPos+1, lineContent, got),
+					}
+				}
+				out = append(out, lineContent)
+				srcPos++
+			case '-': // delete — consume without emitting
+				if srcPos >= len(fileLines) || fileLines[srcPos] != lineContent {
+					got := "<EOF>"
+					if srcPos < len(fileLines) {
+						got = fmt.Sprintf("%q", fileLines[srcPos])
+					}
+					return "", 0, &proto.Error{
+						Code: "patch_failed",
+						Msg:  fmt.Sprintf("hunk mismatch at line %d: expected to delete %q, got %s", srcPos+1, lineContent, got),
+					}
+				}
+				srcPos++
+			case '+': // insert
+				out = append(out, lineContent)
+			default:
+				return "", 0, &proto.Error{
+					Code: "patch_parse_error",
+					Msg:  fmt.Sprintf("unexpected line prefix %q in hunk body", string(prefix)),
+				}
+			}
+		}
+	}
+
+	// Copy any remaining lines after the last hunk.
+	out = append(out, fileLines[srcPos:]...)
+
+	if len(out) == 0 {
+		return "", len(hunks), nil
+	}
+	return strings.Join(out, "\n") + "\n", len(hunks), nil
 }
 
 func applyStringReplace(content, oldStr, newStr string, replaceAll bool) (string, int, *proto.Error) {
@@ -303,9 +553,14 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		return "ok\n<unrecognized edit result>"
 	}
 
+	// Detect mode from request args for descriptive labels.
+	patchMode := req != nil && req.Args["patch"] != nil && req.Args["patch"] != ""
+
 	if r.DryRun {
 		var detail string
-		if req != nil {
+		if patchMode {
+			detail = hunkLabel(r.Occurrences)
+		} else if req != nil {
 			if rangeVal, _ := req.Args["range"].(string); rangeVal != "" {
 				detail = fmt.Sprintf("lines %s", rangeVal)
 			}
@@ -325,7 +580,9 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	}
 
 	var detail string
-	if req != nil {
+	if patchMode {
+		detail = hunkLabel(r.Occurrences) + " applied"
+	} else if req != nil {
 		if rangeVal, _ := req.Args["range"].(string); rangeVal != "" {
 			detail = fmt.Sprintf("lines %s replaced", rangeVal)
 		}
@@ -338,6 +595,13 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		}
 	}
 	return fmt.Sprintf("=== ash edit: %s [%dB, %s] ===", r.Path, r.BytesWritten, detail)
+}
+
+func hunkLabel(n int) string {
+	if n == 1 {
+		return "1 hunk"
+	}
+	return fmt.Sprintf("%d hunks", n)
 }
 
 func decodeResult(data any) (*Result, bool) {

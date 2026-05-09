@@ -89,6 +89,30 @@ func TestParseArgs_RangeModeDefaults(t *testing.T) {
 	}
 }
 
+func TestParseArgs_PatchMode(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{"path": "f.go", "patch": "--- f\n+++ f\n@@ -1 +1 @@\n-old\n+new\n"})
+	if perr != nil {
+		t.Fatalf("unexpected: %+v", perr)
+	}
+	if a.Patch == "" {
+		t.Error("patch should be set")
+	}
+}
+
+func TestParseArgs_PatchExclusive(t *testing.T) {
+	cases := []map[string]any{
+		{"path": "f.go", "patch": "x", "old_string": "y"},
+		{"path": "f.go", "patch": "x", "range": "1:2"},
+		{"path": "f.go", "patch": "x", "old_string": "y", "range": "1:2"},
+	}
+	for _, in := range cases {
+		_, perr := ParseArgs(in)
+		if perr == nil || perr.Code != "args" {
+			t.Errorf("expected args error for conflicting modes, got %+v (input: %v)", perr, in)
+		}
+	}
+}
+
 // -- applyStringReplace ----------------------------------------------------
 
 func TestStringReplace_Basic(t *testing.T) {
@@ -268,6 +292,214 @@ func TestLineRange_StartGreaterThanEnd(t *testing.T) {
 	}
 }
 
+// -- parseHunkHeader -------------------------------------------------------
+
+func TestParseHunkHeader_FullFormat(t *testing.T) {
+	oldStart, oldCount, newStart, newCount, err := parseHunkHeader("@@ -1,4 +1,6 @@")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if oldStart != 1 || oldCount != 4 || newStart != 1 || newCount != 6 {
+		t.Errorf("got (%d,%d,%d,%d) want (1,4,1,6)", oldStart, oldCount, newStart, newCount)
+	}
+}
+
+func TestParseHunkHeader_WithContext(t *testing.T) {
+	// Some tools append function name after the @@ marker
+	oldStart, oldCount, newStart, newCount, err := parseHunkHeader("@@ -10,3 +10,4 @@ func foo() {")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if oldStart != 10 || oldCount != 3 || newStart != 10 || newCount != 4 {
+		t.Errorf("got (%d,%d,%d,%d) want (10,3,10,4)", oldStart, oldCount, newStart, newCount)
+	}
+}
+
+func TestParseHunkHeader_ZeroCount(t *testing.T) {
+	// @@ -0,0 +1,3 @@ means insertion at start of file
+	oldStart, oldCount, newStart, newCount, err := parseHunkHeader("@@ -0,0 +1,3 @@")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if oldStart != 0 || oldCount != 0 || newStart != 1 || newCount != 3 {
+		t.Errorf("got (%d,%d,%d,%d) want (0,0,1,3)", oldStart, oldCount, newStart, newCount)
+	}
+}
+
+func TestParseHunkHeader_OmittedCount(t *testing.T) {
+	// Standard format allows omitting ",1" when count=1
+	oldStart, _, newStart, _, err := parseHunkHeader("@@ -5 +5 @@")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if oldStart != 5 || newStart != 5 {
+		t.Errorf("got (%d,%d) want (5,5)", oldStart, newStart)
+	}
+}
+
+func TestParseHunkHeader_Malformed(t *testing.T) {
+	cases := []string{
+		"not a header",
+		"@@ -abc,3 +1,3 @@",
+		"@@ +1,3 -1,3 @@",
+		"@@",
+	}
+	for _, c := range cases {
+		_, _, _, _, err := parseHunkHeader(c)
+		if err == nil {
+			t.Errorf("expected error for %q", c)
+		}
+	}
+}
+
+// -- applyPatch ------------------------------------------------------------
+
+func TestApplyPatch_CleanApply(t *testing.T) {
+	content := "line1\nline2\nline3\n"
+	patch := "--- a\n+++ b\n@@ -1,3 +1,3 @@\n line1\n-line2\n+LINE2\n line3\n"
+
+	got, hunks, perr := applyPatch(content, patch)
+	if perr != nil {
+		t.Fatalf("applyPatch: %+v", perr)
+	}
+	want := "line1\nLINE2\nline3\n"
+	if got != want {
+		t.Errorf("got=%q want=%q", got, want)
+	}
+	if hunks != 1 {
+		t.Errorf("hunksApplied=%d want 1", hunks)
+	}
+}
+
+func TestApplyPatch_MultiHunk(t *testing.T) {
+	content := "a\nb\nc\nd\ne\nf\n"
+	// Change line 2 and line 5
+	patch := "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+B\n c\n@@ -4,3 +4,3 @@\n d\n-e\n+E\n f\n"
+
+	got, hunks, perr := applyPatch(content, patch)
+	if perr != nil {
+		t.Fatalf("applyPatch: %+v", perr)
+	}
+	want := "a\nB\nc\nd\nE\nf\n"
+	if got != want {
+		t.Errorf("got=%q want=%q", got, want)
+	}
+	if hunks != 2 {
+		t.Errorf("hunksApplied=%d want 2", hunks)
+	}
+}
+
+func TestApplyPatch_AddOnly(t *testing.T) {
+	content := "a\nb\n"
+	// Insert a line after line 1
+	patch := "--- a\n+++ b\n@@ -1,2 +1,3 @@\n a\n+inserted\n b\n"
+
+	got, _, perr := applyPatch(content, patch)
+	if perr != nil {
+		t.Fatalf("applyPatch: %+v", perr)
+	}
+	want := "a\ninserted\nb\n"
+	if got != want {
+		t.Errorf("got=%q want=%q", got, want)
+	}
+}
+
+func TestApplyPatch_DeleteOnly(t *testing.T) {
+	content := "a\nb\nc\n"
+	// Delete line 2
+	patch := "--- a\n+++ b\n@@ -1,3 +1,2 @@\n a\n-b\n c\n"
+
+	got, _, perr := applyPatch(content, patch)
+	if perr != nil {
+		t.Fatalf("applyPatch: %+v", perr)
+	}
+	want := "a\nc\n"
+	if got != want {
+		t.Errorf("got=%q want=%q", got, want)
+	}
+}
+
+func TestApplyPatch_HunkMismatch_ContextLine(t *testing.T) {
+	content := "a\nb\nc\n"
+	// Patch expects "x" as context but file has "a"
+	patch := "--- a\n+++ b\n@@ -1,3 +1,3 @@\n x\n-b\n+B\n c\n"
+
+	_, _, perr := applyPatch(content, patch)
+	if perr == nil || perr.Code != "patch_failed" {
+		t.Fatalf("expected patch_failed, got %+v", perr)
+	}
+}
+
+func TestApplyPatch_HunkMismatch_DeleteLine(t *testing.T) {
+	content := "a\nb\nc\n"
+	// Patch expects to delete "x" but file has "b"
+	patch := "--- a\n+++ b\n@@ -1,3 +1,2 @@\n a\n-x\n c\n"
+
+	_, _, perr := applyPatch(content, patch)
+	if perr == nil || perr.Code != "patch_failed" {
+		t.Fatalf("expected patch_failed, got %+v", perr)
+	}
+}
+
+func TestApplyPatch_MalformedInput_Empty(t *testing.T) {
+	_, _, perr := applyPatch("content\n", "")
+	if perr == nil || perr.Code != "patch_parse_error" {
+		t.Fatalf("expected patch_parse_error for empty patch, got %+v", perr)
+	}
+}
+
+func TestApplyPatch_MalformedInput_NoHunks(t *testing.T) {
+	_, _, perr := applyPatch("content\n", "--- a\n+++ b\n")
+	if perr == nil || perr.Code != "patch_parse_error" {
+		t.Fatalf("expected patch_parse_error for patch without hunks, got %+v", perr)
+	}
+}
+
+func TestApplyPatch_MalformedInput_BadHeader(t *testing.T) {
+	_, _, perr := applyPatch("content\n", "@@ not a valid header @@\n")
+	if perr == nil || perr.Code != "patch_parse_error" {
+		t.Fatalf("expected patch_parse_error for bad hunk header, got %+v", perr)
+	}
+}
+
+func TestApplyPatch_UnknownBodyPrefix(t *testing.T) {
+	patch := "--- a\n+++ b\n@@ -1,1 +1,1 @@\n?line\n"
+	_, _, perr := applyPatch("line\n", patch)
+	if perr == nil || perr.Code != "patch_parse_error" {
+		t.Fatalf("expected patch_parse_error for unknown prefix, got %+v", perr)
+	}
+}
+
+func TestApplyPatch_AppendToEndOfFile(t *testing.T) {
+	content := "a\nb\n"
+	// Add a line at the end using @@ -2,1 +2,2 @@
+	patch := "--- a\n+++ b\n@@ -2,1 +2,2 @@\n b\n+c\n"
+
+	got, _, perr := applyPatch(content, patch)
+	if perr != nil {
+		t.Fatalf("applyPatch: %+v", perr)
+	}
+	want := "a\nb\nc\n"
+	if got != want {
+		t.Errorf("got=%q want=%q", got, want)
+	}
+}
+
+func TestApplyPatch_SkipsNoNewlineMarker(t *testing.T) {
+	content := "a\nb\n"
+	// Patch with "\ No newline at end of file" marker (from external tools)
+	patch := "--- a\n+++ b\n@@ -1,2 +1,2 @@\n a\n-b\n+B\n\\ No newline at end of file\n"
+
+	got, _, perr := applyPatch(content, patch)
+	if perr != nil {
+		t.Fatalf("applyPatch: %+v", perr)
+	}
+	want := "a\nB\n"
+	if got != want {
+		t.Errorf("got=%q want=%q", got, want)
+	}
+}
+
 // -- Run (integration) -----------------------------------------------------
 
 func TestRun_StringReplace(t *testing.T) {
@@ -306,6 +538,78 @@ func TestRun_LineRange(t *testing.T) {
 	want := "a\nB\nc\n"
 	if string(got) != want {
 		t.Errorf("file=%q want %q", got, want)
+	}
+}
+
+func TestRun_PatchMode_Write(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f.txt")
+	_ = os.WriteFile(path, []byte("line1\nline2\nline3\n"), 0o644)
+
+	patch := "--- a\n+++ b\n@@ -1,3 +1,3 @@\n line1\n-line2\n+LINE2\n line3\n"
+	a := &Args{Path: path, Patch: patch}
+	res, perr := Run(a, nil)
+	if perr != nil {
+		t.Fatalf("Run patch mode: %+v", perr)
+	}
+	if res.Occurrences != 1 {
+		t.Errorf("occurrences (hunk count)=%d want 1", res.Occurrences)
+	}
+	got, _ := os.ReadFile(path)
+	want := "line1\nLINE2\nline3\n"
+	if string(got) != want {
+		t.Errorf("file=%q want=%q", got, want)
+	}
+}
+
+func TestRun_PatchMode_DryRun(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f.txt")
+	original := "line1\nline2\nline3\n"
+	_ = os.WriteFile(path, []byte(original), 0o644)
+
+	patch := "--- a\n+++ b\n@@ -1,3 +1,3 @@\n line1\n-line2\n+LINE2\n line3\n"
+	a := &Args{Path: path, Patch: patch, DryRun: true}
+	res, perr := Run(a, nil)
+	if perr != nil {
+		t.Fatalf("Run patch dry_run: %+v", perr)
+	}
+	if !res.DryRun {
+		t.Error("DryRun should be true")
+	}
+	if res.Patch == "" {
+		t.Error("Patch field should contain unified diff")
+	}
+	// File should be unchanged
+	got, _ := os.ReadFile(path)
+	if string(got) != original {
+		t.Errorf("file was modified in dry_run: %q", got)
+	}
+}
+
+func TestRun_PatchMode_HunkMismatch(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f.txt")
+	_ = os.WriteFile(path, []byte("a\nb\nc\n"), 0o644)
+
+	// Patch expects "x" as first context line but file has "a"
+	patch := "--- a\n+++ b\n@@ -1,3 +1,3 @@\n x\n-b\n+B\n c\n"
+	a := &Args{Path: path, Patch: patch}
+	_, perr := Run(a, nil)
+	if perr == nil || perr.Code != "patch_failed" {
+		t.Fatalf("expected patch_failed, got %+v", perr)
+	}
+}
+
+func TestRun_PatchMode_MalformedPatch(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f.txt")
+	_ = os.WriteFile(path, []byte("a\n"), 0o644)
+
+	a := &Args{Path: path, Patch: "not a valid patch"}
+	_, perr := Run(a, nil)
+	if perr == nil || perr.Code != "patch_parse_error" {
+		t.Fatalf("expected patch_parse_error, got %+v", perr)
 	}
 }
 
@@ -353,6 +657,38 @@ func TestPrettyResponse_RangeMode(t *testing.T) {
 	want := "=== ash edit: a.go [60B, lines 3:5 replaced] ==="
 	if got != want {
 		t.Errorf("pretty=%q want %q", got, want)
+	}
+}
+
+func TestPrettyResponse_PatchMode_SingleHunk(t *testing.T) {
+	r := &Result{Path: "a.go", BytesWritten: 80, LinesTotal: 5, Occurrences: 1}
+	req := &proto.Request{Args: map[string]any{"patch": "--- a\n+++ b\n@@ -1 +1 @@\n-x\n+y\n"}}
+	got := PrettyResponse(req, okResponse(r))
+	want := "=== ash edit: a.go [80B, 1 hunk applied] ==="
+	if got != want {
+		t.Errorf("pretty=%q want %q", got, want)
+	}
+}
+
+func TestPrettyResponse_PatchMode_MultiHunk(t *testing.T) {
+	r := &Result{Path: "a.go", BytesWritten: 80, LinesTotal: 5, Occurrences: 3}
+	req := &proto.Request{Args: map[string]any{"patch": "--- a\n+++ b\n@@ -1 +1 @@\n-x\n+y\n"}}
+	got := PrettyResponse(req, okResponse(r))
+	want := "=== ash edit: a.go [80B, 3 hunks applied] ==="
+	if got != want {
+		t.Errorf("pretty=%q want %q", got, want)
+	}
+}
+
+func TestPrettyResponse_PatchMode_DryRun(t *testing.T) {
+	r := &Result{Path: "a.go", LinesTotal: 5, Occurrences: 1, DryRun: true, Patch: "--- a\n+++ b\n"}
+	req := &proto.Request{Args: map[string]any{"patch": "--- a\n+++ b\n@@ -1 +1 @@\n-x\n+y\n"}}
+	got := PrettyResponse(req, okResponse(r))
+	if !strings.Contains(got, "not written") {
+		t.Errorf("dry_run output should mention 'not written': %q", got)
+	}
+	if !strings.Contains(got, "1 hunk") {
+		t.Errorf("dry_run output should mention hunk count: %q", got)
 	}
 }
 

@@ -53,6 +53,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "ash:", err)
 		os.Exit(2)
 	}
+	if err := resolvePatchFile(args); err != nil {
+		fmt.Fprintln(os.Stderr, "ash:", err)
+		os.Exit(2)
+	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -158,6 +162,7 @@ verbs (phase 2):
                      [--replace_all true|false] [--dry_run true|false]
           --path <p> --range start:end [--new_content <text>]
                      [--dry_run true|false]
+          --path <p> --patch <diff|-> [--dry_run true|false]
   diff    --path <p> (--other <p2> | --content <text|->) [--context N]
   find    --path <p> [--glob <pattern>] [--type any|file|dir|symlink]
                      [--max_depth N] [--limit N] [--exclude <pattern>]
@@ -314,6 +319,34 @@ func resolveStdin(args map[string]any) error {
 	args[stdinKey] = string(data)
 	return nil
 }
+
+// resolvePatchFile replaces --patch <file> with the file's contents when the
+// value is a path to an existing regular file (and not the stdin sentinel "-").
+// This enables: ash edit --path f.go --patch my.diff
+func resolvePatchFile(args map[string]any) error {
+	v, ok := args["patch"]
+	if !ok {
+		return nil
+	}
+	s, ok := v.(string)
+	if !ok || s == "" || s == "-" {
+		return nil
+	}
+	info, err := os.Stat(s)
+	if err != nil {
+		return nil // not a file path; pass through as literal patch text
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("--patch %q is not a regular file", s)
+	}
+	data, err := os.ReadFile(s)
+	if err != nil {
+		return fmt.Errorf("reading patch file %q: %w", s, err)
+	}
+	args["patch"] = string(data)
+	return nil
+}
+
 
 func dialOrStart(root, sock string) (net.Conn, error) {
 	killStaleIfNeeded(root, sock)
