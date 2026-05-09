@@ -170,6 +170,33 @@ func TestDecide_bash(t *testing.T) {
 
 		// Nudge tail is appended.
 		{name: "deny includes nudge tail", command: "grep foo .", want: "deny", wantRule: "Bash:grep"},
+
+		// Heredoc bodies are dropped before segmenting — content inside the
+		// body (markdown tables, prose mentions of redirected programs, real
+		// bash operators) must not produce false segments or false denies.
+		// Tests use ash write as the host command since it is not on the
+		// deny list and matches the actual real-world failure pattern.
+		{name: "heredoc body with markdown table allows",
+			command: "ash write --path docs/foo.md --content - <<'DOC_EOF'\n| find | path |\n| grep | path |\nDOC_EOF",
+			want: "allow"},
+		{name: "unquoted heredoc body with operators allows",
+			command: "ash write --path /tmp/x --content - <<EOF\necho a; grep b .\nEOF",
+			want: "allow"},
+		{name: "double-quoted heredoc delim allows",
+			command: "ash write --path /tmp/x --content - <<\"EOF\"\n| find | x |\nEOF",
+			want: "allow"},
+		{name: "strip-tabs heredoc allows",
+			command: "ash write --path /tmp/x --content - <<-EOF\n\t| find |\n\tEOF",
+			want: "allow"},
+		{name: "command after heredoc terminator still parsed",
+			command: "ash write --path /tmp/x --content - <<EOF\nfoo\nEOF\ngrep . .",
+			want: "deny", wantRule: "Bash:grep"},
+		{name: "unterminated heredoc allows without crash",
+			command: "ash write --path /tmp/x --content - <<EOF\nbody body body",
+			want: "allow"},
+		{name: "heredoc inside cmd subst still allows (existing behavior preserved)",
+			command: "git commit -m \"$(cat <<'EOF'\nfoo; grep bar\nEOF\n)\"",
+			want: "allow"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
