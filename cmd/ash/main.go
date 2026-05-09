@@ -178,6 +178,8 @@ verbs (phase 2):
                           diff   [--staged true|false] [--range <rev>]
                                  [--pathspec <p>] [--stat true|false]
                                  [--context N] [--limit_bytes N]
+                          show   --ref <rev> [--pathspec <p>] [--stat true|false]
+                                 [--context N] [--limit_bytes N]
   metrics [--last N] [--verb <verb>]                   (default last=20)
   report  [--session current|all|<id>] [--since <dur>] (default session=current)
           [--last N] [--verb <verb>]
