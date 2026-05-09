@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stazelabs/ash/internal/proto"
 )
 
 func TestApplyRange_Lines(t *testing.T) {
@@ -165,5 +167,71 @@ func TestParseArgs_WireShape(t *testing.T) {
 	_, perr = ParseArgs(map[string]any{"path": "f.go", "limit_bytes": "abc"})
 	if perr == nil {
 		t.Error("expected error for limit_bytes=abc")
+	}
+}
+
+func TestPrettyResponse_LeanDefault(t *testing.T) {
+	rsp := &proto.Response{
+		OK: true,
+		Data: &Result{
+			Path:     "foo.go",
+			Size:     1024,
+			Lines:    42,
+			Encoding: "utf-8",
+			Mtime:    1714946747000000000,
+			Content:  "package foo\n",
+		},
+	}
+	got := PrettyResponse(&proto.Request{Verb: "read", Args: map[string]any{}}, rsp)
+	if !strings.HasPrefix(got, "=== foo.go [1024B, 42L] ===\n") {
+		t.Errorf("lean default header mismatch:\ngot %q", got)
+	}
+	if strings.Contains(got, "mtime=") {
+		t.Error("lean default should not include mtime")
+	}
+	if strings.Contains(got, "utf-8") {
+		t.Error("lean default should not include utf-8 encoding")
+	}
+}
+
+func TestPrettyResponse_LeanSurfacesBase64(t *testing.T) {
+	rsp := &proto.Response{
+		OK: true,
+		Data: &Result{
+			Path:     "img.png",
+			Size:     5000,
+			Encoding: "base64",
+			Mtime:    1714946747000000000,
+			Content:  "iVBORw0KGgo=",
+		},
+	}
+	got := PrettyResponse(&proto.Request{Verb: "read", Args: map[string]any{}}, rsp)
+	if !strings.Contains(got, "encoding=base64") {
+		t.Errorf("expected encoding=base64 in lean output, got %q", got)
+	}
+	if strings.Contains(got, "mtime=") {
+		t.Error("lean should still drop mtime")
+	}
+}
+
+func TestPrettyResponse_WithMetaFull(t *testing.T) {
+	rsp := &proto.Response{
+		OK: true,
+		Data: &Result{
+			Path:     "foo.go",
+			Size:     1024,
+			Lines:    42,
+			Encoding: "utf-8",
+			Mtime:    1714946747000000000,
+			Content:  "package foo\n",
+		},
+	}
+	req := &proto.Request{Verb: "read", Args: map[string]any{"with_meta": "true"}}
+	got := PrettyResponse(req, rsp)
+	if !strings.Contains(got, "utf-8") {
+		t.Errorf("with_meta should include encoding, got %q", got)
+	}
+	if !strings.Contains(got, "mtime=") {
+		t.Errorf("with_meta should include mtime, got %q", got)
 	}
 }

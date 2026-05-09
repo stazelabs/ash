@@ -197,6 +197,17 @@ func applyRange(body []byte, spec, kind string) ([]byte, string, *proto.Error) {
 // PrettyResponse renders a successful read response in the canonical
 // agent-facing form. Used both for client display and for daemon-side token
 // counting.
+//
+// Default ("lean") header: `=== <path> [<size>B, <lines>L[, encoding=base64]
+// [, range=<r>][, TRUNCATED]] ===`. Encoding surfaces only when non-utf-8
+// (base64) since that changes how the agent must consume the body. Mtime
+// is omitted by default — `--with_meta true` re-adds it (and pins
+// encoding regardless of value).
+//
+// Rationale: the mtime tokenizes as ~9 tokens because cl100k splits on
+// every digit/colon; on small range reads it can be 5-10% of total
+// tokens. Wire data still carries Encoding + Mtime — only the rendering
+// changes.
 func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)
@@ -204,6 +215,14 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	r, ok := decodeResult(rsp.Data)
 	if !ok {
 		return "ok\n<unrecognized read result>"
+	}
+	withMeta := false
+	if req != nil {
+		if v, ok := req.Args["with_meta"]; ok {
+			if b, ok := argutil.ToBool(v); ok {
+				withMeta = b
+			}
+		}
 	}
 	var b strings.Builder
 	b.WriteString("=== ")
@@ -216,10 +235,15 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		b.WriteString(strconv.Itoa(r.Lines))
 		b.WriteString("L")
 	}
-	b.WriteString(", ")
-	b.WriteString(r.Encoding)
-	b.WriteString(", mtime=")
-	b.WriteString(time.Unix(0, r.Mtime).UTC().Format("2006-01-02T15:04:05Z"))
+	if withMeta {
+		b.WriteString(", ")
+		b.WriteString(r.Encoding)
+		b.WriteString(", mtime=")
+		b.WriteString(time.Unix(0, r.Mtime).UTC().Format("2006-01-02T15:04:05Z"))
+	} else if r.Encoding != "" && r.Encoding != "utf-8" {
+		b.WriteString(", encoding=")
+		b.WriteString(r.Encoding)
+	}
 	if r.RangeReturned != "" {
 		b.WriteString(", range=")
 		b.WriteString(r.RangeReturned)
@@ -236,8 +260,6 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	}
 	return b.String()
 }
-
-// decodeResult pulls a Result out of either the typed daemon-side struct
 // pointer or the loosely-decoded msgpack map a client receives over the wire.
 func decodeResult(data any) (*Result, bool) {
 	if r, ok := data.(*Result); ok {

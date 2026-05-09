@@ -89,6 +89,12 @@ var Cases = []Case{
 		AshArgs: map[string]any{"path": "README.md", "range": "1:50", "range_kind": "lines"},
 		Why:     "line range; bash equivalent is sed -n '1,50p'",
 	},
+	{
+		Name:    "read_tiny_range",
+		Verb:    "read",
+		AshArgs: map[string]any{"path": "go.mod", "range": "1:5", "range_kind": "lines"},
+		Why:     "small range read where the lean header dominates relative cost — exercises the --with_meta opt-out path",
+	},
 
 	// --- git ---
 	{

@@ -49,6 +49,7 @@ var registry = []VerbSchema{
 			{Name: "range", Type: "string", Default: "", Description: "Range to read, formatted as start:end (e.g. 1:100). 1-based, inclusive on both ends. End is clamped to file length."},
 			{Name: "range_kind", Type: "string", Default: "lines", Values: []string{"lines", "bytes"}, Description: "Unit for the range argument."},
 			{Name: "limit_bytes", Type: "int", Default: "262144", Description: "Maximum bytes to return. Default 256 KiB; hard cap 8 MiB. The truncation hint in the response shows how to narrow with --range or raise the cap."},
+			{Name: "with_meta", Type: "bool", Default: "false", Description: "When true the pretty header includes encoding + mtime. Default lean header omits both (encoding only surfaces when non-utf-8). Wire data always carries them."},
 		},
 	},
 	{
