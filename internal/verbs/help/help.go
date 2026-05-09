@@ -23,6 +23,9 @@ type ArgSchema struct {
 	Default     string   `msgpack:"default,omitempty"`
 	Description string   `msgpack:"description"`
 	Values      []string `msgpack:"values,omitempty"` // valid enum values
+	Ops         []string `msgpack:"ops,omitempty"`    // [git] which ops this arg applies to; empty = global
+	Mode        string   `msgpack:"mode,omitempty"`   // [edit] which mode (string/range/patch); empty = all modes
+	PH          string   `msgpack:"ph,omitempty"`     // placeholder override for usage rendering
 }
 
 type VerbSchema struct {
@@ -95,19 +98,19 @@ var registry = []VerbSchema{
 		Args: []ArgSchema{
 			{Name: "op", Type: "string", Required: true, Values: []string{"status", "log", "diff", "show"}, Description: "Subcommand to run."},
 			{Name: "path", Type: "string", Default: ".", Description: "Repository path (any path inside a git work tree). Note: returned file paths are always repo-root-relative regardless of how --path was passed. This departs from find/grep where paths mirror the --path form."},
-			{Name: "untracked", Type: "bool", Default: "true", Description: "[status] include untracked files. Pass false to suppress."},
-			{Name: "ignored", Type: "bool", Default: "false", Description: "[status] include gitignored files."},
-			{Name: "limit", Type: "int", Default: "20", Description: "[log] maximum commits to return. Hard cap is 200."},
-			{Name: "author", Type: "string", Default: "", Description: "[log] filter commits by author name/email substring."},
-			{Name: "since", Type: "string", Default: "", Description: "[log] only commits after this date (any format git --since accepts, e.g. '1 week ago')."},
-			{Name: "until", Type: "string", Default: "", Description: "[log] only commits before this date."},
-			{Name: "range", Type: "string", Default: "", Description: "[log/diff] git revision range (e.g. 'main..feature', 'HEAD~10..HEAD', or single commit 'HEAD~1')."},
-			{Name: "pathspec", Type: "string", Default: "", Description: "[log/diff] restrict to a single path (passed after -- to git). Interpreted relative to the repo root, not relative to --path."},
-			{Name: "staged", Type: "bool", Default: "false", Description: "[diff] diff index vs HEAD (--cached). Default diffs worktree vs index."},
-			{Name: "stat", Type: "bool", Default: "false", Description: "[diff] return per-file addition/deletion counts only (no patch text). Much cheaper in tokens."},
-			{Name: "context", Type: "int", Default: "3", Description: "[diff] unified diff context lines. Max 50."},
-			{Name: "limit_bytes", Type: "int", Default: "262144", Description: "[diff/show] cap on total patch bytes returned. Files beyond cap have patch omitted but stats preserved. Max 4 MiB."},
-			{Name: "ref", Type: "string", Default: "", Description: "[show] commit ref to inspect (SHA, HEAD, HEAD~1, branch, tag, etc.). Required for show. Root commits diff against the empty tree."},
+			{Name: "untracked", Type: "bool", Default: "true", Ops: []string{"status"}, Description: "[status] include untracked files. Pass false to suppress."},
+			{Name: "ignored", Type: "bool", Default: "false", Ops: []string{"status"}, Description: "[status] include gitignored files."},
+			{Name: "limit", Type: "int", Default: "20", Ops: []string{"log"}, Description: "[log] maximum commits to return. Hard cap is 200."},
+			{Name: "staged", Type: "bool", Default: "false", Ops: []string{"diff"}, Description: "[diff] diff index vs HEAD (--cached). Default diffs worktree vs index."},
+			{Name: "ref", Type: "string", Default: "", PH: "<rev>", Ops: []string{"show"}, Description: "[show] commit ref to inspect (SHA, HEAD, HEAD~1, branch, tag, etc.). Required for show. Root commits diff against the empty tree."},
+			{Name: "range", Type: "string", Default: "", PH: "<rev>", Ops: []string{"log", "diff"}, Description: "[log/diff] git revision range (e.g. 'main..feature', 'HEAD~10..HEAD', or single commit 'HEAD~1')."},
+			{Name: "author", Type: "string", Default: "", Ops: []string{"log"}, Description: "[log] filter commits by author name/email substring."},
+			{Name: "since", Type: "string", Default: "", Ops: []string{"log"}, Description: "[log] only commits after this date (any format git --since accepts, e.g. '1 week ago')."},
+			{Name: "until", Type: "string", Default: "", Ops: []string{"log"}, Description: "[log] only commits before this date."},
+			{Name: "pathspec", Type: "string", Default: "", Ops: []string{"log", "diff", "show"}, Description: "[log/diff/show] restrict to a single path (passed after -- to git). Interpreted relative to the repo root, not relative to --path."},
+			{Name: "stat", Type: "bool", Default: "false", Ops: []string{"diff", "show"}, Description: "[diff/show] return per-file addition/deletion counts only (no patch text). Much cheaper in tokens."},
+			{Name: "context", Type: "int", Default: "3", Ops: []string{"diff", "show"}, Description: "[diff/show] unified diff context lines. Max 50."},
+			{Name: "limit_bytes", Type: "int", Default: "262144", Ops: []string{"diff", "show"}, Description: "[diff/show] cap on total patch bytes returned. Files beyond cap have patch omitted but stats preserved. Max 4 MiB."},
 		},
 	},
 	{
@@ -133,7 +136,7 @@ var registry = []VerbSchema{
 		Verb:        "report",
 		Description: "Aggregate per-verb summary across ledger calls: n, ok%, p50/p95 latency, p50/p95 tokens_out, trunc%.",
 		Args: []ArgSchema{
-			{Name: "session", Type: "string", Default: "current", Description: "Session scope: 'current' (this daemon session), 'all', or an explicit session ID. With --root or --all_roots, defaults to no session filter."},
+			{Name: "session", Type: "string", Default: "current", Values: []string{"current", "all", "<id>"}, Description: "Session scope: 'current' (this daemon session), 'all', or an explicit session ID. With --root or --all_roots, defaults to no session filter."},
 			{Name: "since", Type: "string", Default: "", Description: "Time window, e.g. '15m', '1h', '24h', '7d'. Supports Go duration syntax plus 'd' for days."},
 			{Name: "last", Type: "int", Default: "", Description: "Row cap applied after session/since filters. Maximum is 5000."},
 			{Name: "verb", Type: "string", Default: "", Description: "Restrict aggregation to calls for a specific verb."},
@@ -168,7 +171,7 @@ var registry = []VerbSchema{
 		Verb:        "stat",
 		Description: "Return filesystem metadata for one or more explicit paths. Uses lstat, so symlinks are reported as their own type. Missing paths produce a per-entry error rather than failing the whole call.",
 		Args: []ArgSchema{
-			{Name: "paths", Type: "string", Description: "Comma-separated list of paths to inspect (e.g. 'cmd/ash/main.go,internal/'). One of --paths or --path is required."},
+			{Name: "paths", Type: "string", PH: "<p1>[,<p2>...]", Description: "Comma-separated list of paths to inspect (e.g. 'cmd/ash/main.go,internal/'). One of --paths or --path is required."},
 			{Name: "path", Type: "string", Description: "Single-path alias for --paths (e.g. --path cmd/ash/main.go). One of --paths or --path is required."},
 			{Name: "follow_symlinks", Type: "bool", Default: "false", Description: "When true, resolve each symlink with os.Stat and report the target's type/size/mtime/mode. link_target is preserved for traceability. Broken symlinks produce error=broken_symlink rather than failing the call."},
 			{Name: "with_meta", Type: "bool", Default: "false", Description: "When true the pretty rows include mode + mtime: `<F|D|L> <size> <mode> <mtime> <path>`. Default lean rows are `<F|D|L> <size> <path>`. Wire data always carries mode + mtime."},
@@ -179,12 +182,12 @@ var registry = []VerbSchema{
 		Description: "In-place file mutation. String-replacement mode (old_string/new_string), line-range mode (range/new_content), or patch mode (patch). Atomic write via temp-file+rename.",
 		Args: []ArgSchema{
 			{Name: "path", Type: "string", Required: true, Description: "File to edit."},
-			{Name: "old_string", Type: "string", Description: "[string mode] Exact text to find (required if range/patch not provided). Must appear exactly once unless replace_all=true."},
-			{Name: "new_string", Type: "string", Default: "", Description: "[string mode] Replacement text. Empty string deletes the matched text."},
-			{Name: "replace_all", Type: "bool", Default: "false", Description: "[string mode] Replace every occurrence of old_string. If false, errors when old_string appears more than once."},
-			{Name: "range", Type: "string", Description: "[range mode] Line range to replace, formatted as start:end, 1-based inclusive (required if old_string/patch not provided)."},
-			{Name: "new_content", Type: "string", Default: "", Description: "[range mode] Replacement text for the specified lines. Empty string deletes the lines."},
-			{Name: "patch", Type: "string", Description: "[patch mode] Unified diff to apply (required if old_string/range not provided). Pass '-' to read from stdin. Error codes: patch_parse_error, patch_failed."},
+			{Name: "old_string", Type: "string", Mode: "string", Description: "[string mode] Exact text to find (required if range/patch not provided). Must appear exactly once unless replace_all=true."},
+			{Name: "new_string", Type: "string", Mode: "string", Default: "", Description: "[string mode] Replacement text. Empty string deletes the matched text."},
+			{Name: "replace_all", Type: "bool", Mode: "string", Default: "false", Description: "[string mode] Replace every occurrence of old_string. If false, errors when old_string appears more than once."},
+			{Name: "range", Type: "string", Mode: "range", Description: "[range mode] Line range to replace, formatted as start:end, 1-based inclusive (required if old_string/patch not provided)."},
+			{Name: "new_content", Type: "string", Mode: "range", Default: "", Description: "[range mode] Replacement text for the specified lines. Empty string deletes the lines."},
+			{Name: "patch", Type: "string", Mode: "patch", PH: "<diff|->", Description: "[patch mode] Unified diff to apply (required if old_string/range not provided). Pass '-' to read from stdin. Error codes: patch_parse_error, patch_failed."},
 			{Name: "dry_run", Type: "bool", Default: "false", Description: "Compute the replacement but do not write. Result includes a unified diff in the patch field."},
 		},
 	},
@@ -212,12 +215,12 @@ var registry = []VerbSchema{
 		Verb:        "test",
 		Description: "Run Go tests via `go test -json` and return structured per-package/per-test results. Result.OK=true means no failures; the verb still completes successfully when tests fail. Build failures surface as Status=build_failed.",
 		Args: []ArgSchema{
-			{Name: "packages", Type: "string", Default: "./...", Description: "Comma-separated package patterns passed positionally to go test (e.g. ./...,internal/walker)."},
+			{Name: "packages", Type: "string", Default: "./...", PH: "<pkgs>", Description: "Comma-separated package patterns passed positionally to go test (e.g. ./...,internal/walker)."},
 			{Name: "run", Type: "string", Default: "", Description: "Regex passed to go test -run; filters which tests execute."},
 			{Name: "count", Type: "int", Default: "1", Description: "Maps to go test -count. Default 1 bypasses the test cache (agents typically want fresh runs after editing). Pass 0 to use the cache."},
 			{Name: "race", Type: "bool", Default: "false", Description: "Enable the race detector (-race)."},
 			{Name: "short", Type: "bool", Default: "false", Description: "Enable -short mode."},
-			{Name: "timeout", Type: "string", Default: "60s", Description: "Go duration for the outer wall (context.WithTimeout). Also passed to go test -timeout (1s grace earlier) so go aborts cleanly first. CI-shaped suites can pass --timeout 10m."},
+			{Name: "timeout", Type: "string", Default: "60s", PH: "<dur>", Description: "Go duration for the outer wall (context.WithTimeout). Also passed to go test -timeout (1s grace earlier) so go aborts cleanly first. CI-shaped suites can pass --timeout 10m."},
 			{Name: "verbose", Type: "bool", Default: "false", Description: "Render hint: include passing test names per package. Failure output is unconditional."},
 		},
 	},
@@ -239,6 +242,9 @@ var registry = []VerbSchema{
 		},
 	},
 }
+
+// Registry returns the full verb schema registry (read-only view for tests and tooling).
+func Registry() []VerbSchema { return registry }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	a := &Args{}
@@ -303,4 +309,256 @@ func writeArg(b *strings.Builder, a ArgSchema) {
 		fmt.Fprintf(b, " [%s]", strings.Join(a.Values, "|"))
 	}
 	b.WriteByte('\n')
+}
+
+// verbDisplayOrder defines display order in usage output.
+// Update this list when new verbs are added to the registry.
+var verbDisplayOrder = []string{
+	"read", "write", "edit", "diff",
+	"find", "grep", "git",
+	"metrics", "report", "stat", "bench", "test",
+	"help", "hook", "init", "uninit",
+}
+
+// RenderUsage produces the full usage string printed when `ash` is invoked
+// with no arguments or --help. termWidth is used for soft line-wrapping;
+// pass 0 to use the default (100).
+func RenderUsage(termWidth int) string {
+	if termWidth <= 0 {
+		termWidth = 100
+	}
+	var b strings.Builder
+	b.WriteString("usage: ash <verb> [<positional>...] [--key value | --key=value]... [--format pretty|json|msgpack]\n")
+	b.WriteString("\nverbs (phase 2):\n")
+
+	for _, name := range verbDisplayOrder {
+		var vs *VerbSchema
+		for i := range registry {
+			if registry[i].Verb == name {
+				vs = &registry[i]
+				break
+			}
+		}
+		if vs == nil {
+			continue
+		}
+		switch vs.Verb {
+		case "git":
+			renderGitVerb(&b, vs, termWidth)
+		case "edit":
+			renderEditVerb(&b, vs, termWidth)
+		default:
+			renderFlatVerb(&b, vs, termWidth)
+		}
+	}
+
+	b.WriteString(`
+positional args (most verbs accept their dominant arg positionally):
+  ash read foo.go              (== ash read --path foo.go)
+  ash grep TODO cmd            (== ash grep --pattern TODO --path cmd)
+  ash find cmd                 (== ash find --path cmd)
+  ash stat a,b,c               (== ash stat --paths a,b,c)
+  ash write foo.go --content X (== ash write --path foo.go --content X)
+
+note: pass - as a value to read that arg from stdin (e.g. --content -)
+
+global flags:
+  --format pretty|json|msgpack   output format (default: pretty)
+
+ash auto-starts the daemon (ashd) on first call.`)
+	return b.String()
+}
+
+// argPlaceholder returns the compact placeholder string for arg value in usage.
+func argPlaceholder(a ArgSchema) string {
+	if a.PH != "" {
+		return a.PH
+	}
+	if len(a.Values) > 0 {
+		return strings.Join(a.Values, "|")
+	}
+	switch a.Type {
+	case "bool":
+		return "true|false"
+	case "int":
+		return "N"
+	default: // string
+		switch a.Name {
+		case "path", "other", "root", "pathspec":
+			return "<p>"
+		case "pattern":
+			return "<re>"
+		case "content":
+			return "<text|->"
+		case "new_content", "old_string", "new_string":
+			return "<text>"
+		case "range":
+			return "start:end"
+		case "glob", "exclude":
+			return "<pattern>"
+		case "since", "until":
+			return "<dur>"
+		case "author":
+			return "<s>"
+		default:
+			return "<" + a.Name + ">"
+		}
+	}
+}
+
+// argToken returns the usage token for a single arg: "--name ph" or "[--name ph]".
+func argToken(a ArgSchema) string {
+	ph := argPlaceholder(a)
+	inner := "--" + a.Name + " " + ph
+	if a.Required {
+		return inner
+	}
+	return "[" + inner + "]"
+}
+
+// writeWrapped writes prefix+tokens to b, wrapping onto continuation lines.
+func writeWrapped(b *strings.Builder, prefix, cont string, tokens []string, termWidth int) {
+	line := prefix
+	first := true
+	for _, tok := range tokens {
+		if first {
+			line += tok
+			first = false
+		} else if termWidth > 0 && len(line)+1+len(tok) > termWidth {
+			fmt.Fprintf(b, "%s\n", line)
+			line = cont + tok
+		} else {
+			line += " " + tok
+		}
+	}
+	fmt.Fprintf(b, "%s\n", line)
+}
+
+const verbNameW = 8 // verb name padded to this width; 2 leading spaces → col 10
+
+// renderFlatVerb renders a verb with all args on one or more wrapped lines.
+func renderFlatVerb(b *strings.Builder, vs *VerbSchema, termWidth int) {
+	prefix := fmt.Sprintf("  %-*s", verbNameW, vs.Verb)
+	cont := strings.Repeat(" ", len(prefix))
+	var tokens []string
+	for _, a := range vs.Args {
+		tokens = append(tokens, argToken(a))
+	}
+	writeWrapped(b, prefix, cont, tokens, termWidth)
+}
+
+// renderEditVerb renders the edit verb grouped by mode (string/range/patch).
+// Mode="" args (path, dry_run) are shared and appear at the start of each mode line.
+func renderEditVerb(b *strings.Builder, vs *VerbSchema, termWidth int) {
+	prefix := fmt.Sprintf("  %-*s", verbNameW, "edit")
+	cont := strings.Repeat(" ", len(prefix))
+
+	var sharedArgs []ArgSchema
+	modeArgs := map[string][]ArgSchema{}
+	modeOrder := []string{"string", "range", "patch"}
+	for _, a := range vs.Args {
+		if a.Mode == "" {
+			sharedArgs = append(sharedArgs, a)
+		} else {
+			modeArgs[a.Mode] = append(modeArgs[a.Mode], a)
+		}
+	}
+
+	for i, mode := range modeOrder {
+		args, ok := modeArgs[mode]
+		if !ok {
+			continue
+		}
+		var tokens []string
+		for _, a := range sharedArgs {
+			if a.Name == "dry_run" {
+				continue // dry_run appended last
+			}
+			tokens = append(tokens, argToken(a))
+		}
+		for _, a := range args {
+			tokens = append(tokens, argToken(a))
+		}
+		// dry_run is always last
+		for _, a := range sharedArgs {
+			if a.Name == "dry_run" {
+				tokens = append(tokens, argToken(a))
+			}
+		}
+		pfx := prefix
+		if i > 0 {
+			pfx = cont
+		}
+		writeWrapped(b, pfx, cont, tokens, termWidth)
+	}
+}
+
+// renderGitVerb renders the git verb with a per-op sub-block.
+func renderGitVerb(b *strings.Builder, vs *VerbSchema, termWidth int) {
+	prefix := fmt.Sprintf("  %-*s", verbNameW, "git")
+	cont := strings.Repeat(" ", len(prefix))
+
+	var globalArgs []ArgSchema
+	opArgsMap := map[string][]ArgSchema{}
+	opsOrdered := []string{"status", "log", "diff", "show"}
+
+	for _, a := range vs.Args {
+		if len(a.Ops) == 0 {
+			globalArgs = append(globalArgs, a)
+		}
+	}
+	for _, op := range opsOrdered {
+		for _, a := range vs.Args {
+			for _, ao := range a.Ops {
+				if ao == op {
+					opArgsMap[op] = append(opArgsMap[op], a)
+					break
+				}
+			}
+		}
+	}
+
+	var firstTokens []string
+	for _, a := range globalArgs {
+		firstTokens = append(firstTokens, argToken(a))
+	}
+	if len(opArgsMap) > 0 {
+		firstTokens = append(firstTokens, "[op-specific flags]")
+	}
+	writeWrapped(b, prefix, cont, firstTokens, termWidth)
+
+	if len(opArgsMap) == 0 {
+		return
+	}
+
+	maxOpW := 0
+	for _, op := range opsOrdered {
+		if _, ok := opArgsMap[op]; ok && len(op) > maxOpW {
+			maxOpW = len(op)
+		}
+	}
+
+	// ops: sub-block indented to cont+"     ops: "
+	opSectionPfx := cont + "     ops: "
+	opSectionW := len(opSectionPfx)
+	first := true
+	for _, op := range opsOrdered {
+		args, ok := opArgsMap[op]
+		if !ok {
+			continue
+		}
+		var opPfx string
+		if first {
+			opPfx = opSectionPfx + fmt.Sprintf("%-*s ", maxOpW, op)
+			first = false
+		} else {
+			opPfx = strings.Repeat(" ", opSectionW) + fmt.Sprintf("%-*s ", maxOpW, op)
+		}
+		opCont := strings.Repeat(" ", len(opPfx))
+		var tokens []string
+		for _, a := range args {
+			tokens = append(tokens, argToken(a))
+		}
+		writeWrapped(b, opPfx, opCont, tokens, termWidth)
+	}
 }

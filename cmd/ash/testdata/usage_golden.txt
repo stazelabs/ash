@@ -1,0 +1,56 @@
+usage: ash <verb> [<positional>...] [--key value | --key=value]... [--format pretty|json|msgpack]
+
+verbs (phase 2):
+  read    --path <p> [--range start:end] [--range_kind lines|bytes] [--limit_bytes N]
+          [--with_meta true|false]
+  write   --path <p> --content <text|-> [--encoding utf-8|base64] [--mkdir true|false]
+          [--create_only true|false]
+  edit    --path <p> [--old_string <text>] [--new_string <text>] [--replace_all true|false]
+          [--dry_run true|false]
+          --path <p> [--range start:end] [--new_content <text>] [--dry_run true|false]
+          --path <p> [--patch <diff|->] [--dry_run true|false]
+  diff    --path <p> [--other <p>] [--content <text|->] [--context N] [--stat true|false]
+  find    --path <p> [--glob <pattern>] [--type any|file|dir|symlink] [--max_depth N] [--limit N]
+          [--exclude <pattern>] [--include_hidden true|false] [--respect_gitignore true|false]
+          [--with_meta true|false]
+  grep    --pattern <re> --path <p> [--glob <pattern>] [--case smart|sensitive|insensitive]
+          [--fixed_string true|false] [--word true|false] [--max_matches N] [--max_per_file N]
+          [--context_before N] [--context_after N] [--files_only true|false] [--no_text true|false]
+          [--exclude <pattern>] [--max_depth N] [--include_hidden true|false]
+          [--respect_gitignore true|false]
+  git     --op status|log|diff|show [--path <p>] [op-specific flags]
+               ops: status [--untracked true|false] [--ignored true|false]
+                    log    [--limit N] [--range <rev>] [--author <s>] [--since <dur>]
+                           [--until <dur>] [--pathspec <p>]
+                    diff   [--staged true|false] [--range <rev>] [--pathspec <p>]
+                           [--stat true|false] [--context N] [--limit_bytes N]
+                    show   [--ref <rev>] [--pathspec <p>] [--stat true|false] [--context N]
+                           [--limit_bytes N]
+  metrics [--last N] [--verb <verb>]
+  report  [--session current|all|<id>] [--since <dur>] [--last N] [--verb <verb>] [--top N]
+          [--root <p>] [--all_roots true|false]
+  stat    [--paths <p1>[,<p2>...]] [--path <p>] [--follow_symlinks true|false]
+          [--with_meta true|false]
+  bench   [--verb <verb>] [--case <case>] [--limit N]
+  test    [--packages <pkgs>] [--run <run>] [--count N] [--race true|false] [--short true|false]
+          [--timeout <dur>] [--verbose true|false]
+  help    [--verb <verb>]
+  hook    [--tool_name <tool_name>] [--command <command>] [--pattern <re>] [--path <p>]
+          [--glob <pattern>] [--file_path <file_path>] [--old_string <text>] [--new_string <text>]
+          [--content <text|->]
+  init    [--path <p>] [--force true|false] [--no_registry true|false]
+  uninit  [--path <p>] [--no_registry true|false]
+
+positional args (most verbs accept their dominant arg positionally):
+  ash read foo.go              (== ash read --path foo.go)
+  ash grep TODO cmd            (== ash grep --pattern TODO --path cmd)
+  ash find cmd                 (== ash find --path cmd)
+  ash stat a,b,c               (== ash stat --paths a,b,c)
+  ash write foo.go --content X (== ash write --path foo.go --content X)
+
+note: pass - as a value to read that arg from stdin (e.g. --content -)
+
+global flags:
+  --format pretty|json|msgpack   output format (default: pretty)
+
+ash auto-starts the daemon (ashd) on first call.

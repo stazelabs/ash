@@ -22,6 +22,7 @@ import (
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/session"
 	"github.com/stazelabs/ash/internal/verbs"
+	"github.com/stazelabs/ash/internal/verbs/help"
 )
 
 func main() {
@@ -158,68 +159,7 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Fprintln(os.Stderr, `usage: ash <verb> [<positional>...] [--key value | --key=value]... [--format pretty|json|msgpack]
-
-verbs (phase 2):
-  read    --path <p> [--range start:end] [--range_kind lines|bytes] [--limit_bytes N]
-  write   --path <p> --content <text|-> [--encoding utf-8|base64]
-                     [--mkdir true|false] [--create_only true|false]
-  edit    --path <p> --old_string <text> [--new_string <text>]
-                     [--replace_all true|false] [--dry_run true|false]
-          --path <p> --range start:end [--new_content <text>]
-                     [--dry_run true|false]
-          --path <p> --patch <diff|-> [--dry_run true|false]
-  diff    --path <p> (--other <p2> | --content <text|->) [--context N]
-  find    --path <p> [--glob <pattern>] [--type any|file|dir|symlink]
-                     [--max_depth N] [--limit N] [--exclude <pattern>]
-                     [--include_hidden true|false] [--with_meta true|false]
-                     [--respect_gitignore true|false]   (default true)
-  grep    --pattern <p> --path <p> [--glob <pattern>]
-                     [--case smart|sensitive|insensitive] (default smart)
-                     [--fixed_string true|false] [--word true|false]
-                     [--max_matches N] [--max_per_file N]
-                     [--context_before N] [--context_after N]
-                     [--files_only true|false] [--no_text true|false]
-                     [--exclude <pattern>] [--max_depth N]
-                     [--include_hidden true|false]
-                     [--respect_gitignore true|false]   (default true)
-  git     --op <op> [--path <p>] [op-specific flags]
-                     ops: status [--untracked true|false] [--ignored true|false]
-                          log    [--limit N] [--range <rev>] [--author <s>]
-                                 [--since <d>] [--until <d>] [--pathspec <p>]
-                          diff   [--staged true|false] [--range <rev>]
-                                 [--pathspec <p>] [--stat true|false]
-                                 [--context N] [--limit_bytes N]
-                          show   --ref <rev> [--pathspec <p>] [--stat true|false]
-                                 [--context N] [--limit_bytes N]
-  metrics [--last N] [--verb <verb>]                   (default last=20)
-  report  [--session current|all|<id>] [--since <dur>] (default session=current)
-          [--last N] [--verb <verb>] [--top N]
-          [--root <p> | --all_roots true]              (foreign-ledger or cross-repo aggregation)
-  stat    --paths <p1>[,<p2>...]                        (lstat; per-entry errors)
-  bench   [--verb <verb>] [--case <name>] [--limit N]   (ash vs bash comparison)
-  test    [--packages <pkgs>] [--run <regex>] [--count N] [--race true|false]
-                     [--short true|false] [--timeout <dur>] [--verbose true|false]
-                     (go test -json; default packages=./..., timeout=60s, count=1)
-  help    [--verb <verb>]                               (omit for all verbs)
-  hook                                                  (PreToolUse hook; reads payload from stdin -- see docs/PreToolUse.md)
-  init    [--path <p>] [--force true|false]             (bootstrap a target repo: hook config + .gitignore + registry)
-                     [--no_registry true|false]
-  uninit  [--path <p>] [--no_registry true|false]       (reverse of init; ledger.db is left in place)
-
-positional args (most verbs accept their dominant arg positionally):
-  ash read foo.go              (== ash read --path foo.go)
-  ash grep TODO cmd            (== ash grep --pattern TODO --path cmd)
-  ash find cmd                 (== ash find --path cmd)
-  ash stat a,b,c               (== ash stat --paths a,b,c)
-  ash write foo.go --content X (== ash write --path foo.go --content X)
-
-note: pass - as a value to read that arg from stdin (e.g. --content -)
-
-global flags:
-  --format pretty|json|msgpack   output format (default: pretty)
-
-ash auto-starts the daemon (ashd) on first call.`)
+	fmt.Fprint(os.Stderr, help.RenderUsage(0))
 }
 // extractFormat pulls --format out of argv before verb flag parsing so it
 // doesn't get forwarded to the daemon as an unknown arg.
