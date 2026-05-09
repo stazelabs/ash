@@ -7,17 +7,32 @@ import (
 
 	"github.com/stazelabs/ash/internal/ledger"
 	"github.com/stazelabs/ash/internal/proto"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
-// encodeArgs encodes a proto.Request with the given verb and args into msgpack,
-// for use in tests that need populated ArgsMsgpack blobs.
-func encodeArgs(t *testing.T, verb string, args map[string]any) []byte {
+// encodeArgs encodes an args map into the current ledger format (plain msgpack map).
+func encodeArgs(t *testing.T, _ string, args map[string]any) []byte {
 	t.Helper()
-	b, err := proto.EncodeRequest(&proto.Request{Verb: verb, Args: args})
+	b, err := msgpack.Marshal(args)
 	if err != nil {
 		t.Fatalf("encodeArgs: %v", err)
 	}
 	return b
+}
+
+func TestDecodeArgsMap(t *testing.T) {
+	args := map[string]any{"path": ".", "glob": "**/*.go"}
+	blob, err := msgpack.Marshal(args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := decodeArgsMap(blob)
+	if got["path"] != "." || got["glob"] != "**/*.go" {
+		t.Errorf("got %v", got)
+	}
+	if decodeArgsMap(nil) != nil {
+		t.Error("nil blob should return nil")
+	}
 }
 
 func TestPercentile(t *testing.T) {

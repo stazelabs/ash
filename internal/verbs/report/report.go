@@ -13,6 +13,7 @@
 package report
 
 import (
+	"bytes"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -24,6 +25,7 @@ import (
 	"github.com/stazelabs/ash/internal/registry"
 	"github.com/stazelabs/ash/internal/session"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 const MaxLast = 5000
@@ -517,14 +519,11 @@ func collectArgDists(byVerb map[string][]ledger.Call, order []string) []VerbArgD
 		counts := map[string]map[string]int{} // [key][value]count
 		var keyOrder []string
 		for _, c := range cs {
-			if len(c.ArgsMsgpack) == 0 {
+			args := decodeArgsMap(c.ArgsMsgpack)
+			if len(args) == 0 {
 				continue
 			}
-			req, err := proto.DecodeRequest(c.ArgsMsgpack)
-			if err != nil || len(req.Args) == 0 {
-				continue
-			}
-			for k, v := range req.Args {
+			for k, v := range args {
 				val := fmt.Sprintf("%v", v)
 				if val == "" {
 					continue
@@ -781,25 +780,37 @@ func fmtUs(us int64) string {
 	}
 }
 
-// decodeArgsSummary decodes a raw request msgpack blob and returns a compact
-// key=value summary of the args (e.g. "glob=**/*.go path=. limit=256").
-// Returns "" on any error or if no args are present.
-func decodeArgsSummary(blob []byte) string {
+// decodeArgsMap decodes a plain msgpack args map from the ledger.
+// Returns nil when the blob is empty or undecodable.
+func decodeArgsMap(blob []byte) map[string]any {
 	if len(blob) == 0 {
+		return nil
+	}
+	dec := msgpack.NewDecoder(bytes.NewReader(blob))
+	dec.UseLooseInterfaceDecoding(true)
+	var m map[string]any
+	if err := dec.Decode(&m); err != nil {
+		return nil
+	}
+	return m
+}
+
+// decodeArgsSummary decodes an args blob and returns a compact key=value
+// summary (e.g. "glob=**/*.go path=. limit=256"). Returns "" on any error
+// or if no args are present.
+func decodeArgsSummary(blob []byte) string {
+	args := decodeArgsMap(blob)
+	if len(args) == 0 {
 		return ""
 	}
-	req, err := proto.DecodeRequest(blob)
-	if err != nil || len(req.Args) == 0 {
-		return ""
-	}
-	keys := make([]string, 0, len(req.Args))
-	for k := range req.Args {
+	keys := make([]string, 0, len(args))
+	for k := range args {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	var parts []string
 	for _, k := range keys {
-		v := fmt.Sprintf("%v", req.Args[k])
+		v := fmt.Sprintf("%v", args[k])
 		if v != "" {
 			parts = append(parts, k+"="+v)
 		}

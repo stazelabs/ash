@@ -16,7 +16,13 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+const schemaVersion = "1"
+
 const schemaSQL = `
+CREATE TABLE IF NOT EXISTS meta (
+	key   TEXT PRIMARY KEY,
+	value TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS sessions (
 	id TEXT PRIMARY KEY,
 	started_at INTEGER NOT NULL,
@@ -53,62 +59,6 @@ CREATE INDEX IF NOT EXISTS idx_calls_verb ON calls(verb);
 CREATE INDEX IF NOT EXISTS idx_calls_ts ON calls(ts);
 `
 
-// migrateSchema brings older ledger DBs (created before the sub-phase
-// columns existed) up to the current shape. CREATE TABLE IF NOT EXISTS
-// won't add columns to an existing table, so each new column needs an
-// explicit ALTER. The function is idempotent: it queries the existing
-// columns first and only adds what's missing.
-func migrateSchema(db *sql.DB) error {
-	cols, err := tableColumns(db, "calls")
-	if err != nil {
-		return fmt.Errorf("ledger: read schema: %w", err)
-	}
-	type col struct {
-		name string
-		decl string
-	}
-	additions := []col{
-		{"walk_us", "INTEGER NOT NULL DEFAULT 0"},
-		{"io_us", "INTEGER NOT NULL DEFAULT 0"},
-		{"regex_us", "INTEGER NOT NULL DEFAULT 0"},
-		{"regex_compile_us", "INTEGER NOT NULL DEFAULT 0"},
-		{"latency_dispatch_us", "INTEGER NOT NULL DEFAULT 0"},
-	}
-	for _, c := range additions {
-		if _, ok := cols[c.name]; ok {
-			continue
-		}
-		if _, err := db.Exec(fmt.Sprintf("ALTER TABLE calls ADD COLUMN %s %s", c.name, c.decl)); err != nil {
-			return fmt.Errorf("ledger: add column %s: %w", c.name, err)
-		}
-	}
-	return nil
-}
-
-func tableColumns(db *sql.DB, table string) (map[string]struct{}, error) {
-	rows, err := db.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	cols := map[string]struct{}{}
-	for rows.Next() {
-		var (
-			cid     int
-			name    string
-			ctype   string
-			notnull int
-			dflt    sql.NullString
-			pk      int
-		)
-		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
-			return nil, err
-		}
-		cols[name] = struct{}{}
-	}
-	return cols, rows.Err()
-}
-
 type Ledger struct {
 	db        *sql.DB
 	sessionID string
@@ -119,7 +69,7 @@ func Open(path, projectRoot, clientInfo string) (*Ledger, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
 	}
-	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
+	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
 	if err != nil {
 		return nil, err
 	}
@@ -127,9 +77,9 @@ func Open(path, projectRoot, clientInfo string) (*Ledger, error) {
 		db.Close()
 		return nil, fmt.Errorf("ledger: schema: %w", err)
 	}
-	if err := migrateSchema(db); err != nil {
+	if _, err := db.Exec(`INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', ?)`, schemaVersion); err != nil {
 		db.Close()
-		return nil, err
+		return nil, fmt.Errorf("ledger: schema version: %w", err)
 	}
 	sid := newSessionID()
 	if _, err := db.Exec(
@@ -157,7 +107,7 @@ func (l *Ledger) Close() error      { return l.db.Close() }
 // writing to the same file is not disturbed. Use this for
 // `ash report --root <p>` against a target repos ledger.
 func OpenReadOnly(path string) (*Ledger, error) {
-	db, err := sql.Open("sqlite", path+"?mode=ro&_pragma=busy_timeout(2000)")
+	db, err := sql.Open("sqlite", path+"?mode=ro&_pragma=busy_timeout(2000)&_pragma=foreign_keys(1)")
 	if err != nil {
 		return nil, err
 	}

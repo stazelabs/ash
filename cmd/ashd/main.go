@@ -17,6 +17,7 @@ import (
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/session"
 	"github.com/stazelabs/ash/internal/verbs"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 func main() {
@@ -238,12 +239,33 @@ func truncatedFromResult(rsp *proto.Response, runner verbs.Runner) bool {
 	return runner.Truncated(rsp.Data)
 }
 
-// argsBlob persists the raw msgpack bytes of the request so the ledger can
-// be re-decoded later for analysis without parsing or re-encoding.
+// argsMaxStrBytes is the per-value cap for string args stored in the ledger.
+// Values longer than this are replaced with a "<truncated:N>" sentinel so that
+// large --content payloads (files, base64 blobs) do not inflate ledger.db.
+const argsMaxStrBytes = 1024
+
+// argsBlob encodes just the sanitized Args map from the request into msgpack
+// for ledger storage. Argv is dropped (it duplicates Args and can be large).
+// String values longer than argsMaxStrBytes are replaced with "<truncated:N>".
+// Returns nil when the request has no args or cannot be decoded.
 func argsBlob(reqBuf []byte) []byte {
-	out := make([]byte, len(reqBuf))
-	copy(out, reqBuf)
-	return out
+	req, err := proto.DecodeRequest(reqBuf)
+	if err != nil || len(req.Args) == 0 {
+		return nil
+	}
+	sanitized := make(map[string]any, len(req.Args))
+	for k, v := range req.Args {
+		if s, ok := v.(string); ok && len(s) > argsMaxStrBytes {
+			sanitized[k] = fmt.Sprintf("<truncated:%d>", len(s))
+		} else {
+			sanitized[k] = v
+		}
+	}
+	b, err := msgpack.Marshal(sanitized)
+	if err != nil {
+		return nil
+	}
+	return b
 }
 
 func writeErrFrame(conn net.Conn, id uint64, code, msg string) {
