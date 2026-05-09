@@ -54,6 +54,7 @@ type Result struct {
 	Status *StatusResult `msgpack:"status,omitempty"`
 	Log    *LogResult    `msgpack:"log,omitempty"`
 	Diff   *DiffResult   `msgpack:"diff,omitempty"`
+	Show   *ShowResult   `msgpack:"show,omitempty"`
 }
 
 type Args struct {
@@ -70,6 +71,8 @@ type Args struct {
 	// log/diff-op flags (shared)
 	Range    string
 	Pathspec string
+	// show-op flags
+	Ref string
 	// diff-op flags
 	Staged    bool
 	Context   int
@@ -113,6 +116,10 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Pathspec, perr = argutil.OptionalString(in, "pathspec", ""); perr != nil {
 		return nil, perr
 	}
+	// show-op flags
+	if a.Ref, perr = argutil.OptionalString(in, "ref", ""); perr != nil {
+		return nil, perr
+	}
 	// diff-op flags
 	if a.Staged, perr = argutil.OptionalBool(in, "staged", false); perr != nil {
 		return nil, perr
@@ -151,8 +158,14 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 			return nil, perr
 		}
 		return &Result{Op: "diff", Diff: d}, nil
+	case "show":
+		s, perr := runShow(a, tr)
+		if perr != nil {
+			return nil, perr
+		}
+		return &Result{Op: "show", Show: s}, nil
 	default:
-		return nil, &proto.Error{Code: "unknown_op", Msg: "unknown op: " + a.Op + " (live ops: status, log, diff)"}
+		return nil, &proto.Error{Code: "unknown_op", Msg: "unknown op: " + a.Op + " (live ops: status, log, diff, show)"}
 	}
 }
 
@@ -173,6 +186,8 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		return prettyLog(r.Log)
 	case "diff":
 		return prettyDiff(r.Diff)
+	case "show":
+		return prettyShow(r.Show)
 	default:
 		return "ok\n<unknown git op: " + r.Op + ">"
 	}
@@ -198,6 +213,9 @@ func decodeResult(data any) (*Result, bool) {
 	}
 	if dm, ok := m["diff"].(map[string]any); ok {
 		r.Diff = decodeDiff(dm)
+	}
+	if sm, ok := m["show"].(map[string]any); ok {
+		r.Show = decodeShow(sm)
 	}
 	return r, true
 }

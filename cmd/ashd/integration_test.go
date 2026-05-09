@@ -125,6 +125,7 @@ func TestIntegration_AllVerbs(t *testing.T) {
 		{"find", map[string]any{"path": repoRoot, "max_depth": "1"}},
 		{"grep", map[string]any{"pattern": "module", "path": goMod}},
 		{"git", map[string]any{"op": "status", "path": repoRoot}},
+		{"git", map[string]any{"op": "show", "ref": "HEAD", "path": repoRoot, "stat": "true"}},
 		{"stat", map[string]any{"paths": goMod}},
 		{"write", map[string]any{"path": writeTarget, "content": "hello"}},
 		{"edit", map[string]any{"path": writeTarget, "old_string": "hello", "new_string": "world"}},

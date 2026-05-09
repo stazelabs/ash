@@ -90,9 +90,9 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "git",
-		Description: "Version control as structured calls. Single verb with --op discriminator. Live ops: status, log, diff. Shells out to system git.",
+		Description: "Version control as structured calls. Single verb with --op discriminator. Live ops: status, log, diff, show. Shells out to system git.",
 		Args: []ArgSchema{
-			{Name: "op", Type: "string", Required: true, Values: []string{"status", "log", "diff"}, Description: "Subcommand to run."},
+			{Name: "op", Type: "string", Required: true, Values: []string{"status", "log", "diff", "show"}, Description: "Subcommand to run."},
 			{Name: "path", Type: "string", Default: ".", Description: "Repository path (any path inside a git work tree). Note: returned file paths are always repo-root-relative regardless of how --path was passed. This departs from find/grep where paths mirror the --path form."},
 			{Name: "untracked", Type: "bool", Default: "true", Description: "[status] include untracked files. Pass false to suppress."},
 			{Name: "ignored", Type: "bool", Default: "false", Description: "[status] include gitignored files."},
@@ -105,7 +105,8 @@ var registry = []VerbSchema{
 			{Name: "staged", Type: "bool", Default: "false", Description: "[diff] diff index vs HEAD (--cached). Default diffs worktree vs index."},
 			{Name: "stat", Type: "bool", Default: "false", Description: "[diff] return per-file addition/deletion counts only (no patch text). Much cheaper in tokens."},
 			{Name: "context", Type: "int", Default: "3", Description: "[diff] unified diff context lines. Max 50."},
-			{Name: "limit_bytes", Type: "int", Default: "262144", Description: "[diff] cap on total patch bytes returned. Files beyond cap have patch omitted but stats preserved. Max 4 MiB."},
+			{Name: "limit_bytes", Type: "int", Default: "262144", Description: "[diff/show] cap on total patch bytes returned. Files beyond cap have patch omitted but stats preserved. Max 4 MiB."},
+			{Name: "ref", Type: "string", Default: "", Description: "[show] commit ref to inspect (SHA, HEAD, HEAD~1, branch, tag, etc.). Required for show. Root commits diff against the empty tree."},
 		},
 	},
 	{
