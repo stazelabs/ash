@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/stazelabs/ash/internal/atomicwrite"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
@@ -105,7 +106,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	}
 
 	ioStart := time.Now()
-	err := writeAtomic(a.Path, data)
+	err := atomicwrite.Write(a.Path, data, atomicwrite.Options{TmpPrefix: ".ash-write-"})
 	tr.AddIO(time.Since(ioStart))
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
@@ -119,35 +120,6 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		BytesWritten: len(data),
 		Created:      created,
 	}, nil
-}
-
-// writeAtomic writes data to path via a temp file + rename on the same
-// directory so a mid-write crash leaves the original file intact. Falls
-// back to direct write if the rename fails (e.g. cross-device).
-func writeAtomic(path string, data []byte) error {
-	dir := filepath.Dir(path)
-	tmp, err := os.CreateTemp(dir, ".ash-write-*")
-	if err != nil {
-		// Temp file creation failed (e.g. dir not writable); fall back.
-		return os.WriteFile(path, data, 0o644)
-	}
-	tmpName := tmp.Name()
-
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		os.Remove(tmpName)
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmpName)
-		return err
-	}
-	if err := os.Rename(tmpName, path); err != nil {
-		os.Remove(tmpName)
-		// Rename failed (cross-device or similar); fall back to direct write.
-		return os.WriteFile(path, data, 0o644)
-	}
-	return nil
 }
 
 func PrettyResponse(req *proto.Request, rsp *proto.Response) string {

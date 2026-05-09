@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/stazelabs/ash/internal/atomicwrite"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/registry"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
@@ -148,7 +149,7 @@ func stripSettings(root string) (bool, *proto.Error) {
 		return false, &proto.Error{Code: "settings_marshal", Msg: err.Error()}
 	}
 	out = append(out, '\n')
-	if err := atomicWrite(path, out); err != nil {
+	if err := atomicwrite.Write(path, out, atomicwrite.Options{TmpPrefix: ".ash-uninit-"}); err != nil {
 		return false, &proto.Error{Code: "settings_write", Msg: err.Error()}
 	}
 	return true, nil
@@ -211,28 +212,10 @@ func stripGitignore(root string) (bool, *proto.Error) {
 	if !changed {
 		return false, nil
 	}
-	if err := atomicWrite(path, []byte(strings.Join(out, "\n"))); err != nil {
+	if err := atomicwrite.Write(path, []byte(strings.Join(out, "\n")), atomicwrite.Options{TmpPrefix: ".ash-uninit-"}); err != nil {
 		return false, &proto.Error{Code: "gitignore_write", Msg: err.Error()}
 	}
 	return true, nil
-}
-
-func atomicWrite(path string, data []byte) error {
-	dir := filepath.Dir(path)
-	tmp, err := os.CreateTemp(dir, ".ash-uninit-*")
-	if err != nil {
-		return err
-	}
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		os.Remove(tmp.Name())
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmp.Name())
-		return err
-	}
-	return os.Rename(tmp.Name(), path)
 }
 
 func PrettyResponse(_ *proto.Request, rsp *proto.Response) string {

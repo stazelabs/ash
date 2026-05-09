@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/stazelabs/ash/internal/atomicwrite"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/registry"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
@@ -177,7 +178,7 @@ func updateSettings(root string, force bool) (bool, bool, string, *proto.Error) 
 		return false, false, warning, &proto.Error{Code: "settings_marshal", Msg: err.Error()}
 	}
 	out = append(out, '\n')
-	if err := atomicWrite(path, out); err != nil {
+	if err := atomicwrite.Write(path, out, atomicwrite.Options{TmpPrefix: ".ash-init-"}); err != nil {
 		return false, false, warning, &proto.Error{Code: "settings_write", Msg: err.Error()}
 	}
 	return true, false, warning, nil
@@ -277,35 +278,10 @@ func updateGitignore(root string) (bool, *proto.Error) {
 		out += "\n"
 	}
 	out += ".ash/\n"
-	if err := atomicWrite(path, []byte(out)); err != nil {
+	if err := atomicwrite.Write(path, []byte(out), atomicwrite.Options{TmpPrefix: ".ash-init-"}); err != nil {
 		return false, &proto.Error{Code: "gitignore_write", Msg: err.Error()}
 	}
 	return true, nil
-}
-
-// atomicWrite writes data to path via temp-file+rename so a mid-write
-// crash doesn't leave a half-written settings file. Same shape as
-// internal/verbs/write/write.go.
-func atomicWrite(path string, data []byte) error {
-	dir := filepath.Dir(path)
-	tmp, err := os.CreateTemp(dir, ".ash-init-*")
-	if err != nil {
-		return err
-	}
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		os.Remove(tmp.Name())
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmp.Name())
-		return err
-	}
-	if err := os.Rename(tmp.Name(), path); err != nil {
-		os.Remove(tmp.Name())
-		return err
-	}
-	return nil
 }
 
 func PrettyResponse(_ *proto.Request, rsp *proto.Response) string {

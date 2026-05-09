@@ -30,11 +30,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/stazelabs/ash/internal/atomicwrite"
 	"github.com/stazelabs/ash/internal/diff"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
@@ -173,7 +173,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 
 	data := []byte(newContent)
 	ioStart = time.Now()
-	writeErr := writeAtomic(a.Path, data)
+	writeErr := atomicwrite.Write(a.Path, data, atomicwrite.Options{TmpPrefix: ".ash-edit-", PreserveMode: true})
 	tr.AddIO(time.Since(ioStart))
 	if writeErr != nil {
 		if errors.Is(writeErr, os.ErrPermission) {
@@ -515,33 +515,6 @@ func countLines(s string) int {
 		n++
 	}
 	return n
-}
-
-func writeAtomic(path string, data []byte) error {
-	dir := filepath.Dir(path)
-	tmp, err := os.CreateTemp(dir, ".ash-edit-*")
-	if err != nil {
-		return os.WriteFile(path, data, 0o644)
-	}
-	tmpName := tmp.Name()
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		os.Remove(tmpName)
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmpName)
-		return err
-	}
-	// Preserve permissions of the original file.
-	if info, err := os.Stat(path); err == nil {
-		os.Chmod(tmpName, info.Mode())
-	}
-	if err := os.Rename(tmpName, path); err != nil {
-		os.Remove(tmpName)
-		return os.WriteFile(path, data, 0o644)
-	}
-	return nil
 }
 
 func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
