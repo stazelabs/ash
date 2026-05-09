@@ -25,6 +25,7 @@ import (
 	"github.com/stazelabs/ash/internal/verbs/report"
 	"github.com/stazelabs/ash/internal/verbs/stat"
 	"github.com/stazelabs/ash/internal/verbs/test"
+	"github.com/stazelabs/ash/internal/verbs/stop"
 	"github.com/stazelabs/ash/internal/verbs/uninit"
 	"github.com/stazelabs/ash/internal/verbs/write"
 )
@@ -65,6 +66,7 @@ func PrettyHandlers() map[string]Pretty {
 		"test":    test.PrettyResponse,
 		"init":    initverb.PrettyResponse,
 		"uninit":  uninit.PrettyResponse,
+		"stop":    stop.PrettyResponse,
 	}
 }
 
@@ -100,6 +102,7 @@ func Runners(led *ledger.Ledger, cfg *config.Config) map[string]Runner {
 		"test":    wrap(test.ParseArgs, test.Run, func(r *test.Result) bool { return r.Truncated }),
 		"init":    wrap(initverb.ParseArgs, initverb.Run, nil),
 		"uninit":  wrap(uninit.ParseArgs, uninit.Run, nil),
+		"stop":    wrap(stop.ParseArgs, stop.Run, nil),
 	}
 	runners["bench"] = Runner{
 		Run: func(args map[string]any, _ *proto.Tracer) (any, *proto.Error) {

@@ -40,6 +40,7 @@ verbs (phase 2):
           [--content <text|->]
   init    [--path <p>] [--force true|false] [--no_registry true|false]
   uninit  [--path <p>] [--no_registry true|false]
+  stop    
 
 positional args (most verbs accept their dominant arg positionally):
   ash read foo.go              (== ash read --path foo.go)

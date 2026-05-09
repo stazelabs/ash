@@ -67,7 +67,7 @@ The schema covers three sections:
 - `[daemon]` — `max_concurrent_handlers`, `read_deadline`, `shutdown_grace`. Schema accepted today; enforcement ships under ASH-49.
 - `[git]` — `backend = "go-git"` (default, in-process via go-git/v5; no system git required) or `"shellout"` (forks system git). The go-git backend supports `status`, `log`, `diff` (range), and `show`; for `--staged` or worktree patch text, opt back to shellout.
 
-Copy `ash.toml.example` to `ash.toml` and uncomment the sections you want. The daemon must be restarted (`pkill ashd`, then any ash invocation auto-restarts it) for changes to take effect — hot reload is deliberately deferred. The full design lives in [docs/configuration.md](docs/configuration.md).
+Copy `ash.toml.example` to `ash.toml` and uncomment the sections you want. The daemon must be restarted (`ash stop`, then any ash invocation auto-restarts it) for changes to take effect — hot reload is deliberately deferred. The full design lives in [docs/configuration.md](docs/configuration.md).
 
 ## Design principles
 

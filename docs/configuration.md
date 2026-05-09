@@ -164,7 +164,7 @@ cat > ash.toml <<EOF
 enabled = true
 allow_paths = ["/tmp"]
 EOF
-bin/ash kill                            # restart daemon to pick up config (no hot-reload v1)
+bin/ash stop                            # restart daemon to pick up config (no hot-reload v1)
 bin/ash read --path README.md           # succeeds (inside root)
 bin/ash read --path /etc/hosts          # ERROR path_denied
 bin/ash read --path /tmp/whatever.txt   # succeeds (allow-listed)
@@ -181,7 +181,7 @@ max_concurrent_handlers = 32
 [git]
 backend = "go-git"
 EOF
-bin/ash kill && bin/ash git --op status
+bin/ash stop && bin/ash git --op status
 # git --op status returns not_implemented because go-git path is stubbed.
 # daemon log line shows config=ash.toml.
 

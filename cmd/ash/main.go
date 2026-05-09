@@ -71,6 +71,13 @@ func main() {
 	}
 	sockPath := session.SocketPath(root)
 
+	// `ash stop` is a client-side verb: it terminates the daemon, so it must
+	// not dial it. Intercept here, after root is resolved but before dialOrStart.
+	if verb == "stop" {
+		runStop(root, format)
+		return
+	}
+
 	conn, err := dialOrStart(root, sockPath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "ash: connect:", err)

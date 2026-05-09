@@ -117,32 +117,35 @@ func TestIntegration_AllVerbs(t *testing.T) {
 	// (matching wire shape from the CLI) so argutil coercions are exercised.
 	// write must precede edit since edit reads the file write creates.
 	cases := []struct {
-		verb string
-		args map[string]any
+		verb    string
+		args    map[string]any
+		wantErr string // if non-empty, expect OK=false with this error code
 	}{
-		{"help", map[string]any{}},
-		{"read", map[string]any{"path": goMod}},
-		{"find", map[string]any{"path": repoRoot, "max_depth": "1"}},
-		{"grep", map[string]any{"pattern": "module", "path": goMod}},
-		{"git", map[string]any{"op": "status", "path": repoRoot}},
-		{"git", map[string]any{"op": "show", "ref": "HEAD", "path": repoRoot, "stat": "true"}},
-		{"stat", map[string]any{"paths": goMod}},
-		{"write", map[string]any{"path": writeTarget, "content": "hello"}},
-		{"edit", map[string]any{"path": writeTarget, "old_string": "hello", "new_string": "world"}},
-		{"diff", map[string]any{"path": goMod, "content": "different", "stat": "true"}},
-		{"metrics", map[string]any{}},
-		{"report", map[string]any{}},
-		{"hook", map[string]any{"tool_name": "Bash", "command": "grep foo bar.txt"}},
-		{"bench", map[string]any{"limit": "1"}},
+		{"help", map[string]any{}, ""},
+		{"read", map[string]any{"path": goMod}, ""},
+		{"find", map[string]any{"path": repoRoot, "max_depth": "1"}, ""},
+		{"grep", map[string]any{"pattern": "module", "path": goMod}, ""},
+		{"git", map[string]any{"op": "status", "path": repoRoot}, ""},
+		{"git", map[string]any{"op": "show", "ref": "HEAD", "path": repoRoot, "stat": "true"}, ""},
+		{"stat", map[string]any{"paths": goMod}, ""},
+		{"write", map[string]any{"path": writeTarget, "content": "hello"}, ""},
+		{"edit", map[string]any{"path": writeTarget, "old_string": "hello", "new_string": "world"}, ""},
+		{"diff", map[string]any{"path": goMod, "content": "different", "stat": "true"}, ""},
+		{"metrics", map[string]any{}, ""},
+		{"report", map[string]any{}, ""},
+		{"hook", map[string]any{"tool_name": "Bash", "command": "grep foo bar.txt"}, ""},
+		{"bench", map[string]any{"limit": "1"}, ""},
 		// init/uninit pass no_registry=true so the integration test does not
 		// scribble entries into the registry. They still exercise the
 		// settings.json + .gitignore code paths in tmp.
-		{"init", map[string]any{"path": tmp, "no_registry": "true"}},
-		{"uninit", map[string]any{"path": tmp, "no_registry": "true"}},
+		{"init", map[string]any{"path": tmp, "no_registry": "true"}, ""},
+		{"uninit", map[string]any{"path": tmp, "no_registry": "true"}, ""},
 		// test: invoke with a regex that matches no test names so the
 		// verb returns quickly. Uses internal/runner (no test files) to
 		// avoid recursive go-test work in the integration suite.
-		{"test", map[string]any{"packages": "internal/runner", "run": "NoSuchTestZZZ", "timeout": "30s"}},
+		{"test", map[string]any{"packages": "internal/runner", "run": "NoSuchTestZZZ", "timeout": "30s"}, ""},
+		// stop is a client-only verb; the daemon returns client_only.
+		{"stop", map[string]any{}, "client_only"},
 	}
 
 	// Fail loudly if a new verb is added to Runners without a corresponding
@@ -162,6 +165,15 @@ func TestIntegration_AllVerbs(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.verb, func(t *testing.T) {
 			rsp := send(t, dial(t), tc.verb, tc.args)
+			if tc.wantErr != "" {
+				if rsp.OK {
+					t.Fatalf("expected OK=false (code=%q) but got OK=true", tc.wantErr)
+				}
+				if rsp.Err == nil || rsp.Err.Code != tc.wantErr {
+					t.Fatalf("expected error code %q, got %+v", tc.wantErr, rsp.Err)
+				}
+				return
+			}
 			if !rsp.OK {
 				t.Fatalf("OK=false err=%+v", rsp.Err)
 			}

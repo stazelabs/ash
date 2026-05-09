@@ -8,7 +8,7 @@ This file is the operational counterpart to `README.md`. The README is the desig
 
 This repo is also a deliberate experiment in *recursive* tool development: as soon as primordial `ash` exists (Phase 1: `find` + `grep` + `read` + daemon + bash shim + ledger), agents working on this repo start using `ash` for those operations. Every session feeds the next phase's design.
 
-**Current phase:** Phase 2, ship 13 — `ash read`, `ash find`, `ash grep`, `ash git --op status|log|diff|show`, `ash metrics`, `ash report`, `ash stat`, `ash bench`, `ash write`, `ash edit`, `ash diff`, `ash test`, `ash init`, and `ash uninit` are live. `ash init` bootstraps a target repo (PreToolUse hook + `.gitignore` + registry); `ash report --root <p>` and `--all_roots` aggregate across foreign ledgers. `make install` symlinks `ash`/`ashd` onto `$PATH` so a single rebuild updates every installed target. `ash edit` supports `--dry_run true` to preview changes without writing. All string-valued args accept `-` to read from stdin. Daemon (`ashd`) auto-starts on first invocation, persists per-call instrumentation to a SQLite ledger at `.ash/ledger.db`, and tokenizes every response with `cl100k_base` for honest token counts. Sub-phase latency (walk/io/regex µs) is captured in `Metrics.Phases` and surfaces in `ash metrics`. Ledger failures surface in `Metrics.LedgerError` and the client prints a `WARNING` line if any call's metrics didn't persist.
+**Current phase:** Phase 2, ship 14 — `ash read`, `ash find`, `ash grep`, `ash git --op status|log|diff|show`, `ash metrics`, `ash report`, `ash stat`, `ash bench`, `ash write`, `ash edit`, `ash diff`, `ash test`, `ash init`, `ash uninit`, and `ash stop` are live. `ash init` bootstraps a target repo (PreToolUse hook + `.gitignore` + registry); `ash report --root <p>` and `--all_roots` aggregate across foreign ledgers. `make install` symlinks `ash`/`ashd` onto `$PATH` so a single rebuild updates every installed target. `ash edit` supports `--dry_run true` to preview changes without writing. All string-valued args accept `-` to read from stdin. Daemon (`ashd`) auto-starts on first invocation, persists per-call instrumentation to a SQLite ledger at `.ash/ledger.db`, and tokenizes every response with `cl100k_base` for honest token counts. Sub-phase latency (walk/io/regex µs) is captured in `Metrics.Phases` and surfaces in `ash metrics`. Ledger failures surface in `Metrics.LedgerError` and the client prints a `WARNING` line if any call's metrics didn't persist.
 
 ## Project constraints
 
@@ -25,7 +25,7 @@ These are hard rules. If a change would violate one, stop and discuss before pro
 - **`[daemon]`** — `max_concurrent_handlers` (default 0 = unlimited; opt-in cap), `read_deadline` (default 30s per-frame socket timeout), `shutdown_grace` (default 5s bounded drain on SIGTERM). Enforced as of ASH-49.
 - **`[git]`** — `backend = "go-git"` (default, in-process via go-git/v5; no system git required) or `"shellout"` (forks system git). gogit backend has full functionality for `status`, `log`, `--range` diff, and `show`. For `--staged` or unstaged worktree diff with patch text (not just counts), opt back to shellout.
 
-Restart the daemon (`pkill ashd`, then any ash invocation auto-restarts it) after editing `ash.toml`. Hot reload is deliberately deferred. Full design: [docs/configuration.md](docs/configuration.md). Sample config: `ash.toml.example` at repo root.
+Restart the daemon (`ash stop`, then any ash invocation auto-restarts it) after editing `ash.toml`. Hot reload is deliberately deferred. Full design: [docs/configuration.md](docs/configuration.md). Sample config: `ash.toml.example` at repo root.
 
 ### Error codes touching this
 
@@ -36,7 +36,7 @@ Restart the daemon (`pkill ashd`, then any ash invocation auto-restarts it) afte
 
 This is the operational checklist. It is **gated by which verbs are live**. Do not try to invoke a verb that hasn't shipped yet.
 
-### Phase 2 ship 13 (now) — `read`, `find`, `grep`, `git` (status/log/diff/show), `metrics`, `report`, `stat`, `bench`, `write`, `edit`, `diff`, `test`, `hook`, `help`, `init`, and `uninit` are live
+### Phase 2 ship 14 (now) — `read`, `find`, `grep`, `git` (status/log/diff/show), `metrics`, `report`, `stat`, `bench`, `write`, `edit`, `diff`, `test`, `hook`, `help`, `init`, `uninit`, and `stop` are live
 
 Build the binaries first (one-time per session, cheap to redo):
 
@@ -121,6 +121,7 @@ Then any `ash` invocation auto-starts the daemon. Use `bin/ash` from the repo ro
    - Failures arrive as a structured `Tests []Test` slice with extracted `file:line`. Build failures land as `Status=build_failed` with the compile error in `BuildOutput`. `Result.OK=true` only when all packages pass (or are `no_tests`); a tests-failed run is not a verb error — `Metrics.OK` stays true.
    - Pass `--format json` to inspect the full structured response when the pretty render is not enough.
 11. Bash `find`, `cat`, `head`, `tail`, `ls -R`, `grep`, `rg`, `git status`, `git log`, `git diff`, `go test`, `stat` should be replaced by their `ash` equivalents in this repo.
+12. **Restarting the daemon** (after editing `ash.toml`, or after a rebuild) — use `ash stop`. The next `ash` invocation auto-starts a fresh daemon. Do not reach for `pkill ashd`.
 
 **The whole point** is that you are the first user. If a verb errors, hangs, or feels heavier than the bash equivalent, that's a bug or a design gap — investigate, don't paper over. Write the session note.
 
@@ -128,7 +129,7 @@ Then any `ash` invocation auto-starts the daemon. Use `bin/ash` from the repo ro
 
 The repo ships a `PreToolUse` hook (registered in `.claude/settings.json`) that runs `ash hook` to deny the harness's built-in `Grep`/`Glob`/`Edit`/`Write`/`Read` tools and bash `grep`/`rg`/`find`/`cat`/`head`/`tail`/`ls -R`/`git status`/`git log`/`stat` in this project, returning the equivalent `ash` invocation as the deny reason. Image/PDF/notebook reads are allowed through (`ash read` can't render them). `git blame`/`show`/`commit`/etc. and other not-yet-shipped ops are allowed through. See [docs/PreToolUse.md](docs/PreToolUse.md) for the full design and behavior matrix.
 
-`ash hook` is the only client-only verb in ash: the deny decision runs in-process for low latency, then a best-effort fire-and-forget request to the daemon writes a ledger row when the daemon is up. Hook denials are queryable via `ash report --verb hook`.
+`ash hook` is the only client-only verb in ash with ledger instrumentation: the deny decision runs in-process for low latency, then a best-effort fire-and-forget request to the daemon writes a ledger row when the daemon is up. `ash stop` is also fully client-side — it cannot contact the daemon it is stopping. Hook denials are queryable via `ash report --verb hook`.
 
 If `ash` genuinely doesn't fit (a verb that hasn't shipped, a non-text artifact, etc.), the hook is best-effort — when it gets in the way, that is a session-note finding, not a hook bug to "work around" with `--no-verify`-style escape hatches.
 
@@ -193,6 +194,7 @@ The ledger is the substrate for the recursive-development experiment. If a sessi
 - `ash bench [--verb <verb>] [--case <name>] [--limit N]` — run a canonical case list against ash and the bash equivalent the agent would otherwise have used; tokenize both with the same encoder and report per-case Δtokens / Δlatency, plus per-verb and overall summaries. Use to answer "is ash actually saving tokens, per verb and per query shape?" — see [docs/bench.md](docs/bench.md). Bash subprocesses are sandboxed (timeout, 16 MiB stdout cap); the bench call itself is recorded in the ledger like any other verb, but per-case ash dispatches are not.
 - `ash init [--path <p>] [--force true|false] [--no_registry true|false]` — bootstrap a target repo for ash: write the `ash hook` PreToolUse entry into `<path>/.claude/settings.json`, append `.ash/` to its `.gitignore` (if present), and record the absolute root in the global installed-repos registry (`$XDG_CONFIG_HOME/ash/installed-repos.txt`). Idempotent: re-running on an installed repo reports `already_installed=true`. A pre-existing PreToolUse entry that invokes ash with a different command (e.g. the per-repo `$CLAUDE_PROJECT_DIR/bin/ash` form) produces a warning and is left alone unless `--force true`. Pair with `make install` from the ash repo so target repos resolve `ash hook` from `$PATH`.
 - `ash uninit [--path <p>] [--no_registry true|false]` — reverse `ash init`: drop the `ash hook` PreToolUse entry from `.claude/settings.json` (preserving any unrelated entries), strip the `.ash/` line from `.gitignore`, and remove the registry row. The captured `.ash/ledger.db` is left in place — teardown should not destroy data the agent might still want to inspect via `ash report --root <p>`.
+- `ash stop` — send SIGTERM to the per-project daemon and wait for clean exit (up to 7s). Idempotent: returns success when no daemon is running. The next `ash` invocation auto-starts a fresh daemon. Use after editing `ash.toml` to pick up config changes.
 
 ## Session feedback ritual
 

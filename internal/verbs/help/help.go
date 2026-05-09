@@ -241,6 +241,11 @@ var registry = []VerbSchema{
 			{Name: "no_registry", Type: "bool", Default: "false", Description: "Skip the registry removal."},
 		},
 	},
+	{
+		Verb:        "stop",
+		Description: "Stop the per-project ash daemon cleanly. Sends SIGTERM and waits up to 7s for exit. Idempotent: returns success when no daemon is running. The next ash invocation auto-starts a fresh daemon.",
+		Args:        []ArgSchema{},
+	},
 }
 
 // Registry returns the full verb schema registry (read-only view for tests and tooling).
@@ -317,7 +322,7 @@ var verbDisplayOrder = []string{
 	"read", "write", "edit", "diff",
 	"find", "grep", "git",
 	"metrics", "report", "stat", "bench", "test",
-	"help", "hook", "init", "uninit",
+	"help", "hook", "init", "uninit", "stop",
 }
 
 // RenderUsage produces the full usage string printed when `ash` is invoked
