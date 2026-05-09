@@ -133,11 +133,13 @@ var registry = []VerbSchema{
 		Verb:        "report",
 		Description: "Aggregate per-verb summary across ledger calls: n, ok%, p50/p95 latency, p50/p95 tokens_out, trunc%.",
 		Args: []ArgSchema{
-			{Name: "session", Type: "string", Default: "current", Description: "Session scope: 'current' (this daemon session), 'all', or an explicit session ID."},
+			{Name: "session", Type: "string", Default: "current", Description: "Session scope: 'current' (this daemon session), 'all', or an explicit session ID. With --root or --all_roots, defaults to no session filter."},
 			{Name: "since", Type: "string", Default: "", Description: "Time window, e.g. '15m', '1h', '24h', '7d'. Supports Go duration syntax plus 'd' for days."},
 			{Name: "last", Type: "int", Default: "", Description: "Row cap applied after session/since filters. Maximum is 5000."},
 			{Name: "verb", Type: "string", Default: "", Description: "Restrict aggregation to calls for a specific verb."},
 			{Name: "top", Type: "int", Default: "5", Description: "Max entries shown in truncation hotspots and error histogram sections. Maximum is 100."},
+			{Name: "root", Type: "string", Default: "", Description: "Project root whose ledger to query (read-only). Mutually exclusive with --all_roots. Use to analyze a target repo from outside it."},
+			{Name: "all_roots", Type: "bool", Default: "false", Description: "Aggregate across every root in the installed-repos registry. Pretty form includes a per-root breakdown."},
 		},
 	},
 	{
@@ -216,6 +218,23 @@ var registry = []VerbSchema{
 			{Name: "short", Type: "bool", Default: "false", Description: "Enable -short mode."},
 			{Name: "timeout", Type: "string", Default: "60s", Description: "Go duration for the outer wall (context.WithTimeout). Also passed to go test -timeout (1s grace earlier) so go aborts cleanly first. CI-shaped suites can pass --timeout 10m."},
 			{Name: "verbose", Type: "bool", Default: "false", Description: "Render hint: include passing test names per package. Failure output is unconditional."},
+		},
+	},
+	{
+		Verb:        "init",
+		Description: "Bootstrap a target repo for ash: write the PreToolUse hook into .claude/settings.json, append .ash/ to .gitignore, and record the absolute root in the global installed-repos registry. Idempotent: re-running on an installed repo is a no-op.",
+		Args: []ArgSchema{
+			{Name: "path", Type: "string", Default: ".", Description: "Target repo root (absolute or relative). Default . uses the daemons project root."},
+			{Name: "force", Type: "bool", Default: "false", Description: "Replace an existing PreToolUse entry that invokes ash with a different command (e.g. the per-repo $CLAUDE_PROJECT_DIR/bin/ash form). Without --force a conflict produces a warning and no change."},
+			{Name: "no_registry", Type: "bool", Default: "false", Description: "Skip writing the installed-repos registry. Useful for ephemeral test repos."},
+		},
+	},
+	{
+		Verb:        "uninit",
+		Description: "Reverse `ash init`: remove the ash PreToolUse entry from .claude/settings.json, drop the .ash/ line from .gitignore, and remove the registry entry. The .ash/ledger.db is left in place.",
+		Args: []ArgSchema{
+			{Name: "path", Type: "string", Default: ".", Description: "Target repo root."},
+			{Name: "no_registry", Type: "bool", Default: "false", Description: "Skip the registry removal."},
 		},
 	},
 }

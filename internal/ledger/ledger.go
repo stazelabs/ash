@@ -151,6 +151,23 @@ func (l *Ledger) SessionID() string { return l.sessionID }
 func (l *Ledger) Counter() *Counter { return l.counter }
 func (l *Ledger) Close() error      { return l.db.Close() }
 
+// OpenReadOnly opens an existing ledger file for query-only access. No
+// session row is inserted (so SessionID returns the empty string), and
+// the SQLite connection is opened with mode=ro so a foreign daemon
+// writing to the same file is not disturbed. Use this for
+// `ash report --root <p>` against a target repos ledger.
+func OpenReadOnly(path string) (*Ledger, error) {
+	db, err := sql.Open("sqlite", path+"?mode=ro&_pragma=busy_timeout(2000)")
+	if err != nil {
+		return nil, err
+	}
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return nil, err
+	}
+	return &Ledger{db: db}, nil
+}
+
 type Call struct {
 	RequestID          uint64
 	Timestamp          time.Time

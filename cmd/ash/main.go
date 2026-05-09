@@ -183,7 +183,8 @@ verbs (phase 2):
                                  [--context N] [--limit_bytes N]
   metrics [--last N] [--verb <verb>]                   (default last=20)
   report  [--session current|all|<id>] [--since <dur>] (default session=current)
-          [--last N] [--verb <verb>]
+          [--last N] [--verb <verb>] [--top N]
+          [--root <p> | --all_roots true]              (foreign-ledger or cross-repo aggregation)
   stat    --paths <p1>[,<p2>...]                        (lstat; per-entry errors)
   bench   [--verb <verb>] [--case <name>] [--limit N]   (ash vs bash comparison)
   test    [--packages <pkgs>] [--run <regex>] [--count N] [--race true|false]
@@ -191,6 +192,9 @@ verbs (phase 2):
                      (go test -json; default packages=./..., timeout=60s, count=1)
   help    [--verb <verb>]                               (omit for all verbs)
   hook                                                  (PreToolUse hook; reads payload from stdin -- see docs/PreToolUse.md)
+  init    [--path <p>] [--force true|false]             (bootstrap a target repo: hook config + .gitignore + registry)
+                     [--no_registry true|false]
+  uninit  [--path <p>] [--no_registry true|false]       (reverse of init; ledger.db is left in place)
 
 positional args (most verbs accept their dominant arg positionally):
   ash read foo.go              (== ash read --path foo.go)
@@ -230,13 +234,15 @@ func extractFormat(argv []string) (format string, rest []string) {
 // (--key value) still works for the same keys; mixing positional and
 // flag for the same key is an error to avoid silent overwrite.
 var verbPositionals = map[string][]string{
-	"read":  {"path"},
-	"find":  {"path"},
-	"grep":  {"pattern", "path"},
-	"stat":  {"paths"},
-	"write": {"path"},
-	"edit":  {"path"},
-	"diff":  {"path"},
+	"read":   {"path"},
+	"find":   {"path"},
+	"grep":   {"pattern", "path"},
+	"stat":   {"paths"},
+	"write":  {"path"},
+	"edit":   {"path"},
+	"diff":   {"path"},
+	"init":   {"path"},
+	"uninit": {"path"},
 }
 
 // parseFlags converts agent-friendly long flags and per-verb positional

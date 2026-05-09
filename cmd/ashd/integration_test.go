@@ -134,6 +134,11 @@ func TestIntegration_AllVerbs(t *testing.T) {
 		{"report", map[string]any{}},
 		{"hook", map[string]any{"tool_name": "Bash", "command": "grep foo bar.txt"}},
 		{"bench", map[string]any{"limit": "1"}},
+		// init/uninit pass no_registry=true so the integration test does not
+		// scribble entries into the registry. They still exercise the
+		// settings.json + .gitignore code paths in tmp.
+		{"init", map[string]any{"path": tmp, "no_registry": "true"}},
+		{"uninit", map[string]any{"path": tmp, "no_registry": "true"}},
 		// test: invoke with a regex that matches no test names so the
 		// verb returns quickly. Uses internal/runner (no test files) to
 		// avoid recursive go-test work in the integration suite.

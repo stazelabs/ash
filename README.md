@@ -36,6 +36,27 @@ This project is two experiments at once: the shell itself, and a deliberate stud
 
 **Alpha.** Phase 2 is underway and self-hosting. Eight verbs are live: `find`, `grep`, `read`, `git` (status + log), `metrics`, `report`, `stat`, `bench`, and `help`. The daemon auto-starts, persists per-call instrumentation to a SQLite ledger, and tokenizes every response with `cl100k_base`. `ash bench` answers "is ash actually saving tokens?" by running canonical cases against the bash equivalent and reporting per-case Δtokens / Δlatency — see [docs/bench.md](docs/bench.md). Agents working on this repo use `ash` for all covered operations; session notes in `docs/session-notes/` capture the experience. Remaining Phase 2 verbs (`write`, `edit`, `test`, `build`, `fmt`) and Phase 3 (`lang`) are upcoming. Expect breaking changes.
 
+## Installing into a target repo
+
+`ash` runs against any project whose harness supports Claude Code-style PreToolUse hooks. The flow is:
+
+```sh
+# In the ash repo:
+make install                       # symlinks bin/ash and bin/ashd into ~/.local/bin
+                                   # (override with PREFIX=/usr/local/bin)
+
+# In any target repo:
+cd /path/to/target
+ash init                           # adds the PreToolUse hook to .claude/settings.json,
+                                   # appends .ash/ to .gitignore, registers the root
+
+# To analyze a target from the ash repo:
+ash report --root /path/to/target  # query that target ledger
+ash report --all_roots             # aggregate across every repo `ash init` has touched
+```
+
+Symlinks (not copies) so a rebuild of `ash` auto-updates every target — the daemon detects a stale binary and restarts on the next call. `ash uninit --path <p>` reverses everything except the captured `.ash/ledger.db` (kept for retroactive analysis). See [docs/install.md](docs/install.md) for the full design.
+
 ## Design principles
 
 1. **Robot-first, human-second.** Every design decision optimizes for agent token efficiency and machine parseability. Human-readable rendering is a separate output mode, not the default.

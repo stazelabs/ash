@@ -18,11 +18,13 @@ import (
 	"github.com/stazelabs/ash/internal/verbs/grep"
 	"github.com/stazelabs/ash/internal/verbs/help"
 	"github.com/stazelabs/ash/internal/verbs/hook"
+	"github.com/stazelabs/ash/internal/verbs/initverb"
 	"github.com/stazelabs/ash/internal/verbs/metrics"
 	"github.com/stazelabs/ash/internal/verbs/read"
 	"github.com/stazelabs/ash/internal/verbs/report"
 	"github.com/stazelabs/ash/internal/verbs/stat"
 	"github.com/stazelabs/ash/internal/verbs/test"
+	"github.com/stazelabs/ash/internal/verbs/uninit"
 	"github.com/stazelabs/ash/internal/verbs/write"
 )
 
@@ -60,6 +62,8 @@ func PrettyHandlers() map[string]Pretty {
 		"diff":    diff.PrettyResponse,
 		"bench":   bench.PrettyResponse,
 		"test":    test.PrettyResponse,
+		"init":    initverb.PrettyResponse,
+		"uninit":  uninit.PrettyResponse,
 	}
 }
 
@@ -210,6 +214,24 @@ func Runners(led *ledger.Ledger) map[string]Runner {
 				return test.Run(a, tr)
 			},
 			Truncated: test.Truncated,
+		},
+		"init": {
+			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
+				a, perr := initverb.ParseArgs(args)
+				if perr != nil {
+					return nil, perr
+				}
+				return initverb.Run(a, tr)
+			},
+		},
+		"uninit": {
+			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
+				a, perr := uninit.ParseArgs(args)
+				if perr != nil {
+					return nil, perr
+				}
+				return uninit.Run(a, tr)
+			},
 		},
 	}
 	runners["bench"] = Runner{

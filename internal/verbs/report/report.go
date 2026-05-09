@@ -14,12 +14,15 @@ package report
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/stazelabs/ash/internal/ledger"
 	"github.com/stazelabs/ash/internal/proto"
+	"github.com/stazelabs/ash/internal/registry"
+	"github.com/stazelabs/ash/internal/session"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
 
@@ -33,6 +36,14 @@ type Args struct {
 	Last    int // 0 = no cap beyond DefaultWindowLimit
 	Verb    string
 	TopN    int // max hotspot entries per section; defaults to defaultTopN
+	// Root selects an explicit project root whose ledger should be queried
+	// instead of the daemons own ledger. Read-only. Mutually exclusive
+	// with AllRoots.
+	Root string
+	// AllRoots reads every root in the installed-repos registry and
+	// aggregates across all of them. Pretty form includes a per-root
+	// breakdown.
+	AllRoots bool
 }
 
 // Scope describes the filters that were applied, for display and JSON.
@@ -41,6 +52,25 @@ type Scope struct {
 	Since   string `msgpack:"since,omitempty"`
 	Last    int    `msgpack:"last,omitempty"`
 	Verb    string `msgpack:"verb,omitempty"`
+	// Root is the project root whose ledger was queried. Empty when the
+	// daemons own ledger is in use; populated for --root and --all-roots
+	// (in --all-roots, set to a sentinel "ALL" value).
+	Root string `msgpack:"root,omitempty"`
+	// Roots is the per-root list when --all-roots is in effect. One entry
+	// per ledger that was successfully opened, in registry order.
+	Roots []string `msgpack:"roots,omitempty"`
+}
+
+// RootStats summarizes one ledgers contribution to an --all-roots run.
+// Calls counts the rows that matched the scope filters; CallsTotal is
+// the unfiltered ledger size for context.
+type RootStats struct {
+	Root        string `msgpack:"root"`
+	Calls       int    `msgpack:"calls"`
+	OK          int    `msgpack:"ok"`
+	TokensOut   int64  `msgpack:"tokens_out"`
+	ExecSumUs   int64  `msgpack:"exec_sum_us"`
+	OpenError   string `msgpack:"open_error,omitempty"`
 }
 
 type Totals struct {
@@ -114,6 +144,9 @@ type Result struct {
 	ErrHistogram     []ErrEntry     `msgpack:"err_histogram,omitempty"`
 	TruncHotspots    []TruncHotspot `msgpack:"trunc_hotspots,omitempty"`
 	ArgDistributions []VerbArgDist  `msgpack:"arg_distributions,omitempty"`
+	// ByRoot is populated only by --all-roots: per-ledger contribution
+	// counts, in registry order. Empty for single-root reports.
+	ByRoot []RootStats `msgpack:"by_root,omitempty"`
 }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
@@ -143,10 +176,32 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.TopN, perr = argutil.OptionalPosInt(in, "top", defaultTopN, MaxTopN); perr != nil {
 		return nil, perr
 	}
+	if a.Root, perr = argutil.OptionalString(in, "root", ""); perr != nil {
+		return nil, perr
+	}
+	if a.AllRoots, perr = argutil.OptionalBool(in, "all_roots", false); perr != nil {
+		return nil, perr
+	}
+	if a.Root != "" && a.AllRoots {
+		return nil, &proto.Error{Code: "args", Msg: "--root and --all_roots are mutually exclusive"}
+	}
+	// "current" only makes sense against the daemons own ledger. When a
+	// foreign ledger is in scope, default to no session filter unless the
+	// caller explicitly named one.
+	if (a.Root != "" || a.AllRoots) && a.Session == "current" {
+		a.Session = ""
+	}
 	return a, nil
 }
 
 func RunWithLedger(led *ledger.Ledger, a *Args) (*Result, *proto.Error) {
+	if a.AllRoots {
+		return runAllRoots(a)
+	}
+	if a.Root != "" {
+		return runForeignRoot(a, a.Root)
+	}
+
 	opts := ledger.QueryOpts{
 		SessionID:  a.Session,
 		VerbFilter: a.Verb,
@@ -172,24 +227,150 @@ func RunWithLedger(led *ledger.Ledger, a *Args) (*Result, *proto.Error) {
 
 	result := aggregate(calls, scope)
 
-	// Cap hotspot sections to TopN entries (already sorted by count desc).
-	if a.TopN > 0 {
-		if len(result.TruncHotspots) > a.TopN {
-			result.TruncHotspots = result.TruncHotspots[:a.TopN]
-		}
-		if len(result.ErrHistogram) > a.TopN {
-			result.ErrHistogram = result.ErrHistogram[:a.TopN]
-		}
-		// Cap arg distribution values per key.
-		for i := range result.ArgDistributions {
-			for j := range result.ArgDistributions[i].Args {
-				if len(result.ArgDistributions[i].Args[j].Values) > a.TopN {
-					result.ArgDistributions[i].Args[j].Values = result.ArgDistributions[i].Args[j].Values[:a.TopN]
-				}
+	capHotspots(result, a.TopN)
+	return result, nil
+}
+
+// capHotspots applies TopN limits to hotspot/error/arg-dist sections.
+// Shared between the daemon-ledger path and the foreign-ledger paths so
+// every report shape obeys the same rendering caps.
+func capHotspots(r *Result, topN int) {
+	if topN <= 0 {
+		return
+	}
+	if len(r.TruncHotspots) > topN {
+		r.TruncHotspots = r.TruncHotspots[:topN]
+	}
+	if len(r.ErrHistogram) > topN {
+		r.ErrHistogram = r.ErrHistogram[:topN]
+	}
+	for i := range r.ArgDistributions {
+		for j := range r.ArgDistributions[i].Args {
+			if len(r.ArgDistributions[i].Args[j].Values) > topN {
+				r.ArgDistributions[i].Args[j].Values = r.ArgDistributions[i].Args[j].Values[:topN]
 			}
 		}
 	}
+}
+
+// runForeignRoot opens the ledger of an arbitrary project root read-only
+// and runs the standard aggregation against it. The daemons own ledger
+// is not touched. A missing ledger.db is a verb-level error so the agent
+// notices typos in --root.
+func runForeignRoot(a *Args, root string) (*Result, *proto.Error) {
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		return nil, &proto.Error{Code: "args", Msg: "resolving --root: " + err.Error()}
+	}
+	led, perr := openForeign(abs)
+	if perr != nil {
+		return nil, perr
+	}
+	defer led.Close()
+
+	calls, qerr := queryForeign(led, a)
+	if qerr != nil {
+		return nil, qerr
+	}
+	scope := buildScope(a)
+	scope.Root = abs
+	result := aggregate(calls, scope)
+	capHotspots(result, a.TopN)
 	return result, nil
+}
+
+// runAllRoots walks the installed-repos registry, queries each ledger
+// read-only, and aggregates calls across all of them. Per-root counts
+// are returned as ByRoot for the pretty-form breakdown. Roots whose
+// ledger.db is missing or unreadable surface as a RootStats entry with
+// OpenError populated rather than failing the whole call — the typical
+// case is a target that has been initialized but not used yet.
+func runAllRoots(a *Args) (*Result, *proto.Error) {
+	roots, err := registry.List()
+	if err != nil {
+		return nil, &proto.Error{Code: "registry", Msg: err.Error()}
+	}
+	if len(roots) == 0 {
+		return nil, &proto.Error{Code: "no_roots", Msg: "registry is empty (run `ash init` in target repos)"}
+	}
+
+	scope := buildScope(a)
+	scope.Root = "ALL"
+	scope.Roots = roots
+
+	var allCalls []ledger.Call
+	byRoot := make([]RootStats, 0, len(roots))
+	for _, root := range roots {
+		stat := RootStats{Root: root}
+		led, perr := openForeign(root)
+		if perr != nil {
+			stat.OpenError = perr.Code + ": " + perr.Msg
+			byRoot = append(byRoot, stat)
+			continue
+		}
+		calls, qerr := queryForeign(led, a)
+		led.Close()
+		if qerr != nil {
+			stat.OpenError = qerr.Code + ": " + qerr.Msg
+			byRoot = append(byRoot, stat)
+			continue
+		}
+		stat.Calls = len(calls)
+		for _, c := range calls {
+			if c.OK {
+				stat.OK++
+			}
+			stat.TokensOut += int64(c.TokensOut)
+			stat.ExecSumUs += c.LatencyExecUs
+		}
+		allCalls = append(allCalls, calls...)
+		byRoot = append(byRoot, stat)
+	}
+
+	result := aggregate(allCalls, scope)
+	result.ByRoot = byRoot
+	capHotspots(result, a.TopN)
+	return result, nil
+}
+
+// openForeign opens <root>/.ash/ledger.db read-only. Wraps
+// ledger.OpenReadOnly with proto.Error normalization.
+func openForeign(root string) (*ledger.Ledger, *proto.Error) {
+	path := session.LedgerPath(root)
+	led, err := ledger.OpenReadOnly(path)
+	if err != nil {
+		return nil, &proto.Error{Code: "ledger_open", Msg: path + ": " + err.Error()}
+	}
+	return led, nil
+}
+
+// queryForeign applies the Args filters to a foreign (read-only) ledger.
+// Mirrors the daemon-ledger query setup in RunWithLedger.
+func queryForeign(led *ledger.Ledger, a *Args) ([]ledger.Call, *proto.Error) {
+	opts := ledger.QueryOpts{
+		SessionID:  a.Session,
+		VerbFilter: a.Verb,
+		Limit:      a.Last,
+	}
+	if a.Since > 0 {
+		opts.Since = time.Now().Add(-a.Since)
+	}
+	calls, err := led.QueryWindow(opts)
+	if err != nil {
+		return nil, &proto.Error{Code: "ledger", Msg: err.Error()}
+	}
+	return calls, nil
+}
+
+func buildScope(a *Args) Scope {
+	scope := Scope{Session: a.Session, Verb: a.Verb}
+	if a.Since > 0 {
+		scope.Since = a.Since.String()
+	}
+	if a.Last > 0 {
+		scope.Last = a.Last
+	}
+	return scope
 }
 
 func aggregate(calls []ledger.Call, scope Scope) *Result {
@@ -419,11 +600,19 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 
 	// Header
 	sessionLabel := r.Scope.Session
+	if sessionLabel == "" {
+		sessionLabel = "all"
+	}
 	if r.Scope.Since != "" {
 		sessionLabel += ", since=" + r.Scope.Since
 	}
 	if r.Scope.Verb != "" {
 		sessionLabel += ", verb=" + r.Scope.Verb
+	}
+	if r.Scope.Root == "ALL" {
+		sessionLabel += fmt.Sprintf(", roots=%d", len(r.Scope.Roots))
+	} else if r.Scope.Root != "" {
+		sessionLabel += ", root=" + r.Scope.Root
 	}
 	fmt.Fprintf(&b, "=== ash report: %s \xe2\x80\x94 %d calls, %s exec ===\n",
 		sessionLabel, r.Totals.Calls, fmtUs(r.Totals.ExecSumUs))
@@ -448,6 +637,26 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 			fmtUs(vs.P50ExecUs), fmtUs(vs.P95ExecUs),
 			vs.P50TokensOut, vs.P95TokensOut,
 			vs.TruncatedPct)
+	}
+
+	// Per-root breakdown — only emitted by --all-roots.
+	if len(r.ByRoot) > 0 {
+		fmt.Fprintf(&b, "\nby root (%d):\n", len(r.ByRoot))
+		fmt.Fprintf(&b, "%-50s  %5s  %4s  %9s  %9s\n", "root", "n", "ok%", "tok_out", "exec")
+		fmt.Fprintf(&b, "%s\n", strings.Repeat("-", 86))
+		for _, rs := range r.ByRoot {
+			label := rs.Root
+			if len(label) > 50 {
+				label = "..." + label[len(label)-47:]
+			}
+			if rs.OpenError != "" {
+				fmt.Fprintf(&b, "%-50s  %s\n", label, rs.OpenError)
+				continue
+			}
+			okPct := pct(rs.OK, rs.Calls)
+			fmt.Fprintf(&b, "%-50s  %5d  %3.0f%%  %9d  %9s\n",
+				label, rs.Calls, okPct, rs.TokensOut, fmtUs(rs.ExecSumUs))
+		}
 	}
 
 	// Sub-phase breakdown section — only when at least one verb has phase data.
@@ -624,6 +833,16 @@ func decodeResult(data any) (*Result, bool) {
 		if v, ok := sm["verb"].(string); ok {
 			r.Scope.Verb = v
 		}
+		if v, ok := sm["root"].(string); ok {
+			r.Scope.Root = v
+		}
+		if raw, ok := sm["roots"].([]any); ok {
+			for _, x := range raw {
+				if s, ok := x.(string); ok {
+					r.Scope.Roots = append(r.Scope.Roots, s)
+				}
+			}
+		}
 	}
 	if tm, ok := m["totals"].(map[string]any); ok {
 		if v, ok := argutil.ToInt(tm["calls"]); ok {
@@ -782,6 +1001,34 @@ func decodeResult(data any) (*Result, bool) {
 				}
 			}
 			r.ArgDistributions = append(r.ArgDistributions, vd)
+		}
+	}
+	if raw, ok := m["by_root"].([]any); ok {
+		for _, x := range raw {
+			rm, ok := x.(map[string]any)
+			if !ok {
+				continue
+			}
+			rs := RootStats{}
+			if v, ok := rm["root"].(string); ok {
+				rs.Root = v
+			}
+			if v, ok := argutil.ToInt(rm["calls"]); ok {
+				rs.Calls = v
+			}
+			if v, ok := argutil.ToInt(rm["ok"]); ok {
+				rs.OK = v
+			}
+			if v, ok := argutil.ToInt64(rm["tokens_out"]); ok {
+				rs.TokensOut = v
+			}
+			if v, ok := argutil.ToInt64(rm["exec_sum_us"]); ok {
+				rs.ExecSumUs = v
+			}
+			if v, ok := rm["open_error"].(string); ok {
+				rs.OpenError = v
+			}
+			r.ByRoot = append(r.ByRoot, rs)
 		}
 	}
 	return r, true
