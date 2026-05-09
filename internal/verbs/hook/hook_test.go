@@ -125,13 +125,17 @@ func TestDecide_bash(t *testing.T) {
 		{name: "stat", command: "stat foo.go bar.go", want: "deny", wantRule: "Bash:stat", wantSugg: "ash stat"},
 		{name: "git status", command: "git status", want: "deny", wantRule: "Bash:git-status", wantSugg: "ash git --op status"},
 		{name: "git log", command: "git log -n 5", want: "deny", wantRule: "Bash:git-log"},
-		{name: "git diff allows", command: "git diff", want: "allow"},
+		{name: "git diff", command: "git diff", want: "deny", wantRule: "Bash:git-diff", wantSugg: "ash git --op diff"},
+		{name: "git diff staged", command: "git diff --staged", want: "deny", wantRule: "Bash:git-diff"},
+		{name: "git show", command: "git show HEAD", want: "deny", wantRule: "Bash:git-show", wantSugg: "ash git --op show"},
 		{name: "git blame allows", command: "git blame foo.go", want: "allow"},
 		{name: "git commit allows", command: "git commit -m 'msg'", want: "allow"},
 
 		// Allow paths.
 		{name: "go build allows", command: "go build ./...", want: "allow"},
-		{name: "go test allows", command: "go test ./internal/...", want: "allow"},
+		{name: "go test", command: "go test ./internal/...", want: "deny", wantRule: "Bash:go-test", wantSugg: "ash test --packages ./internal/..."},
+		{name: "go test no args", command: "go test", want: "deny", wantRule: "Bash:go-test", wantSugg: "ash test"},
+		{name: "go vet allows", command: "go vet ./...", want: "allow"},
 		{name: "gh pr list allows", command: "gh pr list", want: "allow"},
 		{name: "empty command allows", command: "", want: "allow"},
 		{name: "whitespace command allows", command: "   ", want: "allow"},
@@ -141,7 +145,7 @@ func TestDecide_bash(t *testing.T) {
 		{name: "chained && with denied", command: "go build && cat result", want: "deny", wantRule: "Bash:cat"},
 		{name: "chained || with denied", command: "test -f foo || cat foo", want: "deny", wantRule: "Bash:cat"},
 		{name: "pipe with denied LHS", command: "cat foo.go | wc -l", want: "deny", wantRule: "Bash:cat"},
-		{name: "all-allowed chain stays allow", command: "go build && go test ./... ; gh pr list", want: "allow"},
+		{name: "all-allowed chain stays allow", command: "go build && gh pr list", want: "allow"},
 		// ASH-19: quote-aware segmentation — prose inside quotes must not trigger redirects.
 		{name: "commit msg grep in double-quoted arg allows", command: `git commit -m "case; grep verb"`, want: "allow"},
 		{name: "commit msg grep in single-quoted arg allows", command: `git commit -m 'case; grep verb'`, want: "allow"},
@@ -155,6 +159,14 @@ func TestDecide_bash(t *testing.T) {
 		{name: "command prefix", command: "command grep pattern .", want: "deny", wantRule: "Bash:grep"},
 		{name: "time prefix", command: "time cat foo.go", want: "deny", wantRule: "Bash:cat"},
 		{name: "absolute path program", command: "/usr/bin/grep -r foo .", want: "deny", wantRule: "Bash:grep"},
+
+		// ASH-48: quoted program names must not bypass deny-list lookup.
+		{name: "double-quoted grep", command: `"grep" foo bar`, want: "deny", wantRule: "Bash:grep"},
+		{name: "single-quoted grep", command: "grep foo bar", want: "deny", wantRule: "Bash:grep"},
+		{name: "backslash-escaped grep", command: `\grep foo bar`, want: "deny", wantRule: "Bash:grep"},
+		{name: "double-quoted find", command: `"find" . -name "*.go"`, want: "deny", wantRule: "Bash:find"},
+		{name: "double-quoted cat", command: `"cat" main.go`, want: "deny", wantRule: "Bash:cat"},
+		{name: "quoted env prefix then grep", command: `"env" FOO=bar grep .`, want: "deny", wantRule: "Bash:grep"},
 
 		// Nudge tail is appended.
 		{name: "deny includes nudge tail", command: "grep foo .", want: "deny", wantRule: "Bash:grep"},

@@ -160,7 +160,8 @@ func applyRange(body []byte, spec, kind string) ([]byte, string, *proto.Error) {
 	}
 	if kind == "bytes" {
 		if start > len(body) {
-			return body[:0], fmt.Sprintf("%d:%d", start, start-1), nil
+			return nil, "", &proto.Error{Code: "range_out_of_bounds",
+				Msg: fmt.Sprintf("start %d is past end of file (%d bytes)", start, len(body))}
 		}
 		if end > len(body) {
 			end = len(body)
@@ -189,7 +190,8 @@ func applyRange(body []byte, spec, kind string) ([]byte, string, *proto.Error) {
 		}
 	}
 	if lineStart < 0 {
-		return body[:0], fmt.Sprintf("%d:%d", start, start-1), nil
+		return nil, "", &proto.Error{Code: "range_out_of_bounds",
+			Msg: fmt.Sprintf("start line %d is past end of file", start)}
 	}
 	return body[lineStart:lineEnd], fmt.Sprintf("%d:%d", start, end), nil
 }

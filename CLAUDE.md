@@ -88,6 +88,7 @@ Then any `ash` invocation auto-starts the daemon. Use `bin/ash` from the repo ro
    - "delete lines" → `ash edit --path f.go --range 3:5` (omit `--new_content` for deletion)
    - Errors if `old_string` is not found (`match_not_found`) or appears multiple times without `--replace_all true` (`ambiguous`). Both are signal — the agent should use a more specific string or confirm intent.
    - "preview without writing" → add `--dry_run true`; result includes a unified diff in `patch` field.
+   - **Shell quoting escape hatch:** `--old_string`/`--new_string` are shell arguments and break for content with single quotes, backslashes, or Go char literals. Prefer `--range <start:end> --new_content -` (reads replacement from stdin via heredoc) when you know the line numbers. For string-match edits with problematic content, write a Python fixer script via `ash write --path /tmp/fix.py --content - << 'EOF'` … `EOF` then run `python3 /tmp/fix.py` — Python string concatenation sidesteps all shell quoting.  (ASH-60 tracks a `--patch -` mode that will eliminate this class of problem.)
 9. **Diffing content in this repo** — use `ash diff` to compare two files or a file against inline text. Examples:
    - "what changed between these two files?" → `ash diff --path a.go --other b.go`
    - "what would a replacement produce?" → `ash diff --path f.go --content 'new content'`

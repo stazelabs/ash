@@ -68,20 +68,8 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	// count: 0 means "use go's cache", 1+ means "run N times"; we accept
 	// any non-negative int. Default 1 (bypass cache) — agents typically
 	// want fresh runs after editing code.
-	count, perr := argutil.OptionalPosInt(in, "count", defaultCount, 1<<20)
-	if perr != nil {
-		// Allow 0 explicitly: re-parse with non-negative semantics.
-		if v, ok := in["count"]; ok {
-			if n, ok := argutil.ToInt(v); ok && n == 0 {
-				a.Count = 0
-			} else {
-				return nil, perr
-			}
-		} else {
-			return nil, perr
-		}
-	} else {
-		a.Count = count
+	if a.Count, perr = argutil.OptionalNonNegInt(in, "count", defaultCount, 1<<20); perr != nil {
+		return nil, perr
 	}
 	if a.Race, perr = argutil.OptionalBool(in, "race", false); perr != nil {
 		return nil, perr

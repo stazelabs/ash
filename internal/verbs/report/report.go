@@ -164,10 +164,7 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 		}
 		a.Since = d
 	}
-	if a.Last, perr = argutil.OptionalPosInt(in, "last", 0, MaxLast); perr != nil {
-		// last is optional with no implicit default — but OptionalPosInt
-		// rejects 0 when the value is set. The default-0 path produces 0
-		// from "absent" cleanly, so a 0 from the helper means "absent."
+	if a.Last, perr = argutil.OptionalNonNegInt(in, "last", 0, MaxLast); perr != nil {
 		return nil, perr
 	}
 	if a.Verb, perr = argutil.OptionalString(in, "verb", ""); perr != nil {

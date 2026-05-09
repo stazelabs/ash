@@ -52,15 +52,9 @@ func TestApplyRange_LinesNoTrailingNewline(t *testing.T) {
 
 func TestApplyRange_LinesPastEnd(t *testing.T) {
 	body := []byte("alpha\nbeta\ngamma\n")
-	got, gotRange, perr := applyRange(body, "10:20", "lines")
-	if perr != nil {
-		t.Fatalf("unexpected error: %+v", perr)
-	}
-	if len(got) != 0 {
-		t.Errorf("expected empty body, got %q", got)
-	}
-	if gotRange != "10:9" {
-		t.Errorf("range_returned: got %q want %q (collapsed past-end form)", gotRange, "10:9")
+	_, _, perr := applyRange(body, "10:20", "lines")
+	if perr == nil || perr.Code != "range_out_of_bounds" {
+		t.Fatalf("expected range_out_of_bounds error, got %+v", perr)
 	}
 }
 
@@ -76,7 +70,6 @@ func TestApplyRange_Bytes(t *testing.T) {
 		{"first byte", "1:1", "0", "1:1"},
 		{"last byte", "10:10", "9", "10:10"},
 		{"clamp end", "5:1000", "456789", "5:10"},
-		{"past end", "100:200", "", "100:99"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -91,6 +84,14 @@ func TestApplyRange_Bytes(t *testing.T) {
 				t.Errorf("range_returned: got %q want %q", gotRange, c.wantRangeBack)
 			}
 		})
+	}
+}
+
+func TestApplyRange_BytesPastEnd(t *testing.T) {
+	body := []byte("0123456789")
+	_, _, perr := applyRange(body, "100:200", "bytes")
+	if perr == nil || perr.Code != "range_out_of_bounds" {
+		t.Fatalf("expected range_out_of_bounds error, got %+v", perr)
 	}
 }
 

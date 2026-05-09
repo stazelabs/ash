@@ -678,3 +678,15 @@ func TestParseArgs_WireShape(t *testing.T) {
 		}
 	}
 }
+
+func TestParseArgs_LastZeroAllowed(t *testing.T) {
+	// last=0 means "no row cap" — omitting the flag has the same effect,
+	// but explicit 0 must not error (ASH-58).
+	a, perr := ParseArgs(map[string]any{"last": 0})
+	if perr != nil {
+		t.Fatalf("last=0 should be allowed: %v", perr)
+	}
+	if a.Last != 0 {
+		t.Errorf("last: got %d, want 0", a.Last)
+	}
+}

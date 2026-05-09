@@ -354,6 +354,13 @@ func suggestWrite(path string) string {
 	return "ash write --path " + shellquote(path) + " --content <text>"
 }
 
+func suggestTest(packages []string) string {
+	if len(packages) == 0 {
+		return "ash test"
+	}
+	return "ash test --packages " + shellquote(strings.Join(packages, " "))
+}
+
 func suggestStat(paths []string) string {
 	if len(paths) == 0 {
 		return "ash stat --paths <path>"
@@ -515,22 +522,39 @@ func segments(command string) []string {
 // leading VAR=value assignments and env/command/exec/time/nice prefixes.
 // Tokenization is whitespace-based (no quote awareness); this matches the
 // python helper's behavior.
+// unquoteToken strips surrounding single or double quotes, or a leading
+// backslash, from a program token so that "grep", 'grep', and \grep all
+// resolve to grep for deny-list lookup.
+func unquoteToken(s string) string {
+	n := len(s)
+	if n >= 2 {
+		if (s[0] == '"' && s[n-1] == '"') || (s[0] == '\'' && s[n-1] == '\'') {
+			return s[1 : n-1]
+		}
+	}
+	if n >= 1 && s[0] == '\\' {
+		return s[1:]
+	}
+	return s
+}
+
 func firstToken(segment string) (prog string, args []string) {
 	toks := tokenize(segment)
 	for {
 		if len(toks) == 0 {
 			return "", nil
 		}
+		tok := unquoteToken(toks[0])
 		// Skip leading VAR=value assignments.
-		if isAssignment(toks[0]) {
+		if isAssignment(tok) {
 			toks = toks[1:]
 			continue
 		}
 		// Skip env/command/exec/time/nice prefixes.
-		if isPrefixWord(toks[0]) {
+		if isPrefixWord(tok) {
 			toks = toks[1:]
 			// After env, more VAR=val may appear.
-			for len(toks) > 0 && isAssignment(toks[0]) {
+			for len(toks) > 0 && isAssignment(unquoteToken(toks[0])) {
 				toks = toks[1:]
 			}
 			continue
@@ -540,7 +564,7 @@ func firstToken(segment string) (prog string, args []string) {
 	if len(toks) == 0 {
 		return "", nil
 	}
-	prog = filepath.Base(toks[0]) // /usr/bin/grep -> grep
+	prog = filepath.Base(unquoteToken(toks[0])) // /usr/bin/grep -> grep, "grep" -> grep
 	args = toks[1:]
 	return prog, args
 }
@@ -584,7 +608,7 @@ func isPrefixWord(tok string) bool { return prefixWords[tok] }
 
 var grepLike = map[string]bool{"grep": true, "rg": true, "egrep": true, "fgrep": true}
 var readLike = map[string]bool{"cat": true, "head": true, "tail": true}
-var gitRedirect = map[string]bool{"status": true, "log": true}
+var gitRedirect = map[string]bool{"status": true, "log": true, "diff": true, "show": true}
 
 func decideBash(command string) *Result {
 	if strings.TrimSpace(command) == "" {
@@ -661,7 +685,13 @@ func decideBash(command string) *Result {
 				return denyResult("Bash", "Bash:git-"+sub, reason)
 			}
 		}
-		// Other programs (go, gh, mv, rm, …) pass through.
+		if prog == "go" && len(args) > 0 && args[0] == "test" {
+			pos := positionalArgs(args[1:])
+			reason := fmt.Sprintf("Use ash instead: `%s` (bash `go test` is redirected to ash test in this repo).",
+				suggestTest(pos))
+			return denyResult("Bash", "Bash:go-test", reason)
+		}
+		// Other programs (gh, mv, rm, …) pass through.
 	}
 	return &Result{Decision: "allow", ToolName: "Bash"}
 }
