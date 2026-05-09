@@ -2,6 +2,8 @@
 bin/
 dist/
 *.exe
+/ash
+/ashd
 
 # Per-project ash daemon state (ledger, logs, sockets if they ever land here)
 .ash/
