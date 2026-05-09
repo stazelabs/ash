@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/stazelabs/ash/internal/atomicwrite"
+	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/registry"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
@@ -52,6 +53,11 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 		return nil, perr
 	}
 	if a.NoRegistry, perr = argutil.OptionalBool(in, "no_registry", false); perr != nil {
+		return nil, perr
+	}
+	if perr := jail.CheckPaths(map[string]string{
+		"path": a.Path,
+	}); perr != nil {
 		return nil, perr
 	}
 	return a, nil

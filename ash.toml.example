@@ -1,0 +1,51 @@
+# ash.toml — project-level configuration for ashd. Copy to ash.toml and
+# uncomment the sections you want to set.
+#
+# This file is loaded at daemon startup. Restart the daemon (`ash kill`,
+# then any ash invocation auto-restarts it) for changes to take effect —
+# hot reload is deliberately deferred.
+#
+# Layering (last wins):
+#   1. compiled defaults
+#   2. $XDG_CONFIG_HOME/ash/config.toml  (user-global, if present)
+#   3. <root>/ash.toml                   (this file)
+#   4. $ASH_CONFIG=<path>                (explicit override)
+#
+# See docs/configuration.md for the full design.
+
+# [daemon]
+# # Cap concurrent verb dispatches in flight. 0 (default) = unlimited.
+# # Reserved for ASH-49 — schema accepted today, not yet enforced.
+# max_concurrent_handlers = 0
+#
+# # Per-frame read timeout on a connection. 0 (default) = no deadline.
+# # Reserved for ASH-49 — schema accepted today, not yet enforced.
+# read_deadline = "30s"
+#
+# # How long the daemon waits for in-flight handlers after the listener
+# # closes on SIGTERM. 0 (default) = exit immediately.
+# # Reserved for ASH-49 — schema accepted today, not yet enforced.
+# shutdown_grace = "5s"
+
+# [jail]
+# # Master switch. Default false: every path-taking verb works as today.
+# # When true, every verb path arg must resolve under the project root
+# # or one of allow_paths, and must not match deny_paths. Symlinks
+# # whose target escapes the allowed roots are denied.
+# enabled = false
+#
+# # Additional canonical roots paths may sit under. Useful for legitimate
+# # scratch dirs or build outputs that live outside the project tree.
+# allow_paths = ["/tmp/scratch"]
+#
+# # Canonical paths to deny even inside an allowed root. Useful for
+# # secrets directories or other should-never-be-touched paths.
+# deny_paths = [".env", "secrets/"]
+
+# [git]
+# # Backend for the `ash git` verb. Default "shellout" forks system git
+# # and parses its machine-readable output.
+# # "go-git" is reserved for ASH-35 — setting it today returns
+# # not_implemented from the git verb. The schema is accepted now so
+# # ASH-35 is purely about wiring up the backend.
+# backend = "shellout"

@@ -20,6 +20,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
@@ -62,6 +63,11 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 		return nil, perr
 	}
 	if a.LimitBytes, perr = argutil.OptionalPosInt(in, "limit_bytes", DefaultLimitBytes, MaxLimitBytes); perr != nil {
+		return nil, perr
+	}
+	if perr := jail.CheckPaths(map[string]string{
+		"path": a.Path,
+	}); perr != nil {
 		return nil, perr
 	}
 	return a, nil
