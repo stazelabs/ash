@@ -183,6 +183,9 @@ verbs (phase 2):
           [--last N] [--verb <verb>]
   stat    --paths <p1>[,<p2>...]                        (lstat; per-entry errors)
   bench   [--verb <verb>] [--case <name>] [--limit N]   (ash vs bash comparison)
+  test    [--packages <pkgs>] [--run <regex>] [--count N] [--race true|false]
+                     [--short true|false] [--timeout <dur>] [--verbose true|false]
+                     (go test -json; default packages=./..., timeout=60s, count=1)
   help    [--verb <verb>]                               (omit for all verbs)
   hook                                                  (PreToolUse hook; reads payload from stdin — see docs/PreToolUse.md)
 
