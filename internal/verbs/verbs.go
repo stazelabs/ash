@@ -79,160 +79,21 @@ func PrettyHandlers() map[string]Pretty {
 func Runners(led *ledger.Ledger) map[string]Runner {
 	pretty := PrettyHandlers()
 	runners := map[string]Runner{
-		"read": {
-			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
-				a, perr := read.ParseArgs(args)
-				if perr != nil {
-					return nil, perr
-				}
-				return read.Run(a, tr)
-			},
-			Truncated: func(d any) bool {
-				if r, ok := d.(*read.Result); ok {
-					return r.Truncated
-				}
-				return false
-			},
-		},
-		"find": {
-			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
-				a, perr := find.ParseArgs(args)
-				if perr != nil {
-					return nil, perr
-				}
-				return find.Run(a, tr)
-			},
-			Truncated: func(d any) bool {
-				if r, ok := d.(*find.Result); ok {
-					return r.Truncated
-				}
-				return false
-			},
-		},
-		"grep": {
-			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
-				a, perr := grep.ParseArgs(args)
-				if perr != nil {
-					return nil, perr
-				}
-				return grep.Run(a, tr)
-			},
-			Truncated: func(d any) bool {
-				if r, ok := d.(*grep.Result); ok {
-					return r.Truncated
-				}
-				return false
-			},
-		},
-		"git": {
-			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
-				a, perr := git.ParseArgs(args)
-				if perr != nil {
-					return nil, perr
-				}
-				return git.Run(a, tr)
-			},
-		},
-		"metrics": {
-			Run: func(args map[string]any, _ *proto.Tracer) (any, *proto.Error) {
-				a, perr := metrics.ParseArgs(args)
-				if perr != nil {
-					return nil, perr
-				}
-				return metrics.RunWithLedger(led, a)
-			},
-		},
-		"report": {
-			Run: func(args map[string]any, _ *proto.Tracer) (any, *proto.Error) {
-				a, perr := report.ParseArgs(args)
-				if perr != nil {
-					return nil, perr
-				}
-				return report.RunWithLedger(led, a)
-			},
-		},
-		"help": {
-			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
-				a, perr := help.ParseArgs(args)
-				if perr != nil {
-					return nil, perr
-				}
-				return help.Run(a, tr)
-			},
-		},
-		"hook": {
-			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
-				a, perr := hook.ParseArgs(args)
-				if perr != nil {
-					return nil, perr
-				}
-				return hook.Run(a, tr)
-			},
-		},
-		"stat": {
-			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
-				a, perr := stat.ParseArgs(args)
-				if perr != nil {
-					return nil, perr
-				}
-				return stat.Run(a, tr)
-			},
-		},
-		"write": {
-			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
-				a, perr := write.ParseArgs(args)
-				if perr != nil {
-					return nil, perr
-				}
-				return write.Run(a, tr)
-			},
-		},
-		"edit": {
-			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
-				a, perr := edit.ParseArgs(args)
-				if perr != nil {
-					return nil, perr
-				}
-				return edit.Run(a, tr)
-			},
-		},
-		"diff": {
-			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
-				a, perr := diff.ParseArgs(args)
-				if perr != nil {
-					return nil, perr
-				}
-				return diff.Run(a, tr)
-			},
-		},
-		"test": {
-			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
-				a, perr := test.ParseArgs(args)
-				if perr != nil {
-					return nil, perr
-				}
-				return test.Run(a, tr)
-			},
-			Truncated: test.Truncated,
-		},
-		"init": {
-			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
-				a, perr := initverb.ParseArgs(args)
-				if perr != nil {
-					return nil, perr
-				}
-				return initverb.Run(a, tr)
-			},
-		},
-		"uninit": {
-			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
-				a, perr := uninit.ParseArgs(args)
-				if perr != nil {
-					return nil, perr
-				}
-				return uninit.Run(a, tr)
-			},
-		},
+		"read":    wrap(read.ParseArgs, read.Run, func(r *read.Result) bool { return r.Truncated }),
+		"find":    wrap(find.ParseArgs, find.Run, func(r *find.Result) bool { return r.Truncated }),
+		"grep":    wrap(grep.ParseArgs, grep.Run, func(r *grep.Result) bool { return r.Truncated }),
+		"git":     wrap(git.ParseArgs, git.Run, nil),
+		"metrics": wrapLedger(led, metrics.ParseArgs, metrics.RunWithLedger),
+		"report":  wrapLedger(led, report.ParseArgs, report.RunWithLedger),
+		"help":    wrap(help.ParseArgs, help.Run, nil),
+		"hook":    wrap(hook.ParseArgs, hook.Run, nil),
+		"stat":    wrap(stat.ParseArgs, stat.Run, nil),
+		"write":   wrap(write.ParseArgs, write.Run, nil),
+		"edit":    wrap(edit.ParseArgs, edit.Run, nil),
+		"diff":    wrap(diff.ParseArgs, diff.Run, nil),
+		"test":    wrap(test.ParseArgs, test.Run, func(r *test.Result) bool { return r.Truncated }),
+		"init":    wrap(initverb.ParseArgs, initverb.Run, nil),
+		"uninit":  wrap(uninit.ParseArgs, uninit.Run, nil),
 	}
 	runners["bench"] = Runner{
 		Run: func(args map[string]any, _ *proto.Tracer) (any, *proto.Error) {
@@ -262,4 +123,49 @@ func Runners(led *ledger.Ledger) map[string]Runner {
 		},
 	}
 	return runners
+}
+
+// wrap builds a Runner from a typed parse+run pair. truncated is optional;
+// pass nil for verbs that have no truncation concept.
+func wrap[A any, R any](
+	parse func(map[string]any) (*A, *proto.Error),
+	run func(*A, *proto.Tracer) (R, *proto.Error),
+	truncated func(R) bool,
+) Runner {
+	r := Runner{
+		Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
+			a, perr := parse(args)
+			if perr != nil {
+				return nil, perr
+			}
+			return run(a, tr)
+		},
+	}
+	if truncated != nil {
+		r.Truncated = func(d any) bool {
+			if v, ok := d.(R); ok {
+				return truncated(v)
+			}
+			return false
+		}
+	}
+	return r
+}
+
+// wrapLedger builds a Runner for verbs whose Run takes a *ledger.Ledger
+// instead of a *proto.Tracer (metrics, report).
+func wrapLedger[A any, R any](
+	led *ledger.Ledger,
+	parse func(map[string]any) (*A, *proto.Error),
+	run func(*ledger.Ledger, *A) (R, *proto.Error),
+) Runner {
+	return Runner{
+		Run: func(args map[string]any, _ *proto.Tracer) (any, *proto.Error) {
+			a, perr := parse(args)
+			if perr != nil {
+				return nil, perr
+			}
+			return run(led, a)
+		},
+	}
 }
