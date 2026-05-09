@@ -38,7 +38,7 @@ func TestHandle_LedgerErrorOnWire(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		handle(srv, led, runners, pretty)
+		handle(srv, led, runners, pretty, 0)
 	}()
 
 	// `help` is the simplest verb to drive: no filesystem state required and
@@ -114,7 +114,7 @@ func TestHandle_NoLedgerErrorOnHealthyDB(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		handle(srv, led, runners, pretty)
+		handle(srv, led, runners, pretty, 0)
 	}()
 
 	req := &proto.Request{V: proto.ProtocolVersion, ID: 1, Verb: "help", Args: map[string]any{}}

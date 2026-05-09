@@ -22,7 +22,7 @@ These are hard rules. If a change would violate one, stop and discuss before pro
 `ashd` reads optional TOML configuration from `<root>/ash.toml` (project-level, committed) and `$XDG_CONFIG_HOME/ash/config.toml` (user-global). Layering is last-wins: defaults → user-global → project → `$ASH_CONFIG=<path>` (explicit override). With no file present, behavior is identical to the pre-config era.
 
 - **`[jail]`** — `enabled = true` makes every path-taking verb refuse paths outside the project root or `allow_paths`. Returns `path_denied` on denial. Recorded in the ledger like any other verb error; query via `ash report --verb <v>`.
-- **`[daemon]`** — `max_concurrent_handlers`, `read_deadline`, `shutdown_grace`. Schema accepted, enforcement ships under ASH-49.
+- **`[daemon]`** — `max_concurrent_handlers` (default 0 = unlimited; opt-in cap), `read_deadline` (default 30s per-frame socket timeout), `shutdown_grace` (default 5s bounded drain on SIGTERM). Enforced as of ASH-49.
 - **`[git]`** — `backend = "shellout"` (default) or `"go-git"`. The go-git backend ships under ASH-35; setting it today returns `not_implemented`.
 
 Restart the daemon (`pkill ashd`, then any ash invocation auto-restarts it) after editing `ash.toml`. Hot reload is deliberately deferred. Full design: [docs/configuration.md](docs/configuration.md). Sample config: `ash.toml.example` at repo root.

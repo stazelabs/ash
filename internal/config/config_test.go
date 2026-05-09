@@ -17,6 +17,12 @@ func TestDefaults(t *testing.T) {
 	if c.Daemon.MaxConcurrentHandlers != 0 {
 		t.Errorf("max_concurrent_handlers default: want 0 (unlimited), got %d", c.Daemon.MaxConcurrentHandlers)
 	}
+	if c.Daemon.ReadDeadline.AsDuration() != DefaultReadDeadline {
+		t.Errorf("read_deadline default: want %v, got %v", DefaultReadDeadline, c.Daemon.ReadDeadline.AsDuration())
+	}
+	if c.Daemon.ShutdownGrace.AsDuration() != DefaultShutdownGrace {
+		t.Errorf("shutdown_grace default: want %v, got %v", DefaultShutdownGrace, c.Daemon.ShutdownGrace.AsDuration())
+	}
 }
 
 func TestDuration_UnmarshalText(t *testing.T) {

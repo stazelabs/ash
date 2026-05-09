@@ -79,13 +79,30 @@ const (
 	GitBackendGoGit = "go-git"
 )
 
+// DefaultReadDeadline is the per-frame socket read timeout used when
+// ash.toml does not override it. Generous enough that any legit client
+// pause is fine; aggressive enough that a connection that never sends
+// (or is half-closed) cleans up promptly instead of pinning a goroutine
+// forever. Override via [daemon].read_deadline.
+const DefaultReadDeadline = 30 * time.Second
+
+// DefaultShutdownGrace is the bounded wait for in-flight handlers after
+// SIGTERM closes the listener. 5s is enough for any verb in the current
+// surface to finish; long-running ones (test, bench) are best killed
+// with SIGKILL if the user wanted them gone.
+const DefaultShutdownGrace = 5 * time.Second
+
 // Defaults returns the compiled-in baseline, used as the lowest layer
 // when nothing is configured.
 func Defaults() *Config {
 	return &Config{
-		Daemon: DaemonConfig{},
-		Jail:   JailConfig{},
-		Git:    GitConfig{Backend: GitBackendShellout},
+		Daemon: DaemonConfig{
+			MaxConcurrentHandlers: 0, // unlimited; cap is opt-in.
+			ReadDeadline:          Duration(DefaultReadDeadline),
+			ShutdownGrace:         Duration(DefaultShutdownGrace),
+		},
+		Jail: JailConfig{},
+		Git:  GitConfig{Backend: GitBackendShellout},
 	}
 }
 

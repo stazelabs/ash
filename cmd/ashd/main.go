@@ -4,12 +4,14 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"net"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -75,6 +77,18 @@ func main() {
 		log.Printf("ashd: chmod socket: %v", err)
 	}
 
+	// Concurrency cap: 0 means unlimited (preserves the pre-ASH-49
+	// behavior). When set, the accept loop blocks before spawning a
+	// handler goroutine once the cap is in flight, so backpressure
+	// manifests as queued connections at the OS layer rather than
+	// runaway goroutine growth.
+	var sem chan struct{}
+	if n := cfg.Daemon.MaxConcurrentHandlers; n > 0 {
+		sem = make(chan struct{}, n)
+	}
+	readDeadline := cfg.Daemon.ReadDeadline.AsDuration()
+	shutdownGrace := cfg.Daemon.ShutdownGrace.AsDuration()
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -92,21 +106,96 @@ func main() {
 
 	log.Printf("ashd ready: root=%s socket=%s session=%s config=%s", rootFlag, sockFlag, led.SessionID(), cfgSource)
 
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			return
-		}
-		go handle(conn, led, runners, pretty)
+	var wg sync.WaitGroup
+	acceptLoop(listener, sem, &wg, func(conn net.Conn) {
+		handle(conn, led, runners, pretty, readDeadline)
+	})
+
+	// Listener closed (signal or fatal accept error). Wait bounded for
+	// in-flight handlers so their ledger rows commit before exit. If
+	// grace expires we log loudly (losing rows is the project foundational
+	// claim) but we still exit so tests / supervisors can move on.
+	if !drainHandlers(&wg, shutdownGrace) {
+		log.Printf("ashd: shutdown grace %v exceeded; in-flight handlers abandoned", shutdownGrace)
+	} else {
+		log.Println("ashd: clean shutdown")
 	}
 }
 
-func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, pretty map[string]verbs.Pretty) {
+// acceptLoop accepts connections from ln and dispatches each through
+// handler in a goroutine. Tracks in-flight handlers via wg so the
+// caller can drain them on shutdown. When sem is non-nil, the loop
+// blocks on it before spawning a handler  this is the ASH-49
+// concurrency cap.
+//
+// Returns when ln.Accept() errors, which happens when the listener is
+// closed (the canonical shutdown path) or for unrecoverable network
+// errors.
+func acceptLoop(ln net.Listener, sem chan struct{}, wg *sync.WaitGroup, handler func(net.Conn)) {
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		// Acquire sem BEFORE incrementing wg so the cap is enforced
+		// even if many connections arrive in a burst. The accept itself
+		// queues at the kernel level (UDS listen backlog) while we wait
+		// for a slot.
+		if sem != nil {
+			sem <- struct{}{}
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if sem != nil {
+				defer func() { <-sem }()
+			}
+			handler(conn)
+		}()
+	}
+}
+
+// drainHandlers waits up to grace for wg to reach zero. Returns true
+// on clean drain, false if grace was exceeded.
+func drainHandlers(wg *sync.WaitGroup, grace time.Duration) bool {
+	if grace <= 0 {
+		// No grace configured: return immediately. wg may still have
+		// outstanding handlers; the caller has already accepted the risk.
+		return false
+	}
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-time.After(grace):
+		return false
+	}
+}
+
+func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, pretty map[string]verbs.Pretty, readDeadline time.Duration) {
 	defer conn.Close()
 	for {
 		parseStart := time.Now()
+		// Per-frame read deadline (ASH-49). When > 0, a connection that
+		// goes silent between frames is timed out and the goroutine
+		// returns instead of pinning forever. The deadline is reset on
+		// every successful ReadFrame, so a long-lived client making
+		// regular requests is unaffected.
+		if readDeadline > 0 {
+			_ = conn.SetReadDeadline(time.Now().Add(readDeadline))
+		}
 		reqBuf, err := proto.ReadFrame(conn)
 		if err != nil {
+			// Idle-timeout on the deadline is the expected close-path for
+			// abandoned connections; do not log it as an error.
+			var ne net.Error
+			if errors.As(err, &ne) && ne.Timeout() {
+				return
+			}
 			return
 		}
 		req, err := proto.DecodeRequest(reqBuf)
