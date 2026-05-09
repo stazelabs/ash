@@ -14,17 +14,23 @@
 # See docs/configuration.md for the full design.
 
 # [daemon]
-# # Cap concurrent verb dispatches in flight. 0 (default) = unlimited.
-# # Reserved for ASH-49 — schema accepted today, not yet enforced.
+# # Cap concurrent verb dispatches in flight. 0 (default) = unlimited;
+# # the accept loop blocks before spawning a handler once the cap is
+# # in flight, so backpressure manifests as queued connections at the
+# # OS layer rather than runaway goroutine growth.
 # max_concurrent_handlers = 0
 #
-# # Per-frame read timeout on a connection. 0 (default) = no deadline.
-# # Reserved for ASH-49 — schema accepted today, not yet enforced.
+# # Per-frame socket read timeout. Default "30s". A connection that
+# # opens but never sends — or stays silent between frames — is timed
+# # out and the goroutine returns. The deadline is reset on every
+# # successful read, so a long-lived client making regular requests
+# # is unaffected. Set to "0s" to disable.
 # read_deadline = "30s"
 #
-# # How long the daemon waits for in-flight handlers after the listener
-# # closes on SIGTERM. 0 (default) = exit immediately.
-# # Reserved for ASH-49 — schema accepted today, not yet enforced.
+# # Bounded wait for in-flight handlers after SIGTERM closes the
+# # listener. Default "5s". Long enough for any verb in the current
+# # surface to commit its ledger row before exit; long-running ones
+# # (test, bench) are best killed with SIGKILL.
 # shutdown_grace = "5s"
 
 # [jail]
