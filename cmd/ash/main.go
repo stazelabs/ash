@@ -44,7 +44,7 @@ func main() {
 	}
 
 	format, remaining := extractFormat(os.Args[2:])
-	args, err := parseFlags(remaining)
+	args, err := parseFlags(verb, remaining)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "ash:", err)
 		os.Exit(2)
@@ -78,6 +78,7 @@ func main() {
 		ID:   newID(),
 		Verb: verb,
 		Args: args,
+		Argv: os.Args[1:],
 	}
 	encoded, err := proto.EncodeRequest(req)
 	if err != nil {
@@ -147,7 +148,7 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Fprintln(os.Stderr, `usage: ash <verb> [--key value | --key=value]... [--format pretty|json|msgpack]
+	fmt.Fprintln(os.Stderr, `usage: ash <verb> [<positional>...] [--key value | --key=value]... [--format pretty|json|msgpack]
 
 verbs (phase 2):
   read    --path <p> [--range start:end] [--range_kind lines|bytes] [--limit_bytes N]
@@ -189,7 +190,14 @@ verbs (phase 2):
                      [--short true|false] [--timeout <dur>] [--verbose true|false]
                      (go test -json; default packages=./..., timeout=60s, count=1)
   help    [--verb <verb>]                               (omit for all verbs)
-  hook                                                  (PreToolUse hook; reads payload from stdin — see docs/PreToolUse.md)
+  hook                                                  (PreToolUse hook; reads payload from stdin -- see docs/PreToolUse.md)
+
+positional args (most verbs accept their dominant arg positionally):
+  ash read foo.go              (== ash read --path foo.go)
+  ash grep TODO cmd            (== ash grep --pattern TODO --path cmd)
+  ash find cmd                 (== ash find --path cmd)
+  ash stat a,b,c               (== ash stat --paths a,b,c)
+  ash write foo.go --content X (== ash write --path foo.go --content X)
 
 note: pass - as a value to read that arg from stdin (e.g. --content -)
 
@@ -198,7 +206,6 @@ global flags:
 
 ash auto-starts the daemon (ashd) on first call.`)
 }
-
 // extractFormat pulls --format out of argv before verb flag parsing so it
 // doesn't get forwarded to the daemon as an unknown arg.
 func extractFormat(argv []string) (format string, rest []string) {
@@ -217,15 +224,43 @@ func extractFormat(argv []string) (format string, rest []string) {
 	return format, rest
 }
 
-// parseFlags converts agent-friendly long flags into an args map. Both
-// --key value and --key=value are accepted. Boolean shorthand (--flag with no
-// value) is rejected for now to keep the on-wire shape unambiguous.
-func parseFlags(argv []string) (map[string]any, error) {
+// verbPositionals lists, in order, the arg keys that may be supplied as
+// positional arguments for each verb. Positional args are parsed
+// left-to-right and assigned to slots in this order. The flag form
+// (--key value) still works for the same keys; mixing positional and
+// flag for the same key is an error to avoid silent overwrite.
+var verbPositionals = map[string][]string{
+	"read":  {"path"},
+	"find":  {"path"},
+	"grep":  {"pattern", "path"},
+	"stat":  {"paths"},
+	"write": {"path"},
+	"edit":  {"path"},
+	"diff":  {"path"},
+}
+
+// parseFlags converts agent-friendly long flags and per-verb positional
+// arguments into an args map. Both --key value and --key=value are
+// accepted. Bare values (no -- prefix) are matched against the verb's
+// positional slot list (verbPositionals). Boolean shorthand (--flag with
+// no value) is rejected to keep the on-wire shape unambiguous.
+func parseFlags(verb string, argv []string) (map[string]any, error) {
 	out := make(map[string]any)
+	positionals := verbPositionals[verb]
+	posIdx := 0
 	for i := 0; i < len(argv); i++ {
 		a := argv[i]
 		if !strings.HasPrefix(a, "--") {
-			return nil, fmt.Errorf("unexpected positional argument %q (use --key value)", a)
+			if posIdx >= len(positionals) {
+				return nil, fmt.Errorf("unexpected positional argument %q (use --key value)", a)
+			}
+			key := positionals[posIdx]
+			posIdx++
+			if _, exists := out[key]; exists {
+				return nil, fmt.Errorf("--%s set both as a flag and as a positional argument", key)
+			}
+			out[key] = a
+			continue
 		}
 		key := a[2:]
 		var val string

@@ -132,8 +132,15 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 
 		// Pretty-rendered forms drive token counting. Both daemon and client
 		// produce the same canonical text, so tokens_out reflects what the
-		// agent will actually pay for.
-		prettyReq := proto.PrettyRequest(req)
+		// agent will actually pay for. Use the literal client argv when
+		// available (honest input-side cost) and fall back to the
+		// reconstructed canonical for older clients without Argv.
+		var prettyReq string
+		if len(req.Argv) > 0 {
+			prettyReq = proto.PrettyRequestArgv(req.Argv)
+		} else {
+			prettyReq = proto.PrettyRequest(req)
+		}
 		prettyRsp := proto.PrettyResponseHeader(rsp)
 		if p, ok := pretty[req.Verb]; ok {
 			prettyRsp = p(req, rsp)

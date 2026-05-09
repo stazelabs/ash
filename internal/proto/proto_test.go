@@ -198,3 +198,71 @@ func TestPrettyRequest_Deterministic(t *testing.T) {
 		t.Errorf("expected ash read prefix, got %q", a)
 	}
 }
+
+func TestPrettyRequestArgv(t *testing.T) {
+	cases := []struct {
+		name string
+		argv []string
+		want string
+	}{
+		{"empty", nil, "ash"},
+		{"verb only", []string{"help"}, "ash help"},
+		{"flag form", []string{"read", "--path", "foo.go"}, "ash read --path foo.go"},
+		{"positional", []string{"read", "foo.go"}, "ash read foo.go"},
+		{"two positionals", []string{"grep", "TODO", "."}, "ash grep TODO ."},
+		{"format flag preserved", []string{"read", "--format", "json", "f.go"}, "ash read --format json f.go"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := PrettyRequestArgv(tc.argv)
+			if got != tc.want {
+				t.Errorf("PrettyRequestArgv(%q) = %q, want %q", tc.argv, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRequest_ArgvRoundTrip(t *testing.T) {
+	// Argv must survive msgpack encode/decode so the daemon can tokenize
+	// the literal client argv.
+	in := &Request{
+		V:    ProtocolVersion,
+		ID:   42,
+		Verb: "grep",
+		Args: map[string]any{"pattern": "TODO", "path": "."},
+		Argv: []string{"grep", "TODO", "."},
+	}
+	buf, err := EncodeRequest(in)
+	if err != nil {
+		t.Fatalf("EncodeRequest: %v", err)
+	}
+	out, err := DecodeRequest(buf)
+	if err != nil {
+		t.Fatalf("DecodeRequest: %v", err)
+	}
+	if len(out.Argv) != 3 {
+		t.Fatalf("Argv length: got %d, want 3 (%v)", len(out.Argv), out.Argv)
+	}
+	for i, want := range in.Argv {
+		if out.Argv[i] != want {
+			t.Errorf("Argv[%d] = %q, want %q", i, out.Argv[i], want)
+		}
+	}
+}
+
+func TestRequest_ArgvOmittedWhenEmpty(t *testing.T) {
+	// Backward compat: clients that don't ship Argv must still produce
+	// a well-formed request the daemon can decode.
+	in := &Request{V: ProtocolVersion, ID: 1, Verb: "help", Args: map[string]any{}}
+	buf, err := EncodeRequest(in)
+	if err != nil {
+		t.Fatalf("EncodeRequest: %v", err)
+	}
+	out, err := DecodeRequest(buf)
+	if err != nil {
+		t.Fatalf("DecodeRequest: %v", err)
+	}
+	if len(out.Argv) != 0 {
+		t.Errorf("expected empty Argv on decode of legacy request, got %v", out.Argv)
+	}
+}

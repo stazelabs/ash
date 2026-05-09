@@ -25,6 +25,13 @@ type Request struct {
 	ID   uint64         `msgpack:"id"   json:"id"`
 	Verb string         `msgpack:"verb" json:"verb"`
 	Args map[string]any `msgpack:"args" json:"args"`
+	// Argv is the literal client argv after the binary name (verb plus
+	// every flag/value/positional the agent typed, before --format
+	// stripping or stdin resolution). When present the daemon tokenizes
+	// this as `tokens_in` so the meter reflects what the agent typed
+	// rather than the post-parse canonical form. Optional for backward
+	// compatibility: when absent the daemon falls back to PrettyRequest.
+	Argv []string `msgpack:"argv,omitempty" json:"argv,omitempty"`
 }
 
 type Response struct {
