@@ -275,6 +275,37 @@ func TestPrettyResponse_withErrors(t *testing.T) {
 	}
 }
 
+func TestPrettyResponse_LeanDefaultDropsMtimeAndMode(t *testing.T) {
+	filePath, _, _ := makeFixture(t)
+	res, _ := Run(&Args{Paths: []string{filePath}}, nil)
+	rsp := &proto.Response{OK: true, Data: res}
+	out := PrettyResponse(&proto.Request{Verb: "stat", Args: map[string]any{}}, rsp)
+	// Mode "0644" must not appear in lean rows (it would in full).
+	if strings.Contains(out, "0644") {
+		t.Errorf("lean rows must omit mode 0644:\n%s", out)
+	}
+	// Mtime renders as RFC3339Z; the trailing T<digits>:<digits>:<digits>Z
+	// substring is enough to catch it.
+	if strings.Contains(out, "Z\n") || strings.Contains(out, "Z ") {
+		t.Errorf("lean rows must omit mtime:\n%s", out)
+	}
+	// Type marker still present.
+	if !strings.Contains(out, "F ") {
+		t.Errorf("expected file type marker:\n%s", out)
+	}
+}
+
+func TestPrettyResponse_WithMetaIncludesMtimeAndMode(t *testing.T) {
+	filePath, _, _ := makeFixture(t)
+	res, _ := Run(&Args{Paths: []string{filePath}}, nil)
+	rsp := &proto.Response{OK: true, Data: res}
+	req := &proto.Request{Verb: "stat", Args: map[string]any{"with_meta": "true"}}
+	out := PrettyResponse(req, rsp)
+	if !strings.Contains(out, "0644") {
+		t.Errorf("with_meta must include mode 0644:\n%s", out)
+	}
+}
+
 func TestDecodeResult_roundtrip(t *testing.T) {
 	filePath, dirPath, _ := makeFixture(t)
 	typed, _ := Run(&Args{Paths: []string{filePath, dirPath}}, nil)

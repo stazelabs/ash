@@ -152,6 +152,17 @@ func statOne(path string, followSymlinks bool) Entry {
 }
 
 // PrettyResponse renders the stat response in a tabular line-per-entry form.
+//
+// Default ("lean") row: `<F|D|L> <size> <path>` (~5 tokens/row). Mode and
+// mtime are dropped — the mtime alone tokenizes as ~9 tokens because
+// cl100k splits on every digit/colon, so on bulk stat output the time
+// column is the dominant cost. `link_target` for symlinks stays in both
+// forms.
+//
+// `--with_meta true` re-adds mode and mtime: `<F|D|L> <size> <mode>
+// <mtime> <path>` (~14 tokens/row, the form before this opt-in).
+//
+// Wire data (Mtime, Mode) is unchanged — only the rendering changes.
 func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)
@@ -159,6 +170,14 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	r, ok := decodeResult(rsp.Data)
 	if !ok {
 		return "ok\n<unrecognized stat result>"
+	}
+	withMeta := false
+	if req != nil {
+		if v, ok := req.Args["with_meta"]; ok {
+			if b, ok := argutil.ToBool(v); ok {
+				withMeta = b
+			}
+		}
 	}
 	var b strings.Builder
 	header := fmt.Sprintf("=== ash stat: %d path(s)", r.Count)
@@ -169,14 +188,14 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	b.WriteString(header)
 	b.WriteByte('\n')
 	for _, e := range r.Entries {
-		writeEntry(&b, e)
+		writeEntry(&b, e, withMeta)
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
 
-func writeEntry(b *strings.Builder, e Entry) {
+func writeEntry(b *strings.Builder, e Entry, withMeta bool) {
 	if e.Error != "" {
-		fmt.Fprintf(b, "? %-10s %-4s %-20s %s [%s]\n", "-", "-", "-", e.Path, e.Error)
+		fmt.Fprintf(b, "? - %s [%s]\n", e.Path, e.Error)
 		return
 	}
 	typeChar := "F"
@@ -190,11 +209,19 @@ func writeEntry(b *strings.Builder, e Entry) {
 	if e.Type == "file" {
 		sizeStr = fmt.Sprintf("%d", e.Size)
 	}
-	mtime := time.Unix(0, e.Mtime).UTC().Format("2006-01-02T15:04:05Z")
+	if withMeta {
+		mtime := time.Unix(0, e.Mtime).UTC().Format("2006-01-02T15:04:05Z")
+		if e.LinkTarget != "" {
+			fmt.Fprintf(b, "%s %-10s %s %s %s -> %s\n", typeChar, sizeStr, e.Mode, mtime, e.Path, e.LinkTarget)
+		} else {
+			fmt.Fprintf(b, "%s %-10s %s %s %s\n", typeChar, sizeStr, e.Mode, mtime, e.Path)
+		}
+		return
+	}
 	if e.LinkTarget != "" {
-		fmt.Fprintf(b, "%s %-10s %s %s %s -> %s\n", typeChar, sizeStr, e.Mode, mtime, e.Path, e.LinkTarget)
+		fmt.Fprintf(b, "%s %s %s -> %s\n", typeChar, sizeStr, e.Path, e.LinkTarget)
 	} else {
-		fmt.Fprintf(b, "%s %-10s %s %s %s\n", typeChar, sizeStr, e.Mode, mtime, e.Path)
+		fmt.Fprintf(b, "%s %s %s\n", typeChar, sizeStr, e.Path)
 	}
 }
 

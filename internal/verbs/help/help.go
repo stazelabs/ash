@@ -169,6 +169,7 @@ var registry = []VerbSchema{
 			{Name: "paths", Type: "string", Description: "Comma-separated list of paths to inspect (e.g. 'cmd/ash/main.go,internal/'). One of --paths or --path is required."},
 			{Name: "path", Type: "string", Description: "Single-path alias for --paths (e.g. --path cmd/ash/main.go). One of --paths or --path is required."},
 			{Name: "follow_symlinks", Type: "bool", Default: "false", Description: "When true, resolve each symlink with os.Stat and report the target's type/size/mtime/mode. link_target is preserved for traceability. Broken symlinks produce error=broken_symlink rather than failing the call."},
+			{Name: "with_meta", Type: "bool", Default: "false", Description: "When true the pretty rows include mode + mtime: `<F|D|L> <size> <mode> <mtime> <path>`. Default lean rows are `<F|D|L> <size> <path>`. Wire data always carries mode + mtime."},
 		},
 	},
 	{
