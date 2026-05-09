@@ -9,7 +9,6 @@ import (
 
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/runner"
-	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
 
 const (
@@ -208,65 +207,4 @@ func prettyLog(l *LogResult) string {
 		b.WriteString("]")
 	}
 	return strings.TrimRight(b.String(), "\n")
-}
-
-func decodeLog(m map[string]any) *LogResult {
-	l := &LogResult{}
-	if raw, ok := m["commits"].([]any); ok {
-		for _, x := range raw {
-			cm, ok := x.(map[string]any)
-			if !ok {
-				continue
-			}
-			c := Commit{}
-			if v, ok := cm["sha"].(string); ok {
-				c.SHA = v
-			}
-			if v, ok := cm["short_sha"].(string); ok {
-				c.ShortSHA = v
-			}
-			if v, ok := cm["author_name"].(string); ok {
-				c.AuthorName = v
-			}
-			if v, ok := cm["author_email"].(string); ok {
-				c.AuthorEmail = v
-			}
-			if v, ok := argutil.ToInt64(cm["author_time"]); ok {
-				c.AuthorTime = v
-			}
-			if v, ok := cm["committer_name"].(string); ok {
-				c.CommitterName = v
-			}
-			if v, ok := cm["committer_email"].(string); ok {
-				c.CommitterEmail = v
-			}
-			if v, ok := argutil.ToInt64(cm["committer_time"]); ok {
-				c.CommitterTime = v
-			}
-			if v, ok := cm["subject"].(string); ok {
-				c.Subject = v
-			}
-			if v, ok := cm["body"].(string); ok {
-				c.Body = v
-			}
-			if raw, ok := cm["parents"].([]any); ok {
-				for _, x := range raw {
-					if s, ok := x.(string); ok {
-						c.Parents = append(c.Parents, s)
-					}
-				}
-			}
-			l.Commits = append(l.Commits, c)
-		}
-	}
-	if v, ok := argutil.ToInt(m["count"]); ok {
-		l.Count = v
-	}
-	if v, ok := m["truncated"].(bool); ok {
-		l.Truncated = v
-	}
-	if v, ok := m["truncation_hint"].(string); ok {
-		l.TruncationHint = v
-	}
-	return l
 }

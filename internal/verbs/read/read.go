@@ -214,8 +214,8 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)
 	}
-	r, ok := decodeResult(rsp.Data)
-	if !ok {
+	var r Result
+	if err := proto.UnmarshalData(rsp, &r); err != nil {
 		return "ok\n<unrecognized read result>"
 	}
 	withMeta := false
@@ -263,41 +263,3 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	return b.String()
 }
 // pointer or the loosely-decoded msgpack map a client receives over the wire.
-func decodeResult(data any) (*Result, bool) {
-	if r, ok := data.(*Result); ok {
-		return r, true
-	}
-	m, ok := data.(map[string]any)
-	if !ok {
-		return nil, false
-	}
-	r := &Result{}
-	if v, ok := m["path"].(string); ok {
-		r.Path = v
-	}
-	if v, ok := m["content"].(string); ok {
-		r.Content = v
-	}
-	if v, ok := m["encoding"].(string); ok {
-		r.Encoding = v
-	}
-	if v, ok := argutil.ToInt64(m["size"]); ok {
-		r.Size = v
-	}
-	if v, ok := argutil.ToInt64(m["mtime"]); ok {
-		r.Mtime = v
-	}
-	if v, ok := argutil.ToInt(m["lines"]); ok {
-		r.Lines = v
-	}
-	if v, ok := m["range_returned"].(string); ok {
-		r.RangeReturned = v
-	}
-	if v, ok := m["truncated"].(bool); ok {
-		r.Truncated = v
-	}
-	if v, ok := m["truncation_hint"].(string); ok {
-		r.TruncationHint = v
-	}
-	return r, true
-}

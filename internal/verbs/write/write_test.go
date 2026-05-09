@@ -235,5 +235,5 @@ func TestPrettyResponse_Overwritten(t *testing.T) {
 // -- helpers --------------------------------------------------------------
 
 func okResponse(r *Result) *proto.Response {
-	return &proto.Response{OK: true, Data: r}
+	return &proto.Response{OK: true, Data: proto.MustData(r)}
 }

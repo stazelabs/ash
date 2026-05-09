@@ -252,7 +252,7 @@ func TestRun_bulk_mixed(t *testing.T) {
 func TestPrettyResponse_ok(t *testing.T) {
 	filePath, _, _ := makeFixture(t)
 	res, _ := Run(&Args{Paths: []string{filePath}}, nil)
-	rsp := &proto.Response{OK: true, Data: res}
+	rsp := &proto.Response{OK: true, Data: proto.MustData(res)}
 	out := PrettyResponse(nil, rsp)
 	if !strings.Contains(out, "ash stat: 1 path(s)") {
 		t.Errorf("unexpected header: %q", out)
@@ -265,7 +265,7 @@ func TestPrettyResponse_ok(t *testing.T) {
 func TestPrettyResponse_withErrors(t *testing.T) {
 	root := t.TempDir()
 	res, _ := Run(&Args{Paths: []string{filepath.Join(root, "ghost")}}, nil)
-	rsp := &proto.Response{OK: true, Data: res}
+	rsp := &proto.Response{OK: true, Data: proto.MustData(res)}
 	out := PrettyResponse(nil, rsp)
 	if !strings.Contains(out, "1 error(s)") {
 		t.Errorf("expected error count in header: %q", out)
@@ -278,7 +278,7 @@ func TestPrettyResponse_withErrors(t *testing.T) {
 func TestPrettyResponse_LeanDefaultDropsMtimeAndMode(t *testing.T) {
 	filePath, _, _ := makeFixture(t)
 	res, _ := Run(&Args{Paths: []string{filePath}}, nil)
-	rsp := &proto.Response{OK: true, Data: res}
+	rsp := &proto.Response{OK: true, Data: proto.MustData(res)}
 	out := PrettyResponse(&proto.Request{Verb: "stat", Args: map[string]any{}}, rsp)
 	// Mode "0644" must not appear in lean rows (it would in full).
 	if strings.Contains(out, "0644") {
@@ -298,7 +298,7 @@ func TestPrettyResponse_LeanDefaultDropsMtimeAndMode(t *testing.T) {
 func TestPrettyResponse_WithMetaIncludesMtimeAndMode(t *testing.T) {
 	filePath, _, _ := makeFixture(t)
 	res, _ := Run(&Args{Paths: []string{filePath}}, nil)
-	rsp := &proto.Response{OK: true, Data: res}
+	rsp := &proto.Response{OK: true, Data: proto.MustData(res)}
 	req := &proto.Request{Verb: "stat", Args: map[string]any{"with_meta": "true"}}
 	out := PrettyResponse(req, rsp)
 	if !strings.Contains(out, "0644") {
@@ -306,41 +306,3 @@ func TestPrettyResponse_WithMetaIncludesMtimeAndMode(t *testing.T) {
 	}
 }
 
-func TestDecodeResult_roundtrip(t *testing.T) {
-	filePath, dirPath, _ := makeFixture(t)
-	typed, _ := Run(&Args{Paths: []string{filePath, dirPath}}, nil)
-
-	// Simulate the msgpack loose-decode path (map[string]any).
-	asMap := map[string]any{
-		"count":  typed.Count,
-		"errors": typed.Errors,
-		"entries": []any{
-			map[string]any{
-				"path":  typed.Entries[0].Path,
-				"type":  typed.Entries[0].Type,
-				"size":  typed.Entries[0].Size,
-				"mtime": typed.Entries[0].Mtime,
-				"mode":  typed.Entries[0].Mode,
-			},
-			map[string]any{
-				"path":  typed.Entries[1].Path,
-				"type":  typed.Entries[1].Type,
-				"mtime": typed.Entries[1].Mtime,
-				"mode":  typed.Entries[1].Mode,
-			},
-		},
-	}
-	decoded, ok := decodeResult(asMap)
-	if !ok {
-		t.Fatal("decodeResult returned !ok")
-	}
-	if decoded.Count != 2 {
-		t.Errorf("want count=2, got %d", decoded.Count)
-	}
-	if decoded.Entries[0].Type != "file" {
-		t.Errorf("first entry type: want file, got %q", decoded.Entries[0].Type)
-	}
-	if decoded.Entries[1].Type != "dir" {
-		t.Errorf("second entry type: want dir, got %q", decoded.Entries[1].Type)
-	}
-}

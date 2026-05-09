@@ -521,8 +521,8 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)
 	}
-	r, ok := decodeResult(rsp.Data)
-	if !ok {
+	var r Result
+	if err := proto.UnmarshalData(rsp, &r); err != nil {
 		return "ok\n<unrecognized edit result>"
 	}
 
@@ -575,34 +575,4 @@ func hunkLabel(n int) string {
 		return "1 hunk"
 	}
 	return fmt.Sprintf("%d hunks", n)
-}
-
-func decodeResult(data any) (*Result, bool) {
-	if r, ok := data.(*Result); ok {
-		return r, true
-	}
-	m, ok := data.(map[string]any)
-	if !ok {
-		return nil, false
-	}
-	r := &Result{}
-	if v, ok := m["path"].(string); ok {
-		r.Path = v
-	}
-	if v, ok := argutil.ToInt(m["bytes_written"]); ok {
-		r.BytesWritten = v
-	}
-	if v, ok := argutil.ToInt(m["lines_total"]); ok {
-		r.LinesTotal = v
-	}
-	if v, ok := argutil.ToInt(m["occurrences"]); ok {
-		r.Occurrences = v
-	}
-	if v, ok := m["dry_run"].(bool); ok {
-		r.DryRun = v
-	}
-	if v, ok := m["patch"].(string); ok {
-		r.Patch = v
-	}
-	return r, true
 }

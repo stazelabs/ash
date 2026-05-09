@@ -268,8 +268,8 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)
 	}
-	r, ok := decodeResult(rsp.Data)
-	if !ok {
+	var r Result
+	if err := proto.UnmarshalData(rsp, &r); err != nil {
 		return "ok\n<unrecognized help result>"
 	}
 	var b strings.Builder
@@ -303,71 +303,4 @@ func writeArg(b *strings.Builder, a ArgSchema) {
 		fmt.Fprintf(b, " [%s]", strings.Join(a.Values, "|"))
 	}
 	b.WriteByte('\n')
-}
-
-func decodeResult(data any) (*Result, bool) {
-	if r, ok := data.(*Result); ok {
-		return r, true
-	}
-	m, ok := data.(map[string]any)
-	if !ok {
-		return nil, false
-	}
-	r := &Result{}
-	if raw, ok := m["verbs"].([]any); ok {
-		for _, x := range raw {
-			vm, ok := x.(map[string]any)
-			if !ok {
-				continue
-			}
-			vs := VerbSchema{}
-			if v, ok := vm["verb"].(string); ok {
-				vs.Verb = v
-			}
-			if v, ok := vm["description"].(string); ok {
-				vs.Description = v
-			}
-			if args, ok := vm["args"].([]any); ok {
-				for _, ax := range args {
-					am, ok := ax.(map[string]any)
-					if !ok {
-						continue
-					}
-					arg := ArgSchema{}
-					if v, ok := am["name"].(string); ok {
-						arg.Name = v
-					}
-					if v, ok := am["type"].(string); ok {
-						arg.Type = v
-					}
-					if v, ok := am["required"].(bool); ok {
-						arg.Required = v
-					}
-					if v, ok := am["default"].(string); ok {
-						arg.Default = v
-					}
-					if v, ok := am["description"].(string); ok {
-						arg.Description = v
-					}
-					if vals, ok := am["values"].([]any); ok {
-						for _, val := range vals {
-							if s, ok := val.(string); ok {
-								arg.Values = append(arg.Values, s)
-							}
-						}
-					}
-					vs.Args = append(vs.Args, arg)
-				}
-			}
-			r.Verbs = append(r.Verbs, vs)
-		}
-	}
-	if v, ok := m["count"].(int); ok {
-		r.Count = v
-	} else if v, ok := m["count"].(int64); ok {
-		r.Count = int(v)
-	} else if v, ok := m["count"].(uint64); ok {
-		r.Count = int(v)
-	}
-	return r, true
 }

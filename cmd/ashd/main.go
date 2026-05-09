@@ -114,6 +114,10 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 		tracer := &proto.Tracer{}
 		runner, ok := runners[req.Verb]
 		var dispatchUs int64
+		// typedData holds the verb's in-process result for the truncation
+		// check and pretty rendering. The wire response carries the
+		// already-encoded RawMessage in rsp.Data.
+		var typedData any
 		if !ok {
 			rsp.OK = false
 			rsp.Err = &proto.Error{Code: "unknown_verb", Msg: "unknown verb: " + req.Verb}
@@ -125,7 +129,8 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 				rsp.Err = perr
 			} else {
 				rsp.OK = true
-				rsp.Data = data
+				typedData = data
+				rsp.Data = proto.MustData(data)
 			}
 		}
 		execUs := time.Since(execStart).Microseconds()
@@ -165,7 +170,7 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 			TokensMethod:       ledger.TokensMethod,
 			BytesIn:            len(reqBuf),
 			BytesOut:           0,
-			Truncated:          truncatedFromResult(rsp, runners[req.Verb]),
+			Truncated:          truncatedFromTyped(rsp, runners[req.Verb], typedData),
 		}
 		// Phases is attached only when the verb actually instrumented
 		// something. Verbs that don't (help, metrics) leave it nil so the
@@ -230,11 +235,11 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 	}
 }
 
-func truncatedFromResult(rsp *proto.Response, runner verbs.Runner) bool {
-	if !rsp.OK || rsp.Data == nil || runner.Truncated == nil {
+func truncatedFromTyped(rsp *proto.Response, runner verbs.Runner, typedData any) bool {
+	if !rsp.OK || typedData == nil || runner.Truncated == nil {
 		return false
 	}
-	return runner.Truncated(rsp.Data)
+	return runner.Truncated(typedData)
 }
 
 // argsMaxStrBytes is the per-value cap for string args stored in the ledger.

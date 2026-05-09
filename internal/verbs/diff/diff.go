@@ -143,8 +143,8 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)
 	}
-	r, ok := decodeResult(rsp.Data)
-	if !ok {
+	var r Result
+	if err := proto.UnmarshalData(rsp, &r); err != nil {
 		return "ok\n<unrecognized diff result>"
 	}
 	if r.Unchanged {
@@ -155,34 +155,4 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	}
 	header := fmt.Sprintf("=== ash diff: %s vs %s [+%d -%d] ===\n", r.PathA, r.PathB, r.Additions, r.Deletions)
 	return header + r.Patch
-}
-
-func decodeResult(data any) (*Result, bool) {
-	if r, ok := data.(*Result); ok {
-		return r, true
-	}
-	m, ok := data.(map[string]any)
-	if !ok {
-		return nil, false
-	}
-	r := &Result{}
-	if v, ok := m["path_a"].(string); ok {
-		r.PathA = v
-	}
-	if v, ok := m["path_b"].(string); ok {
-		r.PathB = v
-	}
-	if v, ok := argutil.ToInt(m["additions"]); ok {
-		r.Additions = v
-	}
-	if v, ok := argutil.ToInt(m["deletions"]); ok {
-		r.Deletions = v
-	}
-	if v, ok := m["patch"].(string); ok {
-		r.Patch = v
-	}
-	if v, ok := m["unchanged"].(bool); ok {
-		r.Unchanged = v
-	}
-	return r, true
 }

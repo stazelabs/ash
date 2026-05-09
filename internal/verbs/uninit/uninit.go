@@ -222,8 +222,8 @@ func PrettyResponse(_ *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)
 	}
-	r, ok := decodeResult(rsp.Data)
-	if !ok {
+	var r Result
+	if err := proto.UnmarshalData(rsp, &r); err != nil {
 		return "ok\n<unrecognized uninit result>"
 	}
 	var b strings.Builder
@@ -247,38 +247,4 @@ func yesNo(b bool) string {
 		return "updated"
 	}
 	return "unchanged"
-}
-
-func decodeResult(data any) (*Result, bool) {
-	if r, ok := data.(*Result); ok {
-		return r, true
-	}
-	m, ok := data.(map[string]any)
-	if !ok {
-		return nil, false
-	}
-	r := &Result{}
-	if v, ok := m["path"].(string); ok {
-		r.Path = v
-	}
-	if v, ok := m["settings_written"].(bool); ok {
-		r.SettingsWritten = v
-	}
-	if v, ok := m["gitignore_updated"].(bool); ok {
-		r.GitignoreUpdated = v
-	}
-	if v, ok := m["registry_updated"].(bool); ok {
-		r.RegistryUpdated = v
-	}
-	if v, ok := m["not_installed"].(bool); ok {
-		r.NotInstalled = v
-	}
-	if raw, ok := m["warnings"].([]any); ok {
-		for _, w := range raw {
-			if s, ok := w.(string); ok {
-				r.Warnings = append(r.Warnings, s)
-			}
-		}
-	}
-	return r, true
 }

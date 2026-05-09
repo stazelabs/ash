@@ -9,7 +9,6 @@ import (
 
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/runner"
-	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
 
 // StatusResult mirrors `git status --porcelain=v2 --branch`, with the
@@ -264,79 +263,4 @@ func writeChanges(b *strings.Builder, fs []FileChange) {
 		}
 		b.WriteByte('\n')
 	}
-}
-
-func decodeStatus(m map[string]any) *StatusResult {
-	s := &StatusResult{}
-	if v, ok := m["head"].(string); ok {
-		s.Head = v
-	}
-	if v, ok := m["branch"].(string); ok {
-		s.Branch = v
-	}
-	if v, ok := m["upstream"].(string); ok {
-		s.Upstream = v
-	}
-	if v, ok := argutil.ToInt(m["ahead"]); ok {
-		s.Ahead = v
-	}
-	if v, ok := argutil.ToInt(m["behind"]); ok {
-		s.Behind = v
-	}
-	if v, ok := m["detached"].(bool); ok {
-		s.Detached = v
-	}
-	if v, ok := m["initial"].(bool); ok {
-		s.Initial = v
-	}
-	if v, ok := m["clean"].(bool); ok {
-		s.Clean = v
-	}
-	if raw, ok := m["staged"].([]any); ok {
-		s.Staged = decodeChanges(raw)
-	}
-	if raw, ok := m["unstaged"].([]any); ok {
-		s.Unstaged = decodeChanges(raw)
-	}
-	for _, key := range []string{"untracked", "ignored", "conflicts"} {
-		if raw, ok := m[key].([]any); ok {
-			out := make([]string, 0, len(raw))
-			for _, x := range raw {
-				if str, ok := x.(string); ok {
-					out = append(out, str)
-				}
-			}
-			switch key {
-			case "untracked":
-				s.Untracked = out
-			case "ignored":
-				s.Ignored = out
-			case "conflicts":
-				s.Conflicts = out
-			}
-		}
-	}
-	return s
-}
-
-func decodeChanges(raw []any) []FileChange {
-	out := make([]FileChange, 0, len(raw))
-	for _, x := range raw {
-		m, ok := x.(map[string]any)
-		if !ok {
-			continue
-		}
-		c := FileChange{}
-		if v, ok := m["path"].(string); ok {
-			c.Path = v
-		}
-		if v, ok := m["status"].(string); ok {
-			c.Status = v
-		}
-		if v, ok := m["old_path"].(string); ok {
-			c.OldPath = v
-		}
-		out = append(out, c)
-	}
-	return out
 }

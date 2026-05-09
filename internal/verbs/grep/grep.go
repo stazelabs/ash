@@ -517,8 +517,8 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)
 	}
-	r, ok := decodeResult(rsp.Data)
-	if !ok {
+	var r Result
+	if err := proto.UnmarshalData(rsp, &r); err != nil {
 		return "ok\n<unrecognized grep result>"
 	}
 	var b strings.Builder
@@ -528,7 +528,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		// Files-only header
 		if v, ok := req.Args["files_only"]; ok {
 			if got, ok := argutil.ToBool(v); ok && got {
-				return prettyFilesOnly(req, r)
+				return prettyFilesOnly(req, &r)
 			}
 		}
 		if v, ok := req.Args["no_text"]; ok {
@@ -544,7 +544,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		b.WriteString(" TRUNCATED")
 	}
 	b.WriteString(" ===\n")
-	writeSkippedSummary(&b, r)
+	writeSkippedSummary(&b, &r)
 
 	// Group records by path, preserving insertion order.
 	curPath := ""
@@ -680,72 +680,3 @@ func scopeFromArgs(req *proto.Request) string {
 	}
 	return strings.Join(parts, ", ")
 }
-
-func decodeResult(data any) (*Result, bool) {
-	if r, ok := data.(*Result); ok {
-		return r, true
-	}
-	m, ok := data.(map[string]any)
-	if !ok {
-		return nil, false
-	}
-	r := &Result{}
-	if recs, ok := m["matches"].([]any); ok {
-		for _, x := range recs {
-			rm, ok := x.(map[string]any)
-			if !ok {
-				continue
-			}
-			rec := Match{}
-			if v, ok := rm["path"].(string); ok {
-				rec.Path = v
-			}
-			if v, ok := argutil.ToInt(rm["line"]); ok {
-				rec.Line = v
-			}
-			if v, ok := argutil.ToInt(rm["col"]); ok {
-				rec.Col = v
-			}
-			if v, ok := rm["text"].(string); ok {
-				rec.Text = v
-			}
-			if v, ok := rm["kind"].(string); ok {
-				rec.Kind = v
-			}
-			r.Matches = append(r.Matches, rec)
-		}
-	}
-	if files, ok := m["files"].([]any); ok {
-		for _, x := range files {
-			if s, ok := x.(string); ok {
-				r.Files = append(r.Files, s)
-			}
-		}
-	}
-	if v, ok := argutil.ToInt(m["count"]); ok {
-		r.Count = v
-	}
-	if v, ok := argutil.ToInt(m["match_count"]); ok {
-		r.MatchCount = v
-	}
-	if v, ok := argutil.ToInt(m["file_count"]); ok {
-		r.FileCount = v
-	}
-	if v, ok := argutil.ToInt(m["files_scanned"]); ok {
-		r.FilesScanned = v
-	}
-	if v, ok := argutil.ToInt(m["files_skipped_binary"]); ok {
-		r.FilesSkippedBinary = v
-	}
-	if v, ok := argutil.ToInt(m["files_skipped_large"]); ok {
-		r.FilesSkippedLarge = v
-	}
-	if v, ok := m["truncated"].(bool); ok {
-		r.Truncated = v
-	}
-	if v, ok := m["truncation_hint"].(string); ok {
-		r.TruncationHint = v
-	}
-	return r, true
-}
-

@@ -168,7 +168,7 @@ func runCase(d Deps, c bench.Case) (CaseResult, bool, string) {
 		row.AshErr = perr.Code
 	} else {
 		rsp.OK = true
-		rsp.Data = data
+		rsp.Data = proto.MustData(data)
 		row.AshOK = true
 	}
 	prettyAsh := d.Pretty(c.Verb, req, rsp)
@@ -235,8 +235,8 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)
 	}
-	r, ok := decodeResult(rsp.Data)
-	if !ok {
+	var r Result
+	if err := proto.UnmarshalData(rsp, &r); err != nil {
 		return "ok\n<unrecognized bench result>"
 	}
 
@@ -338,123 +338,3 @@ func truncStr(s string, n int) string {
 	return s[:n-1] + "…"
 }
 
-func decodeResult(data any) (*Result, bool) {
-	if r, ok := data.(*Result); ok {
-		return r, true
-	}
-	m, ok := data.(map[string]any)
-	if !ok {
-		return nil, false
-	}
-	r := &Result{NotRunWhy: map[string]string{}}
-	if raw, ok := m["cases"].([]any); ok {
-		for _, x := range raw {
-			rm, ok := x.(map[string]any)
-			if !ok {
-				continue
-			}
-			cr := decodeCase(rm)
-			r.Cases = append(r.Cases, cr)
-		}
-	}
-	if raw, ok := m["by_verb"].([]any); ok {
-		for _, x := range raw {
-			vm, ok := x.(map[string]any)
-			if !ok {
-				continue
-			}
-			r.ByVerb = append(r.ByVerb, decodeSummary(vm))
-		}
-	}
-	if om, ok := m["overall"].(map[string]any); ok {
-		r.Overall = decodeSummary(om)
-	}
-	if raw, ok := m["not_run"].([]any); ok {
-		for _, x := range raw {
-			if s, ok := x.(string); ok {
-				r.NotRun = append(r.NotRun, s)
-			}
-		}
-	}
-	if wm, ok := m["not_run_why"].(map[string]any); ok {
-		for k, v := range wm {
-			if s, ok := v.(string); ok {
-				r.NotRunWhy[k] = s
-			}
-		}
-	}
-	return r, true
-}
-
-func decodeCase(rm map[string]any) CaseResult {
-	cr := CaseResult{}
-	if v, ok := rm["name"].(string); ok {
-		cr.Name = v
-	}
-	if v, ok := rm["verb"].(string); ok {
-		cr.Verb = v
-	}
-	if v, ok := rm["why"].(string); ok {
-		cr.Why = v
-	}
-	if v, ok := argutil.ToInt(rm["ash_tokens"]); ok {
-		cr.AshTokens = v
-	}
-	if v, ok := argutil.ToInt(rm["bash_tokens"]); ok {
-		cr.BashTokens = v
-	}
-	if v, ok := argutil.ToInt64(rm["ash_latency_us"]); ok {
-		cr.AshLatencyUs = v
-	}
-	if v, ok := argutil.ToInt64(rm["bash_latency_us"]); ok {
-		cr.BashLatencyUs = v
-	}
-	if v, ok := argutil.ToInt(rm["ash_bytes"]); ok {
-		cr.AshBytes = v
-	}
-	if v, ok := argutil.ToInt(rm["bash_bytes"]); ok {
-		cr.BashBytes = v
-	}
-	if v, ok := rm["ash_ok"].(bool); ok {
-		cr.AshOK = v
-	}
-	if v, ok := rm["ash_err"].(string); ok {
-		cr.AshErr = v
-	}
-	if v, ok := rm["bash_cmd"].(string); ok {
-		cr.BashCmd = v
-	}
-	if v, ok := argutil.ToInt(rm["bash_exit"]); ok {
-		cr.BashExit = v
-	}
-	if v, ok := rm["bash_run_err"].(string); ok {
-		cr.BashRunErr = v
-	}
-	if v, ok := rm["bash_truncated"].(bool); ok {
-		cr.BashTruncated = v
-	}
-	return cr
-}
-
-func decodeSummary(m map[string]any) VerbSummary {
-	s := VerbSummary{}
-	if v, ok := m["verb"].(string); ok {
-		s.Verb = v
-	}
-	if v, ok := argutil.ToInt(m["cases"]); ok {
-		s.Cases = v
-	}
-	if v, ok := argutil.ToInt(m["ash_tokens_total"]); ok {
-		s.AshTokensTotal = v
-	}
-	if v, ok := argutil.ToInt(m["bash_tokens_total"]); ok {
-		s.BashTokensTotal = v
-	}
-	if v, ok := argutil.ToInt64(m["ash_latency_us_total"]); ok {
-		s.AshLatencyUsTotal = v
-	}
-	if v, ok := argutil.ToInt64(m["bash_latency_us_total"]); ok {
-		s.BashLatencyUsTotal = v
-	}
-	return s
-}

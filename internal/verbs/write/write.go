@@ -126,8 +126,8 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)
 	}
-	r, ok := decodeResult(rsp.Data)
-	if !ok {
+	var r Result
+	if err := proto.UnmarshalData(rsp, &r); err != nil {
 		return "ok\n<unrecognized write result>"
 	}
 	verb := "overwritten"
@@ -136,25 +136,3 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	}
 	return fmt.Sprintf("=== ash write: %s [%dB, %s] ===", r.Path, r.BytesWritten, verb)
 }
-
-func decodeResult(data any) (*Result, bool) {
-	if r, ok := data.(*Result); ok {
-		return r, true
-	}
-	m, ok := data.(map[string]any)
-	if !ok {
-		return nil, false
-	}
-	r := &Result{}
-	if v, ok := m["path"].(string); ok {
-		r.Path = v
-	}
-	if v, ok := argutil.ToInt(m["bytes_written"]); ok {
-		r.BytesWritten = v
-	}
-	if v, ok := m["created"].(bool); ok {
-		r.Created = v
-	}
-	return r, true
-}
-

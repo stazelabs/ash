@@ -175,8 +175,8 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)
 	}
-	r, ok := decodeResult(rsp.Data)
-	if !ok {
+	var r Result
+	if err := proto.UnmarshalData(rsp, &r); err != nil {
 		return "ok\n<unrecognized git result>"
 	}
 	switch r.Op {
@@ -192,31 +192,3 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		return "ok\n<unknown git op: " + r.Op + ">"
 	}
 }
-
-func decodeResult(data any) (*Result, bool) {
-	if r, ok := data.(*Result); ok {
-		return r, true
-	}
-	m, ok := data.(map[string]any)
-	if !ok {
-		return nil, false
-	}
-	r := &Result{}
-	if v, ok := m["op"].(string); ok {
-		r.Op = v
-	}
-	if sm, ok := m["status"].(map[string]any); ok {
-		r.Status = decodeStatus(sm)
-	}
-	if lm, ok := m["log"].(map[string]any); ok {
-		r.Log = decodeLog(lm)
-	}
-	if dm, ok := m["diff"].(map[string]any); ok {
-		r.Diff = decodeDiff(dm)
-	}
-	if sm, ok := m["show"].(map[string]any); ok {
-		r.Show = decodeShow(sm)
-	}
-	return r, true
-}
-

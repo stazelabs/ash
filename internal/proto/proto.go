@@ -34,13 +34,19 @@ type Request struct {
 	Argv []string `msgpack:"argv,omitempty" json:"argv,omitempty"`
 }
 
+// Response carries the verb result back to the client. Data is
+// msgpack.RawMessage rather than `any` so the verb's typed Result is
+// encoded once on the daemon side and decoded straight into the typed
+// struct on the client side via msgpack.Unmarshal — no per-verb
+// hand-rolled `map[string]any` walker. Use MustData / UnmarshalData to
+// move between typed values and RawMessage.
 type Response struct {
-	V       int      `msgpack:"v"                json:"v"`
-	ID      uint64   `msgpack:"id"               json:"id"`
-	OK      bool     `msgpack:"ok"               json:"ok"`
-	Data    any      `msgpack:"data,omitempty"    json:"data,omitempty"`
-	Err     *Error   `msgpack:"err,omitempty"     json:"err,omitempty"`
-	Metrics *Metrics `msgpack:"metrics,omitempty" json:"metrics,omitempty"`
+	V       int                `msgpack:"v"                 json:"v"`
+	ID      uint64             `msgpack:"id"                json:"id"`
+	OK      bool               `msgpack:"ok"                json:"ok"`
+	Data    msgpack.RawMessage `msgpack:"data,omitempty"    json:"data,omitempty"`
+	Err     *Error             `msgpack:"err,omitempty"     json:"err,omitempty"`
+	Metrics *Metrics           `msgpack:"metrics,omitempty" json:"metrics,omitempty"`
 }
 
 type Error struct {
@@ -130,12 +136,42 @@ func DecodeRequest(buf []byte) (*Request, error) {
 	return &r, nil
 }
 
+// DecodeResponse decodes a wire-frame Response. Data lands as
+// msgpack.RawMessage; verbs decode it into their typed Result via
+// UnmarshalData rather than re-walking a map[string]any.
 func DecodeResponse(buf []byte) (*Response, error) {
 	var r Response
 	dec := msgpack.NewDecoder(bytes.NewReader(buf))
-	dec.UseLooseInterfaceDecoding(true)
 	if err := dec.Decode(&r); err != nil {
 		return nil, err
 	}
 	return &r, nil
+}
+
+// MustData encodes a typed verb Result into the RawMessage shape that
+// Response.Data expects. The daemon uses this after dispatching a verb;
+// bench uses it for in-process dispatch; tests use it to construct
+// Response values that mirror the wire shape. Panics on encode error,
+// which only happens for unencodable types (channels, funcs, etc.) — a
+// programming bug, not a runtime condition.
+func MustData(v any) msgpack.RawMessage {
+	if v == nil {
+		return nil
+	}
+	b, err := msgpack.Marshal(v)
+	if err != nil {
+		panic(fmt.Errorf("proto.MustData: %w", err))
+	}
+	return msgpack.RawMessage(b)
+}
+
+// UnmarshalData decodes Response.Data into dst, which must be a non-nil
+// pointer. Returns an error if Data is empty or the underlying msgpack
+// decode fails. Verbs call this from PrettyResponse instead of the
+// hand-rolled per-verb decodeResult walkers that this replaces.
+func UnmarshalData(rsp *Response, dst any) error {
+	if rsp == nil || len(rsp.Data) == 0 {
+		return fmt.Errorf("proto: response has no data")
+	}
+	return msgpack.Unmarshal(rsp.Data, dst)
 }

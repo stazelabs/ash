@@ -180,22 +180,3 @@ func prettyShow(s *ShowResult) string {
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
-
-func decodeShow(m map[string]any) *ShowResult {
-	s := &ShowResult{}
-	if cm, ok := m["commit"].(map[string]any); ok {
-		// reuse log's commit decoder by constructing a fake LogResult map
-		fake := map[string]any{"commits": []any{cm}}
-		l := decodeLog(fake)
-		if len(l.Commits) > 0 {
-			s.Commit = l.Commits[0]
-		}
-	}
-	if dm, ok := m["diff"].(map[string]any); ok {
-		if d := decodeDiff(dm); d != nil {
-			s.Diff = *d
-		}
-	}
-	return s
-}
-

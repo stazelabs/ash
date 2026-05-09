@@ -66,14 +66,15 @@ func TestRequestRoundTrip(t *testing.T) {
 }
 
 func TestResponseRoundTrip_OK(t *testing.T) {
+	type sample struct {
+		Content string `msgpack:"content"`
+		Size    int64  `msgpack:"size"`
+	}
 	want := &Response{
-		V:  ProtocolVersion,
-		ID: 7,
-		OK: true,
-		Data: map[string]any{
-			"content": "hello world",
-			"size":    int64(11),
-		},
+		V:    ProtocolVersion,
+		ID:   7,
+		OK:   true,
+		Data: MustData(sample{Content: "hello world", Size: 11}),
 		Metrics: &Metrics{
 			LatencyParseUs:     12,
 			LatencyExecUs:      34,
@@ -103,12 +104,12 @@ func TestResponseRoundTrip_OK(t *testing.T) {
 	if got.Metrics.TokensOut != 2 || got.Metrics.TokensMethod != "real:cl100k_base" {
 		t.Errorf("metrics: got=%+v", got.Metrics)
 	}
-	dm, ok := got.Data.(map[string]any)
-	if !ok {
-		t.Fatalf("data: expected map[string]any, got %T", got.Data)
+	var decoded sample
+	if err := UnmarshalData(got, &decoded); err != nil {
+		t.Fatalf("UnmarshalData: %v", err)
 	}
-	if dm["content"] != "hello world" {
-		t.Errorf("data.content: got %v", dm["content"])
+	if decoded.Content != "hello world" || decoded.Size != 11 {
+		t.Errorf("decoded data wrong: %+v", decoded)
 	}
 }
 
@@ -119,7 +120,7 @@ func TestResponseRoundTrip_LedgerError(t *testing.T) {
 		V:    ProtocolVersion,
 		ID:   42,
 		OK:   true,
-		Data: map[string]any{"content": "x"},
+		Data: MustData(map[string]string{"content": "x"}),
 		Metrics: &Metrics{
 			LatencyParseUs:     1,
 			LatencyExecUs:      1,

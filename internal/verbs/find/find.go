@@ -214,8 +214,8 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)
 	}
-	r, ok := decodeResult(rsp.Data)
-	if !ok {
+	var r Result
+	if err := proto.UnmarshalData(rsp, &r); err != nil {
 		return "ok\n<unrecognized find result>"
 	}
 	withMeta := false
@@ -310,47 +310,3 @@ func scopeFromArgs(req *proto.Request) string {
 	}
 	return strings.Join(parts, ", ")
 }
-
-func decodeResult(data any) (*Result, bool) {
-	if r, ok := data.(*Result); ok {
-		return r, true
-	}
-	m, ok := data.(map[string]any)
-	if !ok {
-		return nil, false
-	}
-	r := &Result{}
-	if recs, ok := m["records"].([]any); ok {
-		for _, x := range recs {
-			rm, ok := x.(map[string]any)
-			if !ok {
-				continue
-			}
-			rec := Record{}
-			if v, ok := rm["path"].(string); ok {
-				rec.Path = v
-			}
-			if v, ok := rm["type"].(string); ok {
-				rec.Type = v
-			}
-			if v, ok := argutil.ToInt64(rm["size"]); ok {
-				rec.Size = v
-			}
-			if v, ok := argutil.ToInt64(rm["mtime"]); ok {
-				rec.Mtime = v
-			}
-			r.Records = append(r.Records, rec)
-		}
-	}
-	if v, ok := argutil.ToInt(m["count"]); ok {
-		r.Count = v
-	}
-	if v, ok := m["truncated"].(bool); ok {
-		r.Truncated = v
-	}
-	if v, ok := m["truncation_hint"].(string); ok {
-		r.TruncationHint = v
-	}
-	return r, true
-}
-

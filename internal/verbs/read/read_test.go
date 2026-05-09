@@ -174,14 +174,14 @@ func TestParseArgs_WireShape(t *testing.T) {
 func TestPrettyResponse_LeanDefault(t *testing.T) {
 	rsp := &proto.Response{
 		OK: true,
-		Data: &Result{
+		Data: proto.MustData(&Result{
 			Path:     "foo.go",
 			Size:     1024,
 			Lines:    42,
 			Encoding: "utf-8",
 			Mtime:    1714946747000000000,
 			Content:  "package foo\n",
-		},
+		}),
 	}
 	got := PrettyResponse(&proto.Request{Verb: "read", Args: map[string]any{}}, rsp)
 	if !strings.HasPrefix(got, "=== foo.go [1024B, 42L] ===\n") {
@@ -198,13 +198,13 @@ func TestPrettyResponse_LeanDefault(t *testing.T) {
 func TestPrettyResponse_LeanSurfacesBase64(t *testing.T) {
 	rsp := &proto.Response{
 		OK: true,
-		Data: &Result{
+		Data: proto.MustData(&Result{
 			Path:     "img.png",
 			Size:     5000,
 			Encoding: "base64",
 			Mtime:    1714946747000000000,
 			Content:  "iVBORw0KGgo=",
-		},
+		}),
 	}
 	got := PrettyResponse(&proto.Request{Verb: "read", Args: map[string]any{}}, rsp)
 	if !strings.Contains(got, "encoding=base64") {
@@ -218,14 +218,14 @@ func TestPrettyResponse_LeanSurfacesBase64(t *testing.T) {
 func TestPrettyResponse_WithMetaFull(t *testing.T) {
 	rsp := &proto.Response{
 		OK: true,
-		Data: &Result{
+		Data: proto.MustData(&Result{
 			Path:     "foo.go",
 			Size:     1024,
 			Lines:    42,
 			Encoding: "utf-8",
 			Mtime:    1714946747000000000,
 			Content:  "package foo\n",
-		},
+		}),
 	}
 	req := &proto.Request{Verb: "read", Args: map[string]any{"with_meta": "true"}}
 	got := PrettyResponse(req, rsp)

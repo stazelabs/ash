@@ -305,34 +305,6 @@ func TestPretty_BuildFailed(t *testing.T) {
 	}
 }
 
-func TestDecodeRoundTrip(t *testing.T) {
-	// Simulate the wire-shape: response Data arrives as map[string]any
-	// after msgpack decode (the daemon uses interface decoding).
-	data := map[string]any{
-		"ok":      false,
-		"elapsed": 0.5,
-		"total":   map[string]any{"pass": 1, "fail": 1, "skip": 0},
-		"packages": []any{
-			map[string]any{
-				"path":    "foo",
-				"status":  "fail",
-				"counts":  map[string]any{"pass": 0, "fail": 1, "skip": 0},
-				"elapsed": 0.05,
-				"tests": []any{
-					map[string]any{"name": "TestX", "status": "fail", "file": "x_test.go", "line": 7},
-				},
-			},
-		},
-	}
-	r, ok := decodeResult(data)
-	if !ok {
-		t.Fatal("decode failed")
-	}
-	if r.OK || r.Total.Fail != 1 || len(r.Packages) != 1 || r.Packages[0].Tests[0].Line != 7 {
-		t.Errorf("decode produced wrong shape: %+v", r)
-	}
-}
-
 // Sanity: the verb hooks into proto.Tracer correctly when passed nil.
 func TestNormalizePackagePattern(t *testing.T) {
 	cases := []struct{ in, want string }{

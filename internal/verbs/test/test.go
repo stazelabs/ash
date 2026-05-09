@@ -530,11 +530,11 @@ func PrettyResponse(_ *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)
 	}
-	r, ok := decodeResult(rsp.Data)
-	if !ok {
+	var r Result
+	if err := proto.UnmarshalData(rsp, &r); err != nil {
 		return "ok\n<unrecognized test result>"
 	}
-	return prettyResult(r)
+	return prettyResult(&r)
 }
 
 func prettyResult(r *Result) string {
@@ -617,105 +617,6 @@ func prettyResult(r *Result) string {
 		fmt.Fprintf(&b, "PASS (%d): %s\n", len(passing), strings.Join(passing, ", "))
 	}
 	return strings.TrimRight(b.String(), "\n")
-}
-
-func decodeResult(data any) (*Result, bool) {
-	if r, ok := data.(*Result); ok {
-		return r, true
-	}
-	m, ok := data.(map[string]any)
-	if !ok {
-		return nil, false
-	}
-	r := &Result{}
-	if v, ok := m["ok"].(bool); ok {
-		r.OK = v
-	}
-	if v, ok := m["truncated"].(bool); ok {
-		r.Truncated = v
-	}
-	if v, ok := m["elapsed"].(float64); ok {
-		r.Elapsed = v
-	}
-	if tm, ok := m["total"].(map[string]any); ok {
-		r.Total = decodeCounts(tm)
-	}
-	if raw, ok := m["packages"].([]any); ok {
-		for _, x := range raw {
-			pm, ok := x.(map[string]any)
-			if !ok {
-				continue
-			}
-			r.Packages = append(r.Packages, decodePackage(pm))
-		}
-	}
-	return r, true
-}
-
-func decodePackage(m map[string]any) Package {
-	p := Package{}
-	if v, ok := m["path"].(string); ok {
-		p.Path = v
-	}
-	if v, ok := m["status"].(string); ok {
-		p.Status = v
-	}
-	if v, ok := m["elapsed"].(float64); ok {
-		p.Elapsed = v
-	}
-	if v, ok := m["build_output"].(string); ok {
-		p.BuildOutput = v
-	}
-	if cm, ok := m["counts"].(map[string]any); ok {
-		p.Counts = decodeCounts(cm)
-	}
-	if raw, ok := m["tests"].([]any); ok {
-		for _, x := range raw {
-			tm, ok := x.(map[string]any)
-			if !ok {
-				continue
-			}
-			p.Tests = append(p.Tests, decodeTest(tm))
-		}
-	}
-	return p
-}
-
-func decodeTest(m map[string]any) Test {
-	t := Test{}
-	if v, ok := m["name"].(string); ok {
-		t.Name = v
-	}
-	if v, ok := m["status"].(string); ok {
-		t.Status = v
-	}
-	if v, ok := m["elapsed"].(float64); ok {
-		t.Elapsed = v
-	}
-	if v, ok := m["output"].(string); ok {
-		t.Output = v
-	}
-	if v, ok := m["file"].(string); ok {
-		t.File = v
-	}
-	if v, ok := argutil.ToInt(m["line"]); ok {
-		t.Line = v
-	}
-	return t
-}
-
-func decodeCounts(m map[string]any) Counts {
-	c := Counts{}
-	if v, ok := argutil.ToInt(m["pass"]); ok {
-		c.Pass = v
-	}
-	if v, ok := argutil.ToInt(m["fail"]); ok {
-		c.Fail = v
-	}
-	if v, ok := argutil.ToInt(m["skip"]); ok {
-		c.Skip = v
-	}
-	return c
 }
 
 // Truncated is the wire-side flag for `verbs.Runner.Truncated`.

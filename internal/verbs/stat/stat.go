@@ -167,8 +167,8 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)
 	}
-	r, ok := decodeResult(rsp.Data)
-	if !ok {
+	var r Result
+	if err := proto.UnmarshalData(rsp, &r); err != nil {
 		return "ok\n<unrecognized stat result>"
 	}
 	withMeta := false
@@ -223,53 +223,4 @@ func writeEntry(b *strings.Builder, e Entry, withMeta bool) {
 	} else {
 		fmt.Fprintf(b, "%s %s %s\n", typeChar, sizeStr, e.Path)
 	}
-}
-
-func decodeResult(data any) (*Result, bool) {
-	if r, ok := data.(*Result); ok {
-		return r, true
-	}
-	m, ok := data.(map[string]any)
-	if !ok {
-		return nil, false
-	}
-	r := &Result{}
-	if raw, ok := m["entries"].([]any); ok {
-		for _, x := range raw {
-			em, ok := x.(map[string]any)
-			if !ok {
-				continue
-			}
-			var e Entry
-			if v, ok := em["path"].(string); ok {
-				e.Path = v
-			}
-			if v, ok := em["type"].(string); ok {
-				e.Type = v
-			}
-			if v, ok := argutil.ToInt64(em["size"]); ok {
-				e.Size = v
-			}
-			if v, ok := argutil.ToInt64(em["mtime"]); ok {
-				e.Mtime = v
-			}
-			if v, ok := em["mode"].(string); ok {
-				e.Mode = v
-			}
-			if v, ok := em["link_target"].(string); ok {
-				e.LinkTarget = v
-			}
-			if v, ok := em["error"].(string); ok {
-				e.Error = v
-			}
-			r.Entries = append(r.Entries, e)
-		}
-	}
-	if v, ok := argutil.ToInt(m["count"]); ok {
-		r.Count = v
-	}
-	if v, ok := argutil.ToInt(m["errors"]); ok {
-		r.Errors = v
-	}
-	return r, true
 }

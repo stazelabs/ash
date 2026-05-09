@@ -348,9 +348,9 @@ func TestPrettyResponse_SubPhaseSection(t *testing.T) {
 	calls := makeCallsWithPhases("find", 1000, 830, 210, 0)
 	r := aggregate(calls, Scope{Session: "current"})
 
-	// Simulate the PrettyResponse path via the *Result fast path in decodeResult.
+	// Wire shape: PrettyResponse decodes Data via msgpack.Unmarshal.
 	rsp := &proto.Response{OK: true}
-	rsp.Data = r
+	rsp.Data = proto.MustData(r)
 	out := PrettyResponse(nil, rsp)
 
 	if !strings.Contains(out, "sub-phase breakdown") {
@@ -450,7 +450,7 @@ func TestPrettyResponse_HotspotSections(t *testing.T) {
 	r := aggregate(calls, Scope{Session: "current"})
 
 	rsp := &proto.Response{OK: true}
-	rsp.Data = r
+	rsp.Data = proto.MustData(r)
 	out := PrettyResponse(nil, rsp)
 
 	if !strings.Contains(out, "truncation") {
@@ -475,7 +475,7 @@ func TestPrettyResponse_NoHotspotSections_WhenClean(t *testing.T) {
 	r := aggregate(calls, Scope{Session: "current"})
 
 	rsp := &proto.Response{OK: true}
-	rsp.Data = r
+	rsp.Data = proto.MustData(r)
 	out := PrettyResponse(nil, rsp)
 
 	if strings.Contains(out, "truncation") {
@@ -604,7 +604,7 @@ func TestPrettyResponse_TokPerKiB(t *testing.T) {
 	calls := makeCallsWithBytes("read", 2, 200, 1024)
 	r := aggregate(calls, Scope{Session: "current"})
 
-	rsp := &proto.Response{OK: true, Data: r}
+	rsp := &proto.Response{OK: true, Data: proto.MustData(r)}
 	out := PrettyResponse(nil, rsp)
 
 	if !strings.Contains(out, "token efficiency") {
@@ -622,7 +622,7 @@ func TestPrettyResponse_NoTokPerKiB_WhenZeroBytesOut(t *testing.T) {
 	calls := makeCalls("find", 3, 1000, true, false)
 	r := aggregate(calls, Scope{Session: "current"})
 
-	rsp := &proto.Response{OK: true, Data: r}
+	rsp := &proto.Response{OK: true, Data: proto.MustData(r)}
 	out := PrettyResponse(nil, rsp)
 
 	if strings.Contains(out, "token efficiency") {
@@ -638,7 +638,7 @@ func TestPrettyResponse_ArgDists(t *testing.T) {
 	}
 	r := aggregate(calls, Scope{Session: "current"})
 
-	rsp := &proto.Response{OK: true, Data: r}
+	rsp := &proto.Response{OK: true, Data: proto.MustData(r)}
 	out := PrettyResponse(nil, rsp)
 
 	if !strings.Contains(out, "arg distributions") {
@@ -656,7 +656,7 @@ func TestPrettyResponse_NoArgDists_WhenNoMsgpack(t *testing.T) {
 	calls := makeCalls("find", 3, 1000, true, false)
 	r := aggregate(calls, Scope{Session: "current"})
 
-	rsp := &proto.Response{OK: true, Data: r}
+	rsp := &proto.Response{OK: true, Data: proto.MustData(r)}
 	out := PrettyResponse(nil, rsp)
 
 	if strings.Contains(out, "arg distributions") {

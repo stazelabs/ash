@@ -9,7 +9,6 @@ import (
 
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/runner"
-	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
 
 const (
@@ -303,55 +302,4 @@ func prettyDiff(d *DiffResult) string {
 		b.WriteString("]")
 	}
 	return strings.TrimRight(b.String(), "\n")
-}
-
-func decodeDiff(m map[string]any) *DiffResult {
-	d := &DiffResult{}
-	if v, ok := m["stat_only"].(bool); ok {
-		d.StatOnly = v
-	}
-	if v, ok := argutil.ToInt(m["total_additions"]); ok {
-		d.TotalAdditions = v
-	}
-	if v, ok := argutil.ToInt(m["total_deletions"]); ok {
-		d.TotalDeletions = v
-	}
-	if v, ok := m["truncated"].(bool); ok {
-		d.Truncated = v
-	}
-	if v, ok := m["truncation_hint"].(string); ok {
-		d.TruncationHint = v
-	}
-	if raw, ok := m["files"].([]any); ok {
-		for _, x := range raw {
-			fm, ok := x.(map[string]any)
-			if !ok {
-				continue
-			}
-			f := DiffFile{}
-			if v, ok := fm["path"].(string); ok {
-				f.Path = v
-			}
-			if v, ok := fm["old_path"].(string); ok {
-				f.OldPath = v
-			}
-			if v, ok := fm["status"].(string); ok {
-				f.Status = v
-			}
-			if v, ok := fm["binary"].(bool); ok {
-				f.Binary = v
-			}
-			if v, ok := argutil.ToInt(fm["additions"]); ok {
-				f.Additions = v
-			}
-			if v, ok := argutil.ToInt(fm["deletions"]); ok {
-				f.Deletions = v
-			}
-			if v, ok := fm["patch"].(string); ok {
-				f.Patch = v
-			}
-			d.Files = append(d.Files, f)
-		}
-	}
-	return d
 }

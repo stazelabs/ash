@@ -251,8 +251,8 @@ func PrettyResponse(_ *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)
 	}
-	r, ok := decodeResult(rsp.Data)
-	if !ok {
+	var r Result
+	if err := proto.UnmarshalData(rsp, &r); err != nil {
 		return "ok\n<unrecognized hook result>"
 	}
 	if r.Decision == "deny" {
@@ -745,30 +745,3 @@ func shellquote(s string) string {
 }
 
 // -- result decoding for pretty-rendering ----------------------------------
-
-func decodeResult(data any) (*Result, bool) {
-	if r, ok := data.(*Result); ok {
-		return r, true
-	}
-	m, ok := data.(map[string]any)
-	if !ok {
-		return nil, false
-	}
-	r := &Result{}
-	if v, ok := m["decision"].(string); ok {
-		r.Decision = v
-	}
-	if v, ok := m["tool_name"].(string); ok {
-		r.ToolName = v
-	}
-	if v, ok := m["matched_rule"].(string); ok {
-		r.MatchedRule = v
-	}
-	if v, ok := m["suggested"].(string); ok {
-		r.Suggested = v
-	}
-	if v, ok := m["reason"].(string); ok {
-		r.Reason = v
-	}
-	return r, true
-}

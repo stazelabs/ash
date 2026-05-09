@@ -107,35 +107,6 @@ func TestPrettyShow_NormalCommit_StatMode(t *testing.T) {
 	}
 }
 
-func TestDecodeShow_RoundTrip(t *testing.T) {
-	data := map[string]any{
-		"commit": map[string]any{
-			"sha":         "fullsha",
-			"short_sha":   "shrtsha",
-			"author_name": "Alice",
-			"subject":     "test",
-			"parents":     []any{"parentsha"},
-		},
-		"diff": map[string]any{
-			"total_additions": 3,
-			"total_deletions": 1,
-			"files": []any{
-				map[string]any{"path": "a.go", "status": "M", "additions": 3, "deletions": 1},
-			},
-		},
-	}
-	s := decodeShow(data)
-	if s == nil || s.Commit.ShortSHA != "shrtsha" || s.Commit.Subject != "test" {
-		t.Fatalf("commit decode wrong: %+v", s)
-	}
-	if len(s.Commit.Parents) != 1 || s.Commit.Parents[0] != "parentsha" {
-		t.Errorf("parents wrong: %+v", s.Commit.Parents)
-	}
-	if s.Diff.TotalAdditions != 3 || len(s.Diff.Files) != 1 || s.Diff.Files[0].Path != "a.go" {
-		t.Errorf("diff decode wrong: %+v", s.Diff)
-	}
-}
-
 // -- integration: real repo via git init ----------------------------------
 
 func TestRunShow_Integration(t *testing.T) {

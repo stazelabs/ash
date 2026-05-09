@@ -103,8 +103,8 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)
 	}
-	r, ok := decodeResult(rsp.Data)
-	if !ok {
+	var r Result
+	if err := proto.UnmarshalData(rsp, &r); err != nil {
 		return "ok\n<unrecognized metrics result>"
 	}
 	var b strings.Builder
@@ -169,74 +169,3 @@ func scopeFromArgs(req *proto.Request) string {
 	}
 	return strings.Join(parts, ", ")
 }
-
-func decodeResult(data any) (*Result, bool) {
-	if r, ok := data.(*Result); ok {
-		return r, true
-	}
-	m, ok := data.(map[string]any)
-	if !ok {
-		return nil, false
-	}
-	r := &Result{}
-	if raw, ok := m["rows"].([]any); ok {
-		for _, x := range raw {
-			rm, ok := x.(map[string]any)
-			if !ok {
-				continue
-			}
-			row := Row{}
-			if v, ok := argutil.ToInt64(rm["ts"]); ok {
-				row.Timestamp = v
-			}
-			if v, ok := rm["verb"].(string); ok {
-				row.Verb = v
-			}
-			if v, ok := rm["ok"].(bool); ok {
-				row.OK = v
-			}
-			if v, ok := rm["err_code"].(string); ok {
-				row.ErrCode = v
-			}
-			if v, ok := argutil.ToInt(rm["tokens_in"]); ok {
-				row.TokensIn = v
-			}
-			if v, ok := argutil.ToInt(rm["tokens_out"]); ok {
-				row.TokensOut = v
-			}
-			if v, ok := argutil.ToInt64(rm["latency_exec_us"]); ok {
-				row.LatencyExecUs = v
-			}
-			if v, ok := argutil.ToInt(rm["bytes_in"]); ok {
-				row.BytesIn = v
-			}
-			if v, ok := argutil.ToInt(rm["bytes_out"]); ok {
-				row.BytesOut = v
-			}
-			if v, ok := rm["truncated"].(bool); ok {
-				row.Truncated = v
-			}
-			if v, ok := argutil.ToInt64(rm["walk_us"]); ok {
-				row.WalkUs = v
-			}
-			if v, ok := argutil.ToInt64(rm["io_us"]); ok {
-				row.IOUs = v
-			}
-			if v, ok := argutil.ToInt64(rm["regex_us"]); ok {
-				row.RegexUs = v
-			}
-			if v, ok := argutil.ToInt64(rm["regex_compile_us"]); ok {
-				row.RegexCompileUs = v
-			}
-			if v, ok := argutil.ToInt64(rm["latency_dispatch_us"]); ok {
-				row.LatencyDispatchUs = v
-			}
-			r.Rows = append(r.Rows, row)
-		}
-	}
-	if v, ok := argutil.ToInt(m["count"]); ok {
-		r.Count = v
-	}
-	return r, true
-}
-
