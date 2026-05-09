@@ -133,6 +133,10 @@ func TestIntegration_AllVerbs(t *testing.T) {
 		{"report", map[string]any{}},
 		{"hook", map[string]any{"tool_name": "Bash", "command": "grep foo bar.txt"}},
 		{"bench", map[string]any{"limit": "1"}},
+		// test: invoke with a regex that matches no test names so the
+		// verb returns quickly. Uses internal/runner (no test files) to
+		// avoid recursive go-test work in the integration suite.
+		{"test", map[string]any{"packages": "internal/runner", "run": "NoSuchTestZZZ", "timeout": "30s"}},
 	}
 
 	// Fail loudly if a new verb is added to Runners without a corresponding

@@ -202,6 +202,19 @@ var registry = []VerbSchema{
 			{Name: "limit", Type: "int", Default: "0", Description: "Cap number of cases run after filters. 0 means no cap."},
 		},
 	},
+	{
+		Verb:        "test",
+		Description: "Run Go tests via `go test -json` and return structured per-package/per-test results. Result.OK=true means no failures; the verb still completes successfully when tests fail. Build failures surface as Status=build_failed.",
+		Args: []ArgSchema{
+			{Name: "packages", Type: "string", Default: "./...", Description: "Comma-separated package patterns passed positionally to go test (e.g. ./...,internal/walker)."},
+			{Name: "run", Type: "string", Default: "", Description: "Regex passed to go test -run; filters which tests execute."},
+			{Name: "count", Type: "int", Default: "1", Description: "Maps to go test -count. Default 1 bypasses the test cache (agents typically want fresh runs after editing). Pass 0 to use the cache."},
+			{Name: "race", Type: "bool", Default: "false", Description: "Enable the race detector (-race)."},
+			{Name: "short", Type: "bool", Default: "false", Description: "Enable -short mode."},
+			{Name: "timeout", Type: "string", Default: "60s", Description: "Go duration for the outer wall (context.WithTimeout). Also passed to go test -timeout (1s grace earlier) so go aborts cleanly first. CI-shaped suites can pass --timeout 10m."},
+			{Name: "verbose", Type: "bool", Default: "false", Description: "Render hint: include passing test names per package. Failure output is unconditional."},
+		},
+	},
 }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {

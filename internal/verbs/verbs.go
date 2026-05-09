@@ -22,6 +22,7 @@ import (
 	"github.com/stazelabs/ash/internal/verbs/read"
 	"github.com/stazelabs/ash/internal/verbs/report"
 	"github.com/stazelabs/ash/internal/verbs/stat"
+	"github.com/stazelabs/ash/internal/verbs/test"
 	"github.com/stazelabs/ash/internal/verbs/write"
 )
 
@@ -58,6 +59,7 @@ func PrettyHandlers() map[string]Pretty {
 		"edit":    edit.PrettyResponse,
 		"diff":    diff.PrettyResponse,
 		"bench":   bench.PrettyResponse,
+		"test":    test.PrettyResponse,
 	}
 }
 
@@ -198,6 +200,16 @@ func Runners(led *ledger.Ledger) map[string]Runner {
 				}
 				return diff.Run(a, tr)
 			},
+		},
+		"test": {
+			Run: func(args map[string]any, tr *proto.Tracer) (any, *proto.Error) {
+				a, perr := test.ParseArgs(args)
+				if perr != nil {
+					return nil, perr
+				}
+				return test.Run(a, tr)
+			},
+			Truncated: test.Truncated,
 		},
 	}
 	runners["bench"] = Runner{

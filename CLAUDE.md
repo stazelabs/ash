@@ -8,7 +8,7 @@ This file is the operational counterpart to `README.md`. The README is the desig
 
 This repo is also a deliberate experiment in *recursive* tool development: as soon as primordial `ash` exists (Phase 1: `find` + `grep` + `read` + daemon + bash shim + ledger), agents working on this repo start using `ash` for those operations. Every session feeds the next phase's design.
 
-**Current phase:** Phase 2, ship 11 — `ash read`, `ash find`, `ash grep`, `ash git --op status|log|diff`, `ash metrics`, `ash report`, `ash stat`, `ash bench`, `ash write`, `ash edit`, and `ash diff` are live. `ash edit` supports `--dry_run true` to preview changes without writing. All string-valued args accept `-` to read from stdin. Daemon (`ashd`) auto-starts on first invocation, persists per-call instrumentation to a SQLite ledger at `.ash/ledger.db`, and tokenizes every response with `cl100k_base` for honest token counts. Sub-phase latency (walk/io/regex µs) is captured in `Metrics.Phases` and surfaces in `ash metrics`. Ledger failures surface in `Metrics.LedgerError` and the client prints a `WARNING` line if any call's metrics didn't persist.
+**Current phase:** Phase 2, ship 12 — `ash read`, `ash find`, `ash grep`, `ash git --op status|log|diff`, `ash metrics`, `ash report`, `ash stat`, `ash bench`, `ash write`, `ash edit`, `ash diff`, and `ash test` are live. `ash edit` supports `--dry_run true` to preview changes without writing. All string-valued args accept `-` to read from stdin. Daemon (`ashd`) auto-starts on first invocation, persists per-call instrumentation to a SQLite ledger at `.ash/ledger.db`, and tokenizes every response with `cl100k_base` for honest token counts. Sub-phase latency (walk/io/regex µs) is captured in `Metrics.Phases` and surfaces in `ash metrics`. Ledger failures surface in `Metrics.LedgerError` and the client prints a `WARNING` line if any call's metrics didn't persist.
 
 ## Project constraints
 
@@ -93,7 +93,16 @@ Then any `ash` invocation auto-starts the daemon. Use `bin/ash` from the repo ro
    - "did this change at all / how many lines?" → add `--stat true` (omits patch, much cheaper in tokens)
    - Pass `--content -` to read the after-side from stdin: `echo 'new' | ash diff --path f.go --content -`
    - Both inputs capped at 2000 lines; returns unified diff patch + additions/deletions counts. `--stat true` skips the patch entirely.
-10. Bash `find`, `cat`, `head`, `tail`, `ls -R`, `grep`, `rg`, `git status`, `git diff`, `stat` should be replaced by their `ash` equivalents in this repo.
+10. **Running Go tests** — use `ash test` instead of `go test`. Examples:
+   - "run all tests" → `ash test` (defaults to `./...`, timeout 60s, count=1 to bypass cache)
+   - "one package" → `ash test --packages internal/walker` (bare paths auto-prefix `./`; full import paths and absolute paths pass through)
+   - "filter by name" → `ash test --run TestCacheHit` (regex passed to `go test -run`)
+   - "with race detector" → `ash test --race true`
+   - "longer timeout for big suites" → `ash test --timeout 10m`
+   - "include passing test names per package" → `ash test --verbose true`
+   - Failures arrive as a structured `Tests []Test` slice with extracted `file:line`. Build failures land as `Status=build_failed` with the compile error in `BuildOutput`. `Result.OK=true` only when all packages pass (or are `no_tests`); a tests-failed run is not a verb error — `Metrics.OK` stays true.
+   - Pass `--format json` to inspect the full structured response when the pretty render is not enough.
+11. Bash `find`, `cat`, `head`, `tail`, `ls -R`, `grep`, `rg`, `git status`, `git log`, `git diff`, `go test`, `stat` should be replaced by their `ash` equivalents in this repo.
 
 **The whole point** is that you are the first user. If a verb errors, hangs, or feels heavier than the bash equivalent, that's a bug or a design gap — investigate, don't paper over. Write the session note.
 
@@ -188,7 +197,7 @@ Keep notes terse. A bullet list is fine. The goal is signal, not prose.
 Even after primordial `ash` ships, some operations stay in bash. Track them here so the dogfooding rule doesn't push agents into pretending verbs exist that don't.
 
 - **`git` ops other than `status`, `log`, and `diff`** — `blame`, `show`, and all destructive ops (commit/push/reset/rebase/checkout/etc.) stay in bash until those ops ship under `ash git --op <name>`.
-- **`go test`, `go build`, `go vet`** — until `test`/`build` land in Phase 2, build/test orchestration is bash.
+- **`go build`, `go vet`** — until `build` lands in Phase 2, build/vet orchestration stays in bash. `go test` is now `ash test`.
 - **System package management** (`brew`, `apt`, `npm install -g`, etc.) — never in scope for `ash`.
 - **Process management at the OS level** — bash. (`proc` hasn't shipped yet.)
 - **Anything not yet implemented as a verb.** When in doubt: bash, with a session note explaining what verb you wished existed.
