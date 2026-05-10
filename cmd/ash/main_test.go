@@ -67,9 +67,9 @@ func TestParseFlags_PositionalConflictsWithFlag(t *testing.T) {
 }
 
 func TestParseFlags_PositionalRejectedWhenNoSlots(t *testing.T) {
-	_, err := parseFlags("metrics", []string{"oops"})
+	_, err := parseFlags("stop", []string{"oops"})
 	if err == nil {
-		t.Fatal("expected error for positional on metrics (no slots), got nil")
+		t.Fatal("expected error for positional on stop (no slots), got nil")
 	}
 }
 
@@ -182,6 +182,61 @@ func TestParseFlags_NoPrefixDoesNotConsumeNextArg(t *testing.T) {
 		t.Fatalf("parseFlags: %v", err)
 	}
 	want := map[string]any{"gi": "false", "path": "src"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestParseFlags_GitPositional(t *testing.T) {
+	got, err := parseFlags("git", []string{"log"})
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	want := map[string]any{"op": "log"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestParseFlags_HelpPositional(t *testing.T) {
+	got, err := parseFlags("help", []string{"find"})
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	want := map[string]any{"verb": "find"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestParseFlags_MetricsPositional(t *testing.T) {
+	got, err := parseFlags("metrics", []string{"grep"})
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	want := map[string]any{"verb": "grep"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestParseFlags_ReportPositional(t *testing.T) {
+	got, err := parseFlags("report", []string{"find"})
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	want := map[string]any{"verb": "find"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestParseFlags_BenchTwoPositionals(t *testing.T) {
+	got, err := parseFlags("bench", []string{"grep", "large-file"})
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	want := map[string]any{"verb": "grep", "case": "large-file"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v, want %v", got, want)
 	}

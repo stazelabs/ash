@@ -272,15 +272,20 @@ var rowVerbs = map[string]bool{
 // (--key value) still works for the same keys; mixing positional and
 // flag for the same key is an error to avoid silent overwrite.
 var verbPositionals = map[string][]string{
-	"read":   {"path"},
-	"find":   {"path"},
-	"grep":   {"pattern", "path"},
-	"stat":   {"paths"},
-	"write":  {"path"},
-	"edit":   {"path"},
-	"diff":   {"path"},
-	"init":   {"path"},
-	"uninit": {"path"},
+	"read":    {"path"},
+	"find":    {"path"},
+	"grep":    {"pattern", "path"},
+	"stat":    {"paths"},
+	"write":   {"path"},
+	"edit":    {"path"},
+	"diff":    {"path"},
+	"init":    {"path"},
+	"uninit":  {"path"},
+	"git":     {"op"},
+	"help":    {"verb"},
+	"report":  {"verb"},
+	"metrics": {"verb"},
+	"bench":   {"verb", "case"},
 }
 
 // verbListFlags names per-verb flags that semantically accept a
