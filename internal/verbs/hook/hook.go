@@ -454,6 +454,30 @@ func allowedByExclusion(toolName, rule string, excludeVerbs []string) *Result {
 	return &Result{Decision: "allow", ToolName: toolName, MatchedRule: rule + ":excluded"}
 }
 
+// MaybeExclude post-hoc applies an excludeVerbs list to an already-computed
+// Result. The client side uses this to defer loading [hook].exclude_verbs
+// (a TOML parse) until after Decide has determined the rule would deny —
+// keeping the allow path config-free. For Decide calls that already pass
+// args.ExcludeVerbs upfront (daemon side), this is a no-op.
+//
+// Returns r unchanged when there is nothing to do (allow result, or no
+// matching excludeVerbs); otherwise returns a fresh allow Result whose
+// MatchedRule is the original rule with ":excluded" appended — the same
+// shape that allowedByExclusion produces in the upfront path.
+func MaybeExclude(r *Result, excludeVerbs []string) *Result {
+	if r == nil || r.Decision != "deny" || len(excludeVerbs) == 0 {
+		return r
+	}
+	if !isRuleExcluded(r.MatchedRule, excludeVerbs) {
+		return r
+	}
+	return &Result{
+		Decision:    "allow",
+		ToolName:    r.ToolName,
+		MatchedRule: r.MatchedRule + ":excluded",
+	}
+}
+
 // -- bash command analysis -------------------------------------------------
 
 // segments splits a bash command string on shell operators (||, &&, ;, |)

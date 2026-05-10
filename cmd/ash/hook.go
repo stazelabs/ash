@@ -32,49 +32,78 @@ import (
 const hookDaemonDialTimeout = 5 * time.Millisecond
 
 func runHook() {
-	payload, err := io.ReadAll(os.Stdin)
+	root, wireArgs, ok := runHookFromReader(os.Stdin, os.Stdout)
+	if !ok {
+		return
+	}
+	// Fire-and-forget ledger row. Skip when:
+	//   - we can't resolve a project root (running outside a repo)
+	//   - the daemon isn't already up (don't auto-start; latency cost too high)
+	fireHookLedger(root, wireArgs)
+}
+
+// runHookFromReader is the deterministic, daemon-free part of runHook —
+// extracted so benchmarks and tests can drive it without touching real
+// stdio or the daemon socket. Returns the resolved project root (empty
+// if unresolvable), the wire args (for the caller's ledger fire), and
+// true if processing succeeded; on a malformed or empty payload it
+// returns ("", nil, false) and the caller should skip the ledger.
+//
+// The root is resolved once here and threaded into fireHookLedger so
+// the post-decision ledger fire does not redo os.Getwd + session.Root.
+func runHookFromReader(r io.Reader, w io.Writer) (string, map[string]any, bool) {
+	payload, err := io.ReadAll(r)
 	if err != nil || len(payload) == 0 {
-		return // allow
+		return "", nil, false
 	}
 	wireArgs, args, err := hook.ExtractArgs(payload)
 	if err != nil {
-		return // malformed payload — allow
+		return "", nil, false
 	}
-	// Load [hook].exclude_verbs from ash.toml. Soft-fail: any error
-	// (outside a repo, missing file, parse error) leaves ExcludeVerbs
-	// empty so the hook operates normally.
+	// Resolve project root once; reused for config load (only on deny,
+	// see below) and the ledger socket (in fireHookLedger). Soft-fail:
+	// empty root disables both, leaving the hook to operate on rules only.
+	var root string
 	if cwd, err := os.Getwd(); err == nil {
-		if root, err := session.Root(cwd); err == nil {
-			if cfg, _, err := config.Load(root); err == nil && len(cfg.Hook.ExcludeVerbs) > 0 {
-				args.ExcludeVerbs = cfg.Hook.ExcludeVerbs
+		if r, err := session.Root(cwd); err == nil {
+			root = r
+		}
+	}
+
+	// Decide first, load config later. [hook].exclude_verbs only matters
+	// when the rules engine would otherwise deny — so for the (common)
+	// allow path we skip config.Load entirely. On deny, we load config
+	// and post-hoc apply the exclusion list via hook.MaybeExclude, which
+	// produces the same Result shape as the upfront path would.
+	result := hook.Decide(args)
+	if result.Decision == "deny" && root != "" {
+		if cfg, _, err := config.Load(root); err == nil && len(cfg.Hook.ExcludeVerbs) > 0 {
+			if excluded := hook.MaybeExclude(result, cfg.Hook.ExcludeVerbs); excluded != result {
+				result = excluded
 				wireArgs["exclude_verbs"] = cfg.Hook.ExcludeVerbs
 			}
 		}
 	}
 
-	result := hook.Decide(args)
-
 	// Emit Claude decision (deny) or nothing (allow).
 	if out, err := hook.EncodeClaudeDecision(result); err == nil && out != nil {
-		_, _ = os.Stdout.Write(out)
+		_, _ = w.Write(out)
 	}
-
-	// Fire-and-forget ledger row. Skip when:
-	//   - we can't resolve a project root (running outside a repo)
-	//   - the daemon isn't already up (don't auto-start; latency cost too high)
-	fireHookLedger(wireArgs)
+	return root, wireArgs, true
 }
 
-func fireHookLedger(wireArgs map[string]any) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return
-	}
-	root, err := session.Root(cwd)
-	if err != nil {
-		return
+func fireHookLedger(root string, wireArgs map[string]any) {
+	if root == "" {
+		return // no project root resolved upstream; skip ledger row
 	}
 	sock := session.SocketPath(root)
+	// Pre-stat the socket so the daemon-down case is ~1µs (one syscall)
+	// instead of the full 5ms dial timeout. The dial below is still the
+	// safety net for races (socket exists but daemon is mid-shutdown or
+	// hung) — its timeout still applies.
+	if _, err := os.Stat(sock); err != nil {
+		return // socket file absent; daemon almost certainly not running
+	}
 	conn, err := net.DialTimeout("unix", sock, hookDaemonDialTimeout)
 	if err != nil {
 		return // daemon not running; skip ledger row
