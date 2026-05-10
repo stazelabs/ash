@@ -30,9 +30,16 @@ import (
 //
 // A nil *Matcher is valid and excludes nothing -- callers can hold a *Matcher
 // uniformly whether or not a .gitignore was found.
+//
+// Per-path results are memoized across calls. The matcher is owned by the
+// daemon and re-used by every Walk; the underlying .gitignore patterns are
+// stable for the matcher's lifetime, so (rel, isDir) -> bool is a pure
+// function. Memoization turns the hot per-walk regex loop into a map lookup
+// — see ASH-38.
 type Matcher struct {
-	rules *ignore.GitIgnore
-	root  string
+	rules   *ignore.GitIgnore
+	root    string
+	resCache sync.Map // key = normalized rel path (trailing "/" iff isDir); val = bool
 }
 
 // cacheEntry holds a compiled matcher plus the staleness-check fields
@@ -96,6 +103,11 @@ func LoadFromDir(dir string) (*Matcher, error) {
 // directory-only patterns like "bin/" only match when the path is a directory.
 // The path is normalized relative to the matcher's load root and converted to
 // forward slashes (gitignore semantics are slash-based).
+//
+// Per-path results are memoized: matchers live for the daemon's lifetime
+// (or until .gitignore mtime/size changes), and the answer for a given
+// (rel, isDir) tuple is invariant within a matcher. The cold path runs the
+// underlying regex matcher; the hot path is a sync.Map load.
 func (m *Matcher) Excludes(p string, isDir bool) bool {
 	if m == nil || m.rules == nil {
 		return false
@@ -113,5 +125,11 @@ func (m *Matcher) Excludes(p string, isDir bool) bool {
 	if isDir && rel != "" && rel[len(rel)-1] != '/' {
 		rel += "/"
 	}
-	return m.rules.MatchesPath(rel)
+	// rel ends in "/" iff isDir, so the bare key is unambiguous.
+	if v, ok := m.resCache.Load(rel); ok {
+		return v.(bool)
+	}
+	res := m.rules.MatchesPath(rel)
+	m.resCache.Store(rel, res)
+	return res
 }

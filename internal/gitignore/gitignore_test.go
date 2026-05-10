@@ -130,6 +130,79 @@ func TestLoadFromDir_MtimeInvalidatesCache(t *testing.T) {
 	}
 }
 
+func TestExcludes_MemoizesSamePath(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("bin/\n*.log\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m, err := LoadFromDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// First call populates the cache; subsequent calls must agree and
+	// must read the same cache entry (verified by Load returning ok).
+	cases := []struct {
+		path    string
+		isDir   bool
+		exclude bool
+	}{
+		{"bin", true, true},
+		{"bin", false, false},  // distinct cache key from "bin" with isDir=true
+		{"foo.log", false, true},
+		{"src/main.go", false, false},
+	}
+	for _, c := range cases {
+		if got := m.Excludes(c.path, c.isDir); got != c.exclude {
+			t.Errorf("Excludes(%q, isDir=%v) = %v, want %v", c.path, c.isDir, got, c.exclude)
+		}
+		if got := m.Excludes(c.path, c.isDir); got != c.exclude {
+			t.Errorf("Excludes(%q, isDir=%v) second call = %v, want %v", c.path, c.isDir, got, c.exclude)
+		}
+	}
+	// Spot-check the cache map directly: each (path, isDir) produced one entry.
+	want := []string{"bin/", "bin", "foo.log", "src/main.go"}
+	for _, k := range want {
+		if _, ok := m.resCache.Load(k); !ok {
+			t.Errorf("resCache missing entry for %q", k)
+		}
+	}
+}
+
+func TestExcludes_MemoCacheNotSharedAcrossMatchers(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gitignore")
+	if err := os.WriteFile(path, []byte("bin/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m1, err := LoadFromDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !m1.Excludes("bin", true) {
+		t.Fatal("m1 should exclude bin/")
+	}
+	// Mutate .gitignore: invalidates LoadFromDir cache (different m2),
+	// which in turn means a fresh resCache. The old "bin/=true" memo
+	// must not leak into the new matcher.
+	if err := os.WriteFile(path, []byte("vendor/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	future := time.Now().Add(2 * time.Second)
+	if err := os.Chtimes(path, future, future); err != nil {
+		t.Fatal(err)
+	}
+	m2, err := LoadFromDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m2 == m1 {
+		t.Fatal("expected new matcher after .gitignore change")
+	}
+	if m2.Excludes("bin", true) {
+		t.Error("new matcher should not exclude bin/ — old memo leaked")
+	}
+}
+
 func TestLoadFromDir_SizeInvalidatesCacheOnSameMtime(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".gitignore")
