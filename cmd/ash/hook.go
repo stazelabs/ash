@@ -23,6 +23,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/stazelabs/ash/internal/config"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/session"
 	"github.com/stazelabs/ash/internal/verbs/hook"
@@ -39,6 +40,18 @@ func runHook() {
 	if err != nil {
 		return // malformed payload — allow
 	}
+	// Load [hook].exclude_verbs from ash.toml. Soft-fail: any error
+	// (outside a repo, missing file, parse error) leaves ExcludeVerbs
+	// empty so the hook operates normally.
+	if cwd, err := os.Getwd(); err == nil {
+		if root, err := session.Root(cwd); err == nil {
+			if cfg, _, err := config.Load(root); err == nil && len(cfg.Hook.ExcludeVerbs) > 0 {
+				args.ExcludeVerbs = cfg.Hook.ExcludeVerbs
+				wireArgs["exclude_verbs"] = cfg.Hook.ExcludeVerbs
+			}
+		}
+	}
+
 	result := hook.Decide(args)
 
 	// Emit Claude decision (deny) or nothing (allow).

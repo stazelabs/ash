@@ -72,3 +72,16 @@
 # # disk space but is slow on large ledgers. Default false — PRAGMA optimize
 # # runs instead, which is cheap and sufficient for routine maintenance.
 # vacuum = false
+
+# [hook]
+# # Verbs to exclude from PreToolUse hook enforcement. When a verb is listed
+# # here, the hook allows the corresponding harness tool calls and bash
+# # equivalents rather than denying them with an ash suggestion.
+# #
+# # Useful for: temporarily sidestepping a buggy verb, running isolated
+# # tests against specific tools, or configuration-specific exemptions.
+# # Excluded denies are recorded in the ledger with a ":excluded" suffix on
+# # matched_rule, so they remain queryable via `ash report --verb hook`.
+# #
+# # Valid values: "grep", "find", "read", "edit", "write", "stat", "git", "test"
+# exclude_verbs = []

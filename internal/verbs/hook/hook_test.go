@@ -340,3 +340,137 @@ func TestRun_wrapsDecide(t *testing.T) {
 		t.Errorf("run(grep): %+v", r)
 	}
 }
+
+func TestDecide_excludeVerbs(t *testing.T) {
+	cases := []struct {
+		name         string
+		args         *Args
+		wantDecision string
+		wantRule     string
+	}{
+		// grep excluded: harness Grep allowed with :excluded suffix
+		{
+			name:         "Grep excluded allows",
+			args:         &Args{ToolName: "Grep", Pattern: "foo", Path: ".", ExcludeVerbs: []string{"grep"}},
+			wantDecision: "allow",
+			wantRule:     "Grep:excluded",
+		},
+		// grep excluded: bash grep allowed
+		{
+			name:         "Bash:grep excluded allows",
+			args:         &Args{ToolName: "Bash", Command: "grep foo .", ExcludeVerbs: []string{"grep"}},
+			wantDecision: "allow",
+			wantRule:     "Bash:grep:excluded",
+		},
+		// grep excluded: rg also allowed (same verb group)
+		{
+			name:         "Bash:rg excluded allows",
+			args:         &Args{ToolName: "Bash", Command: "rg pattern .", ExcludeVerbs: []string{"grep"}},
+			wantDecision: "allow",
+			wantRule:     "Bash:rg:excluded",
+		},
+		// grep excluded: unrelated verb (Edit) still denies
+		{
+			name:         "Edit not excluded when grep excluded",
+			args:         &Args{ToolName: "Edit", FilePath: "main.go", ExcludeVerbs: []string{"grep"}},
+			wantDecision: "deny",
+			wantRule:     "Edit",
+		},
+		// find excluded: Glob allowed
+		{
+			name:         "Glob excluded allows",
+			args:         &Args{ToolName: "Glob", Pattern: "**/*.go", Path: ".", ExcludeVerbs: []string{"find"}},
+			wantDecision: "allow",
+			wantRule:     "Glob:excluded",
+		},
+		// find excluded: bash find allowed
+		{
+			name:         "Bash:find excluded allows",
+			args:         &Args{ToolName: "Bash", Command: "find . -name '*.go'", ExcludeVerbs: []string{"find"}},
+			wantDecision: "allow",
+			wantRule:     "Bash:find:excluded",
+		},
+		// read excluded: harness Read text file allowed
+		{
+			name:         "Read excluded allows text file",
+			args:         &Args{ToolName: "Read", FilePath: "main.go", ExcludeVerbs: []string{"read"}},
+			wantDecision: "allow",
+			wantRule:     "Read:excluded",
+		},
+		// read excluded: media files are already allowed, rule unchanged
+		{
+			name:         "Read .png still allows (media)",
+			args:         &Args{ToolName: "Read", FilePath: "img.png", ExcludeVerbs: []string{"read"}},
+			wantDecision: "allow",
+			wantRule:     "Read:.png-allow",
+		},
+		// git excluded: bash git status allowed
+		{
+			name:         "Bash:git-status excluded allows",
+			args:         &Args{ToolName: "Bash", Command: "git status", ExcludeVerbs: []string{"git"}},
+			wantDecision: "allow",
+			wantRule:     "Bash:git-status:excluded",
+		},
+		// git excluded: bash git commit still allows (commit was never denied)
+		{
+			name:         "git commit still passes through when git excluded",
+			args:         &Args{ToolName: "Bash", Command: "git commit -m msg", ExcludeVerbs: []string{"git"}},
+			wantDecision: "allow",
+			wantRule:     "",
+		},
+		// stat excluded: bash stat allowed
+		{
+			name:         "Bash:stat excluded allows",
+			args:         &Args{ToolName: "Bash", Command: "stat main.go", ExcludeVerbs: []string{"stat"}},
+			wantDecision: "allow",
+			wantRule:     "Bash:stat:excluded",
+		},
+		// test excluded: bash go test allowed
+		{
+			name:         "Bash:go-test excluded allows",
+			args:         &Args{ToolName: "Bash", Command: "go test ./...", ExcludeVerbs: []string{"test"}},
+			wantDecision: "allow",
+			wantRule:     "Bash:go-test:excluded",
+		},
+		// empty ExcludeVerbs: normal deny unchanged
+		{
+			name:         "Grep still denies with empty exclude list",
+			args:         &Args{ToolName: "Grep", Pattern: "foo", ExcludeVerbs: []string{}},
+			wantDecision: "deny",
+			wantRule:     "Grep",
+		},
+		// nil ExcludeVerbs: same as empty
+		{
+			name:         "Grep still denies with nil ExcludeVerbs",
+			args:         &Args{ToolName: "Grep", Pattern: "foo"},
+			wantDecision: "deny",
+			wantRule:     "Grep",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := Decide(tc.args)
+			if r.Decision != tc.wantDecision {
+				t.Errorf("Decision: want %q, got %q", tc.wantDecision, r.Decision)
+			}
+			if tc.wantRule != "" && r.MatchedRule != tc.wantRule {
+				t.Errorf("MatchedRule: want %q, got %q", tc.wantRule, r.MatchedRule)
+			}
+		})
+	}
+}
+
+func TestParseArgs_excludeVerbs(t *testing.T) {
+	// Verify that exclude_verbs in the wire map is correctly decoded.
+	in := map[string]any{
+		"tool_name":     "Grep",
+		"exclude_verbs": []interface{}{"grep", "find"},
+	}
+	a, perr := ParseArgs(in)
+	if perr != nil {
+		t.Fatal(perr)
+	}
+	if len(a.ExcludeVerbs) != 2 || a.ExcludeVerbs[0] != "grep" || a.ExcludeVerbs[1] != "find" {
+		t.Errorf("ExcludeVerbs: %v", a.ExcludeVerbs)
+	}
+}

@@ -26,6 +26,7 @@ type Config struct {
 	Jail   JailConfig   `toml:"jail"`
 	Git    GitConfig    `toml:"git"`
 	Ledger LedgerConfig `toml:"ledger"`
+	Hook   HookConfig   `toml:"hook"`
 }
 
 // DaemonConfig collects daemon-process knobs. None of these are
@@ -82,6 +83,19 @@ type LedgerConfig struct {
 	// reclaims disk space but is slow on large ledgers. Default false; PRAGMA
 	// optimize runs instead, which is cheap and sufficient for routine maintenance.
 	Vacuum bool `toml:"vacuum"`
+}
+
+// HookConfig controls which verbs the PreToolUse hook enforces.
+type HookConfig struct {
+	// ExcludeVerbs lists ash verb names whose hook enforcement is
+	// silenced. When a verb is listed here, the hook allows the
+	// corresponding harness tool calls and bash equivalents rather than
+	// denying them. Useful for testing, sidestepping a buggy verb, or
+	// configuration-specific exemptions.
+	//
+	// Valid values: "grep", "find", "read", "edit", "write", "stat",
+	// "git", "test".
+	ExcludeVerbs []string `toml:"exclude_verbs"`
 }
 
 const (

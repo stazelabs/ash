@@ -230,3 +230,32 @@ func writeFile(t *testing.T, path, content string) error {
 	}
 	return writeBytes(path, []byte(content))
 }
+
+func TestLoad_HookConfig(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("ASH_CONFIG", "")
+
+	if err := writeFile(t, filepath.Join(root, "ash.toml"),
+		"[hook]\nexclude_verbs = [\"grep\", \"find\"]\n"); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, _, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Hook.ExcludeVerbs) != 2 {
+		t.Fatalf("ExcludeVerbs len: want 2, got %d", len(cfg.Hook.ExcludeVerbs))
+	}
+	if cfg.Hook.ExcludeVerbs[0] != "grep" || cfg.Hook.ExcludeVerbs[1] != "find" {
+		t.Errorf("ExcludeVerbs: %v", cfg.Hook.ExcludeVerbs)
+	}
+}
+
+func TestDefaults_HookEmpty(t *testing.T) {
+	cfg := Defaults()
+	if len(cfg.Hook.ExcludeVerbs) != 0 {
+		t.Errorf("default ExcludeVerbs should be empty, got %v", cfg.Hook.ExcludeVerbs)
+	}
+}

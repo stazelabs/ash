@@ -19,7 +19,7 @@ ASH-61 landed the **substrate** (the package, the file format, the schema, the l
 - **User-global file:** `$XDG_CONFIG_HOME/ash/config.toml` (with `~/.config/ash/config.toml` fallback, matching the registry path resolver in [internal/registry/registry.go:27-39](../internal/registry/registry.go#L27-L39)).
 - **Layering (last wins):** compiled defaults → user-global → project → `ASH_CONFIG` env override (explicit path) → CLI flags (existing `--root`/`--socket`/`--log` only — no new flags this ticket).
 - **Jail default:** `enabled = false`. Existing repos behave identically with no `ash.toml` present.
-- **Initial enforcement scope:** ASH-61 landed substrate + ASH-16 jail enforcement. ASH-49 wired the `[daemon]` section: per-frame read deadlines, WaitGroup-based graceful shutdown drain, optional concurrency cap. ASH-35 wired `[git].backend` with `go-git` as the default (in-process, no system git required); `shellout` is opt-in for users who want git-CLI semantics.
+- **Initial enforcement scope:** ASH-61 landed substrate + ASH-16 jail enforcement. ASH-49 wired the `[daemon]` section: per-frame read deadlines, WaitGroup-based graceful shutdown drain, optional concurrency cap. ASH-35 wired `[git].backend` with `go-git` as the default (in-process, no system git required); `shellout` is opt-in for users who want git-CLI semantics. ASH-64 added `[hook].exclude_verbs` so individual verbs can be exempted from PreToolUse hook enforcement without removing the hook entirely.
 
 ## Schema
 
@@ -30,6 +30,8 @@ type Config struct {
     Daemon DaemonConfig `toml:"daemon"`
     Jail   JailConfig   `toml:"jail"`
     Git    GitConfig    `toml:"git"`
+    Ledger LedgerConfig `toml:"ledger"`
+    Hook   HookConfig   `toml:"hook"`
 }
 
 type DaemonConfig struct {
@@ -52,6 +54,10 @@ type LedgerConfig struct {
     MaxAge  Duration `toml:"max_age"`   // default 30d; 0 = no age limit (unbounded growth)
     MaxRows int      `toml:"max_rows"`  // default 0 = no row cap
     Vacuum  bool     `toml:"vacuum"`    // default false; PRAGMA optimize runs instead
+}
+
+type HookConfig struct {
+    ExcludeVerbs []string `toml:"exclude_verbs"` // ash verb names to exempt from hook enforcement
 }
 ```
 
@@ -136,6 +142,31 @@ Verbs to touch (path-arg sites confirmed via `ash grep`):
 | uninit | [internal/verbs/uninit/uninit.go:51](../internal/verbs/uninit/uninit.go#L51) | `path` |
 
 `hook`, `help`, `metrics`, `report`, `bench` take no FS path arg and are skipped.
+
+## `[hook]` — PreToolUse enforcement exclusions (ASH-64)
+
+`HookConfig.ExcludeVerbs` is a list of ash verb names whose hook enforcement is silenced. When a verb appears in this list the hook returns **allow** for the corresponding harness tool calls and bash equivalents, instead of denying with an ash suggestion.
+
+The allowed decision is recorded in the ledger with `matched_rule = "<rule>:excluded"` so the exclusion is queryable:
+
+```sh
+ash report --verb hook     # :excluded suffix visible in the matched_rule column
+```
+
+**Verb→rule mapping** (what each name silences):
+
+| `exclude_verbs` entry | Rules silenced |
+|---|---|
+| `"grep"` | `Grep`, `Bash:grep`, `Bash:rg`, `Bash:egrep`, `Bash:fgrep` |
+| `"find"` | `Glob`, `Bash:find`, `Bash:ls-R` |
+| `"read"` | `Read`, `Bash:cat`, `Bash:head`, `Bash:tail` |
+| `"edit"` | `Edit` |
+| `"write"` | `Write` |
+| `"stat"` | `Bash:stat` |
+| `"git"` | `Bash:git-status`, `Bash:git-log`, `Bash:git-diff`, `Bash:git-show` |
+| `"test"` | `Bash:go-test` |
+
+**Wiring**: Unlike `[jail]`, hook exclusions are loaded client-side (not via the daemon) because `ash hook` runs in-process without starting the daemon. `runHook()` in [cmd/ash/hook.go](../cmd/ash/hook.go) calls `config.Load(root)` and injects `ExcludeVerbs` into both the typed `Args` and the fire-and-forget wire map sent to the daemon for ledger instrumentation. No changes to `cmd/ashd/main.go` are required.
 
 ## Error code
 

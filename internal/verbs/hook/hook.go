@@ -51,7 +51,8 @@ type Args struct {
 	FilePath  string `msgpack:"file_path,omitempty"`  // Read/Edit/Write (harness key)
 	OldString string `msgpack:"old_string,omitempty"` // Edit
 	NewString string `msgpack:"new_string,omitempty"` // Edit
-	Content   string `msgpack:"content,omitempty"`    // Write
+	Content      string   `msgpack:"content,omitempty"`       // Write
+	ExcludeVerbs []string `msgpack:"exclude_verbs,omitempty"` // from ash.toml [hook].exclude_verbs
 }
 
 // Result is the structured decision. The client renders this as Claude
@@ -174,6 +175,17 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Content, perr = argutil.OptionalString(in, "content", ""); perr != nil {
 		return nil, perr
 	}
+	// exclude_verbs is set by the client from ash.toml; arrives as
+	// []interface{} from msgpack decode of map[string]any.
+	if v, ok := in["exclude_verbs"]; ok {
+		if items, ok := v.([]interface{}); ok {
+			for _, item := range items {
+				if s, ok := item.(string); ok {
+					a.ExcludeVerbs = append(a.ExcludeVerbs, s)
+				}
+			}
+		}
+	}
 	return a, nil
 }
 
@@ -191,16 +203,28 @@ func Run(a *Args, _ *proto.Tracer) (*Result, *proto.Error) {
 func Decide(a *Args) *Result {
 	switch a.ToolName {
 	case "Grep":
+		if r := allowedByExclusion(a.ToolName, "Grep", a.ExcludeVerbs); r != nil {
+			return r
+		}
 		return denyResult(a.ToolName, "Grep",
 			"Use ash instead: `"+suggestGrep(a.Pattern, a.Path, a.Glob)+"`.")
 	case "Glob":
+		if r := allowedByExclusion(a.ToolName, "Glob", a.ExcludeVerbs); r != nil {
+			return r
+		}
 		return denyResult(a.ToolName, "Glob",
 			"Use ash instead: `"+suggestFind(a.Path, a.Pattern, "file")+"`.")
 	case "Edit":
+		if r := allowedByExclusion(a.ToolName, "Edit", a.ExcludeVerbs); r != nil {
+			return r
+		}
 		path := pickPath(a.FilePath, a.Path)
 		return denyResult(a.ToolName, "Edit",
 			"Use ash instead: `"+suggestEdit(path, a.OldString, a.NewString)+"`.")
 	case "Write":
+		if r := allowedByExclusion(a.ToolName, "Write", a.ExcludeVerbs); r != nil {
+			return r
+		}
 		path := pickPath(a.FilePath, a.Path)
 		return denyResult(a.ToolName, "Write",
 			"Use ash instead: `"+suggestWrite(path)+"`.")
@@ -210,10 +234,13 @@ func Decide(a *Args) *Result {
 		if allowedReadExts[ext] {
 			return &Result{Decision: "allow", ToolName: a.ToolName, MatchedRule: "Read:" + ext + "-allow"}
 		}
+		if r := allowedByExclusion(a.ToolName, "Read", a.ExcludeVerbs); r != nil {
+			return r
+		}
 		return denyResult(a.ToolName, "Read",
 			"Use ash instead: `"+suggestRead(path)+"`.")
 	case "Bash":
-		return decideBash(a.Command)
+		return decideBash(a.Command, a.ExcludeVerbs)
 	}
 	return &Result{Decision: "allow", ToolName: a.ToolName}
 }
@@ -378,6 +405,42 @@ func pickPath(candidates ...string) string {
 		}
 	}
 	return ""
+}
+
+// -- exclusion helpers -------------------------------------------------------
+
+// verbRuleMap maps ash verb names (as used in ash.toml [hook].exclude_verbs)
+// to the MatchedRule strings they suppress.
+var verbRuleMap = map[string][]string{
+	"grep":  {"Grep", "Bash:grep", "Bash:rg", "Bash:egrep", "Bash:fgrep"},
+	"find":  {"Glob", "Bash:find", "Bash:ls-R"},
+	"read":  {"Read", "Bash:cat", "Bash:head", "Bash:tail"},
+	"edit":  {"Edit"},
+	"write": {"Write"},
+	"stat":  {"Bash:stat"},
+	"git":   {"Bash:git-status", "Bash:git-log", "Bash:git-diff", "Bash:git-show"},
+	"test":  {"Bash:go-test"},
+}
+
+func isRuleExcluded(rule string, excludeVerbs []string) bool {
+	for _, verb := range excludeVerbs {
+		for _, r := range verbRuleMap[verb] {
+			if r == rule {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// allowedByExclusion returns a non-nil allow Result when rule is
+// excluded by the caller's ExcludeVerbs list; otherwise nil so the
+// caller falls through to denyResult.
+func allowedByExclusion(toolName, rule string, excludeVerbs []string) *Result {
+	if !isRuleExcluded(rule, excludeVerbs) {
+		return nil
+	}
+	return &Result{Decision: "allow", ToolName: toolName, MatchedRule: rule + ":excluded"}
 }
 
 // -- bash command analysis -------------------------------------------------
@@ -727,9 +790,15 @@ var grepLike = map[string]bool{"grep": true, "rg": true, "egrep": true, "fgrep":
 var readLike = map[string]bool{"cat": true, "head": true, "tail": true}
 var gitRedirect = map[string]bool{"status": true, "log": true, "diff": true, "show": true}
 
-func decideBash(command string) *Result {
+func decideBash(command string, excludeVerbs []string) *Result {
 	if strings.TrimSpace(command) == "" {
 		return &Result{Decision: "allow", ToolName: "Bash"}
+	}
+	deny := func(toolName, rule, reason string) *Result {
+		if r := allowedByExclusion(toolName, rule, excludeVerbs); r != nil {
+			return r
+		}
+		return denyResult(toolName, rule, reason)
 	}
 	for _, seg := range segments(command) {
 		prog, args := firstToken(seg)
@@ -749,7 +818,7 @@ func decideBash(command string) *Result {
 			}
 			reason := fmt.Sprintf("Use ash instead: `%s` (bash `%s` is redirected to ash grep in this repo).",
 				suggestGrep(pattern, path, ""), prog)
-			return denyResult("Bash", "Bash:"+prog, reason)
+			return deny("Bash", "Bash:"+prog, reason)
 		}
 		if prog == "find" {
 			pos := positionalArgs(args)
@@ -766,7 +835,7 @@ func decideBash(command string) *Result {
 			}
 			reason := fmt.Sprintf("Use ash instead: `%s` (bash `find` is redirected to ash find in this repo).",
 				suggestFind(path, glob, ""))
-			return denyResult("Bash", "Bash:find", reason)
+			return deny("Bash", "Bash:find", reason)
 		}
 		if readLike[prog] {
 			pos := positionalArgs(args)
@@ -776,7 +845,7 @@ func decideBash(command string) *Result {
 			}
 			reason := fmt.Sprintf("Use ash instead: `%s` (bash `%s` is redirected to ash read in this repo).",
 				suggestRead(path), prog)
-			return denyResult("Bash", "Bash:"+prog, reason)
+			return deny("Bash", "Bash:"+prog, reason)
 		}
 		if prog == "ls" && lsIsRecursive(args) {
 			pos := positionalArgs(args)
@@ -786,27 +855,27 @@ func decideBash(command string) *Result {
 			}
 			reason := fmt.Sprintf("Use ash instead: `%s` (recursive `ls -R` is redirected to ash find in this repo).",
 				suggestFind(path, "", ""))
-			return denyResult("Bash", "Bash:ls-R", reason)
+			return deny("Bash", "Bash:ls-R", reason)
 		}
 		if prog == "stat" {
 			pos := positionalArgs(args)
 			reason := fmt.Sprintf("Use ash instead: `%s` (bash `stat` is redirected to ash stat in this repo).",
 				suggestStat(pos))
-			return denyResult("Bash", "Bash:stat", reason)
+			return deny("Bash", "Bash:stat", reason)
 		}
 		if prog == "git" {
 			sub := gitSubcommand(args)
 			if gitRedirect[sub] {
 				reason := fmt.Sprintf("Use ash instead: `ash git --op %s` (bash `git %s` is redirected to the ash git verb in this repo).",
 					sub, sub)
-				return denyResult("Bash", "Bash:git-"+sub, reason)
+				return deny("Bash", "Bash:git-"+sub, reason)
 			}
 		}
 		if prog == "go" && len(args) > 0 && args[0] == "test" {
 			pos := positionalArgs(args[1:])
 			reason := fmt.Sprintf("Use ash instead: `%s` (bash `go test` is redirected to ash test in this repo).",
 				suggestTest(pos))
-			return denyResult("Bash", "Bash:go-test", reason)
+			return deny("Bash", "Bash:go-test", reason)
 		}
 		// Other programs (gh, mv, rm, …) pass through.
 	}
