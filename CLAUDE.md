@@ -129,7 +129,7 @@ Hard-won wisdom from real session friction. Read these once; they save tuition.
 
 - **`ash read --range` end is clamped, start is not.** Out-of-bounds end clamps silently to file length (the result reports actual bytes returned); out-of-bounds start returns `range_out_of_bounds` (ASH-57 made the start-side strict so an obviously wrong call fails loudly instead of returning empty).
 
-- **Hook has known-bad cases worth knowing.** `cat > FILE << EOF` produces a malformed `ash read --path '>'` suggestion (ASH-69). When you need to stage multiline content, pipe the heredoc directly into `ash write --content -` instead of using a temp file.
+- **Hook redirects `cat`/`echo`/`printf`/`tee` + `>` to `ash write`.** Bare output-redirection write idioms (`cat > FILE << EOF`, `echo "x" > FILE`, `printf '...' > FILE`, `tee >> FILE`) deny under rule `Bash:redirect-write` and suggest `ash write --path FILE --content - << 'EOF'` (ASH-69). Skip the temp-file dance: pipe heredocs directly into `ash write --content -`.
 
 ## Session feedback ritual
 

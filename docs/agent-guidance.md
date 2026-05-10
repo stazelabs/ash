@@ -77,7 +77,7 @@ Examples of load-bearing entries that earned their place:
 - Daemon stickiness — config changes need explicit restart (ASH-49, ASH-61)
 - Path-form semantics differ across verbs (ASH-33 sweep + ship-5-git-status note)
 - `ash read --range` start vs. end clamping (ASH-57)
-- Hook's known-bad redirect case `cat > FILE` (ASH-69)
+- Hook redirects `cat`/`echo`/`printf`/`tee` + `>` to `ash write` (ASH-69)
 
 A fact that fails any of the three tests belongs somewhere else: source comments, design docs, or just the help schema.
 

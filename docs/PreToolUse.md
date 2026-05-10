@@ -59,6 +59,7 @@ Dispatched on `tool_name`:
   - `grep`/`rg`/`egrep`/`fgrep` → suggest `ash grep`
   - `find` → suggest `ash find` (extracts `-name`/`-iname` glob if present)
   - `cat`/`head`/`tail` → suggest `ash read`
+  - `cat`/`echo`/`printf`/`tee` with an output redirection (`>`, `>>`, `&>`, `&>>`) → suggest `ash write --path FILE --content - << 'EOF'` (rule `Bash:redirect-write`). The redirect target wins over the read mapping; `cat foo > bar` denies as a write, not a read.
   - `ls -R` (or `--recursive`) → suggest `ash find`
   - `stat` → suggest `ash stat`
   - `git status` / `git log` → suggest `ash git --op status` or `ash git --op log`
@@ -68,6 +69,8 @@ Dispatched on `tool_name`:
 Suggested invocations are best-effort — the goal is to give the agent a known-good starting point, not a perfect translation.
 
 The bash command splitter is **literal** (no shell quoting awareness): a `;` inside a quoted string still splits the command. This matches the previous python implementation's behavior and is sufficient for the patterns agents actually emit; it can occasionally trip on content-bearing arguments. The fix is to feed such content via stdin (`--content -`) rather than weaken the splitter.
+
+Within a segment, positional args are scanned with shell redirection operators (`>`, `>>`, `<`, `<<`, `&>`, `2>&1`, `[N]>...`, etc.) stripped before they reach the suggestion builders. A stray `2>&1` or `> /tmp/list` no longer pollutes the suggested `--path` value, and `cat`/`echo`/`printf`/`tee` invocations with an output redirect are routed to `ash write` rather than `ash read` (ASH-69).
 
 ## A note on Read denial
 
