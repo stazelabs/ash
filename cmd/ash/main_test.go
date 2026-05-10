@@ -152,3 +152,37 @@ func TestParseFlags_PositionalThenSameKeyFlagErrors(t *testing.T) {
 		t.Fatal("expected error when --path is set after the path positional, got nil")
 	}
 }
+
+func TestParseFlags_NoPrefixBare(t *testing.T) {
+	got, err := parseFlags("find", []string{"--path", ".", "--no-gi"})
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	want := map[string]any{"path": ".", "gi": "false"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestParseFlags_NoPrefixMultiple(t *testing.T) {
+	got, err := parseFlags("write", []string{"--path", "f.go", "--no-mkdir"})
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	want := map[string]any{"path": "f.go", "mkdir": "false"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestParseFlags_NoPrefixDoesNotConsumeNextArg(t *testing.T) {
+	// --no-gi should not consume the following --path argument.
+	got, err := parseFlags("find", []string{"--no-gi", "--path", "src"})
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	want := map[string]any{"gi": "false", "path": "src"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}

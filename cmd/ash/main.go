@@ -295,8 +295,11 @@ var verbListFlags = map[string]map[string]bool{
 // parseFlags converts agent-friendly long flags and per-verb positional
 // arguments into an args map. Both --key value and --key=value are
 // accepted. Bare values (no -- prefix) are matched against the verb's
-// positional slot list (verbPositionals). Boolean shorthand (--flag with
-// no value) is rejected to keep the on-wire shape unambiguous.
+// positional slot list (verbPositionals). The bare form --no-foo is
+// accepted as shorthand for --foo=false; this covers default-true booleans
+// like --gi, --untracked, and --mkdir without requiring the verbose =false
+// suffix. Boolean shorthand (--flag with no value and no --no- prefix) is
+// rejected to keep the on-wire shape unambiguous.
 func parseFlags(verb string, argv []string) (map[string]any, error) {
 	out := make(map[string]any)
 	positionals := verbPositionals[verb]
@@ -320,6 +323,9 @@ func parseFlags(verb string, argv []string) (map[string]any, error) {
 		if eq := strings.IndexByte(key, '='); eq >= 0 {
 			val = key[eq+1:]
 			key = key[:eq]
+		} else if strings.HasPrefix(key, "no-") {
+			key = key[3:]
+			val = "false"
 		} else {
 			if i+1 >= len(argv) {
 				return nil, fmt.Errorf("flag --%s missing value", key)
