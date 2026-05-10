@@ -59,10 +59,10 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Range, perr = argutil.OptionalString(in, "range", ""); perr != nil {
 		return nil, perr
 	}
-	if a.RangeKind, perr = argutil.OptionalEnum(in, "range_kind", "lines", []string{"lines", "bytes"}); perr != nil {
+	if a.RangeKind, perr = argutil.OptionalEnum(in, "unit", "lines", []string{"lines", "bytes"}); perr != nil {
 		return nil, perr
 	}
-	if a.LimitBytes, perr = argutil.OptionalPosInt(in, "limit_bytes", DefaultLimitBytes, MaxLimitBytes); perr != nil {
+	if a.LimitBytes, perr = argutil.OptionalPosInt(in, "bytes", DefaultLimitBytes, MaxLimitBytes); perr != nil {
 		return nil, perr
 	}
 	if perr := jail.CheckPaths(map[string]string{
@@ -206,7 +206,6 @@ func applyRange(body []byte, spec, kind string) ([]byte, string, *proto.Error) {
 // Default ("lean") header: `=== <path> [<size>B, <lines>L[, encoding=base64]
 // [, range=<r>][, TRUNCATED]] ===`. Encoding surfaces only when non-utf-8
 // (base64) since that changes how the agent must consume the body. Mtime
-// is omitted by default — `--with_meta true` re-adds it (and pins
 // encoding regardless of value).
 //
 // Rationale: the mtime tokenizes as ~9 tokens because cl100k splits on
@@ -223,7 +222,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	}
 	withMeta := false
 	if req != nil {
-		if v, ok := req.Args["with_meta"]; ok {
+		if v, ok := req.Args["meta"]; ok {
 			if b, ok := argutil.ToBool(v); ok {
 				withMeta = b
 			}
@@ -259,9 +258,9 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	b.WriteString("] ===\n")
 	b.WriteString(r.Content)
 	if r.Truncated && r.TruncInfo != nil {
-		b.WriteString("\n\n[truncation: limit_bytes=")
+		b.WriteString("\n\n[truncation: bytes=")
 		b.WriteString(strconv.Itoa(r.TruncInfo.Limit))
-		b.WriteString(" hit. narrow with --range or raise --limit_bytes (max ")
+		b.WriteString(" hit. narrow with --range or raise --bytes (max ")
 		b.WriteString(strconv.Itoa(r.TruncInfo.Max))
 		b.WriteString(")]")
 	}

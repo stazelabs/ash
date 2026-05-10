@@ -52,7 +52,6 @@ Dispatched on `tool_name`:
 
 - **`Grep`** → always deny. Suggests `ash grep --pattern <p> --path <d> [--glob …]`.
 - **`Glob`** → always deny. Suggests `ash find --path <d> --glob <p> --type file`.
-- **`Edit`** → always deny. Suggests `ash edit --path <p> --old_string <o> --new_string <n>`.
 - **`Write`** → always deny. Suggests `ash write --path <p> --content <text>`.
 - **`Read`** → deny on text files. Allow on `.png`/`.jpg`/`.jpeg`/`.gif`/`.webp`/`.pdf`/`.ipynb` (file types `ash read` can't render meaningfully).
 - **`Bash`** → tokenize the command across shell separators. For each segment, look at the first command word (skipping leading `VAR=value` assignments and `env`/`command`/`exec`/`time`/`nice` prefixes). Deny when:

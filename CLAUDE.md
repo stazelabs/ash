@@ -38,23 +38,16 @@ Any `ash` invocation auto-starts the daemon. Use `bin/ash` from the repo root, o
 
 **Switch criteria — what to actually use ash for now:**
 
-1. **Any path or filename lookup across more than one directory** — use `ash find`. Canonical: `ash find --path <p> --glob '**/*.go' --type file`. Hidden directories (`.git`, `.ash`, `.vscode`) are skipped by default; `.gitignore` at the walk root is respected. Override with `--include_hidden true` / `--respect_gitignore false`. Run `ash help --verb find` for the full schema.
 
-2. **Any pattern search across one or more files** — use `ash grep`. Canonical: `ash grep --pattern '<re>' --path <p> --glob '**/*.go'`. Smart-case by default (uppercase letter switches to case-sensitive). Add `--files_only true` for a path-only result, `--no_text true` for `path:line:col` rows without excerpts (cheap-form), `--fixed_string true` to escape regex metachars, `--context_before/after N` for surrounding lines. `ash help --verb grep` for the full schema.
 
-3. **`git status`, `git log`, `git diff`, and `git show` in this repo** — use `ash git --op status|log|diff|show`. Canonical examples: `ash git --op status`, `ash git --op log --limit 20`, `ash git --op diff --range HEAD~1..HEAD --stat true`, `ash git --op show --ref HEAD`. Status splits into `staged`/`unstaged`/`untracked`/`conflicts`; log emits structured `Commit` records; diff/show return per-file `{path, status, additions, deletions, patch}` with a `limit_bytes` cap (default 256 KiB). Other git ops (`blame`, `commit`, `push`, `reset`, etc.) stay in bash until they ship under `--op`. `ash help --verb git` for the full schema.
 
 4. **Reads of files in this repo** — use `ash read` deliberately, even when the harness Read tool would suffice. Canonical: `ash read --path <p> --range 100:200`. Default cap 256 KiB; UTF-8 returned as-is; binary base64-encoded. We need ledger data to compare. `ash help --verb read` for the full schema.
 
-5. **Ledger queries** — use `ash report` for synthesis, `ash metrics` for raw rows. `ash report --since 1h` is the most common form when a session feels heavy. `--top N` controls the truncation-hotspot / error-histogram cap. Cross-repo: `--root <p>` reads a foreign repo's ledger; `--all_roots true` aggregates across every `ash init`'d repo. `ash help --verb report` / `--verb metrics` for the full schemas.
 
-6. **Filesystem metadata for explicit paths** — use `ash stat`. Canonical: `ash stat --paths a.go,b.go,internal/`. Uses `lstat` (symlinks report as symlinks). Per-entry `error` (`not_found` / `permission` / `broken_symlink`) keeps a bulk call alive when some paths are missing. Pass `--with_meta true` to include mode + mtime in the pretty rows. `ash help --verb stat` for the full schema.
 
 7. **Writing files in this repo** — use `ash write` instead of the harness Write tool. (Do not fall back to harness `Write`: it requires a prior harness `Read`, which the hook also denies — go straight to `ash write`.) Canonical: `ash write --path <p> --content - << 'EOF' … EOF` for non-trivial content; `--content '…'` only for short ASCII-only writes. Atomic via temp-file+rename. `ash help --verb write` for the full schema.
 
-8. **Editing files in this repo** — use `ash edit`. Three modes: string-replacement (`--old_string` / `--new_string`), line-range (`--range start:end --new_content`), or unified-diff (`--patch`). Canonical: `ash edit --path <p> --range 5:10 --new_content - << 'EOF' … EOF`. Errors `match_not_found` / `ambiguous` are signal — be more specific or pass `--replace_all true`. Add `--dry_run true` to preview as a unified diff. `ash help --verb edit` for the full schema.
 
-   **Shell quoting — default to stdin.** `--old_string`, `--new_string`, `--new_content`, and `--patch` are all shell arguments and silently corrupt content containing backticks, single quotes, backslashes, escape sequences, or multiline blocks. **Default to stdin** for any non-trivial replacement, in this order: (a) `ash edit --path f.go --range 5:10 --new_content - << 'EOF' … EOF` for line-range edits when you know the line numbers; (b) `ash edit --path f.go --patch - << 'EOF' … EOF` for cross-cutting or multi-region edits; (c) `ash write --path f.go --content - << 'EOF' … EOF` for whole-file rewrites. Inline `--…='…'` is for short ASCII-only swaps with no quoting hazards. As a last resort for hostile content, write a Python fixer via `ash write --path /tmp/fix.py --content - << 'EOF' … EOF` then `python3 /tmp/fix.py` — Python string concat sidesteps all shell quoting.
 
 9. **Diffing content in this repo** — use `ash diff`. Canonical: `ash diff --path a.go --other b.go` or `ash diff --path f.go --content - < new.go`. Add `--stat true` for token-cheap counts only. Both inputs capped at 2000 lines. `ash help --verb diff` for the full schema.
 
@@ -117,7 +110,6 @@ The ledger is the substrate for the recursive-development experiment. If a sessi
 
 Hard-won wisdom from real session friction. Read these once; they save tuition.
 
-- **Shell quoting on `ash edit`/`ash write` is the #1 footgun.** Inline string args silently corrupt backticks, single quotes, backslashes, escape sequences, and multiline content. Detailed rules live in switch criterion 8 above; the short version: **default to stdin** (`--content -`, `--new_content -`, `--patch -`) for any non-trivial content. Confirmed by ASH-48 / ASH-60 / ASH-63 session friction.
 
 - **Daemon stickiness — config changes don't hot-reload.** Edits to `ash.toml` (jail policy, git backend, daemon limits) take effect only on daemon restart. Run `ash stop`; the next `ash` invocation auto-starts a fresh daemon. Don't `pkill ashd` (it bypasses graceful shutdown). If a verb behaves as though it's running with old config, this is the first thing to check.
 

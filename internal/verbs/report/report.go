@@ -178,11 +178,11 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Root, perr = argutil.OptionalString(in, "root", ""); perr != nil {
 		return nil, perr
 	}
-	if a.AllRoots, perr = argutil.OptionalBool(in, "all_roots", false); perr != nil {
+	if a.AllRoots, perr = argutil.OptionalBool(in, "all", false); perr != nil {
 		return nil, perr
 	}
 	if a.Root != "" && a.AllRoots {
-		return nil, &proto.Error{Code: "args", Msg: "--root and --all_roots are mutually exclusive"}
+		return nil, &proto.Error{Code: "args", Msg: "--root and --all are mutually exclusive"}
 	}
 	// "current" only makes sense against the daemons own ledger. When a
 	// foreign ledger is in scope, default to no session filter unless the

@@ -43,14 +43,14 @@ import (
 // values populate different subsets. Decide tolerates missing fields per
 // tool's expected shape.
 type Args struct {
-	ToolName  string `msgpack:"tool_name"`
+	ToolName  string `msgpack:"tool"`
 	Pattern   string `msgpack:"pattern,omitempty"`    // Grep/Glob
 	Path      string `msgpack:"path,omitempty"`       // Grep/Glob (and harness Read in some shapes)
 	Glob      string `msgpack:"glob,omitempty"`       // Grep
 	Command   string `msgpack:"command,omitempty"`    // Bash
-	FilePath  string `msgpack:"file_path,omitempty"`  // Read/Edit/Write (harness key)
-	OldString string `msgpack:"old_string,omitempty"` // Edit
-	NewString string `msgpack:"new_string,omitempty"` // Edit
+	FilePath  string `msgpack:"file,omitempty"`       // Read/Edit/Write (harness key)
+	OldString string `msgpack:"old,omitempty"`        // Edit
+	NewString string `msgpack:"new,omitempty"`        // Edit
 	Content      string   `msgpack:"content,omitempty"`       // Write
 	ExcludeVerbs []string `msgpack:"exclude_verbs,omitempty"` // from ash.toml [hook].exclude_verbs
 }
@@ -114,7 +114,7 @@ func ExtractArgs(payload []byte) (map[string]any, *Args, error) {
 	a.NewString = getStr("new_string")
 	a.Content = getStr("content")
 
-	wire := map[string]any{"tool_name": a.ToolName}
+	wire := map[string]any{"tool": a.ToolName}
 	if a.Pattern != "" {
 		wire["pattern"] = a.Pattern
 	}
@@ -128,13 +128,13 @@ func ExtractArgs(payload []byte) (map[string]any, *Args, error) {
 		wire["command"] = a.Command
 	}
 	if a.FilePath != "" {
-		wire["file_path"] = a.FilePath
+		wire["file"] = a.FilePath
 	}
 	if a.OldString != "" {
-		wire["old_string"] = a.OldString
+		wire["old"] = a.OldString
 	}
 	if a.NewString != "" {
-		wire["new_string"] = a.NewString
+		wire["new"] = a.NewString
 	}
 	if a.Content != "" {
 		wire["content"] = a.Content
@@ -148,7 +148,7 @@ func ExtractArgs(payload []byte) (map[string]any, *Args, error) {
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	a := &Args{}
 	var perr *proto.Error
-	if a.ToolName, perr = argutil.OptionalString(in, "tool_name", ""); perr != nil {
+	if a.ToolName, perr = argutil.OptionalString(in, "tool", ""); perr != nil {
 		return nil, perr
 	}
 	if a.Pattern, perr = argutil.OptionalString(in, "pattern", ""); perr != nil {
@@ -163,13 +163,13 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Command, perr = argutil.OptionalString(in, "command", ""); perr != nil {
 		return nil, perr
 	}
-	if a.FilePath, perr = argutil.OptionalString(in, "file_path", ""); perr != nil {
+	if a.FilePath, perr = argutil.OptionalString(in, "file", ""); perr != nil {
 		return nil, perr
 	}
-	if a.OldString, perr = argutil.OptionalString(in, "old_string", ""); perr != nil {
+	if a.OldString, perr = argutil.OptionalString(in, "old", ""); perr != nil {
 		return nil, perr
 	}
-	if a.NewString, perr = argutil.OptionalString(in, "new_string", ""); perr != nil {
+	if a.NewString, perr = argutil.OptionalString(in, "new", ""); perr != nil {
 		return nil, perr
 	}
 	if a.Content, perr = argutil.OptionalString(in, "content", ""); perr != nil {
@@ -367,11 +367,11 @@ func suggestEdit(path, old, new string) string {
 		path = "<file>"
 	}
 	if old == "" {
-		return "ash edit --path " + shellquote(path) + " --old_string <text> --new_string <replacement>"
+		return "ash edit --path " + shellquote(path) + " --old <text> --new <replacement>"
 	}
 	return "ash edit --path " + shellquote(path) +
-		" --old_string " + shellquote(old) +
-		" --new_string " + shellquote(new)
+		" --old " + shellquote(old) +
+		" --new " + shellquote(new)
 }
 
 func suggestWrite(path string) string {

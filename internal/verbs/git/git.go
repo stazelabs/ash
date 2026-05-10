@@ -131,7 +131,7 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.StatOnly, perr = argutil.OptionalBool(in, "stat", false); perr != nil {
 		return nil, perr
 	}
-	if a.LimitBytes, perr = argutil.OptionalPosInt(in, "limit_bytes", DiffDefaultLimitBytes, DiffMaxLimitBytes); perr != nil {
+	if a.LimitBytes, perr = argutil.OptionalPosInt(in, "bytes", DiffDefaultLimitBytes, DiffMaxLimitBytes); perr != nil {
 		return nil, perr
 	}
 	if perr := jail.CheckPaths(map[string]string{

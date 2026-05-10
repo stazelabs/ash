@@ -50,9 +50,9 @@ var registry = []VerbSchema{
 		Args: []ArgSchema{
 			{Name: "path", Type: "string", Required: true, Description: "Absolute or relative path to the file."},
 			{Name: "range", Type: "string", Default: "", Description: "Range to read, formatted as start:end (e.g. 1:100). 1-based, inclusive on both ends. End is clamped to file length."},
-			{Name: "range_kind", Type: "string", Default: "lines", Values: []string{"lines", "bytes"}, Description: "Unit for the range argument."},
-			{Name: "limit_bytes", Type: "int", Default: "262144", Description: "Maximum bytes to return. Default 256 KiB; hard cap 8 MiB. The truncation hint in the response shows how to narrow with --range or raise the cap."},
-			{Name: "with_meta", Type: "bool", Default: "false", Description: "When true the pretty header includes encoding + mtime. Default lean header omits both (encoding only surfaces when non-utf-8). Wire data always carries them."},
+			{Name: "unit", Type: "string", Default: "lines", Values: []string{"lines", "bytes"}, Description: "Unit for the range argument."},
+			{Name: "bytes", Type: "int", Default: "262144", Description: "Maximum bytes to return. Default 256 KiB; hard cap 8 MiB. The truncation hint in the response shows how to narrow with --range or raise the cap."},
+			{Name: "meta", Type: "bool", Default: "false", Description: "When true the pretty header includes encoding + mtime. Default lean header omits both (encoding only surfaces when non-utf-8). Wire data always carries them."},
 		},
 	},
 	{
@@ -62,12 +62,12 @@ var registry = []VerbSchema{
 			{Name: "path", Type: "string", Required: true, Description: "Starting directory for the walk."},
 			{Name: "glob", Type: "string", Default: "**", Description: "Doublestar glob pattern; matched against the path relative to --path."},
 			{Name: "type", Type: "string", Default: "any", Values: []string{"any", "file", "dir", "symlink"}, Description: "Filter by entry type."},
-			{Name: "max_depth", Type: "int", Default: "0", Description: "Maximum directory depth to descend. 0 means unlimited; 1 = direct children of --path only."},
+			{Name: "depth", Type: "int", Default: "0", Description: "Maximum directory depth to descend. 0 means unlimited; 1 = direct children of --path only."},
 			{Name: "limit", Type: "int", Default: "256", Description: "Maximum number of results. Hard cap is 4096."},
 			{Name: "exclude", Type: "string", Default: "", Description: "Doublestar pattern; matching entries are skipped entirely. Matched against path relative to --path (same as --glob)."},
-			{Name: "include_hidden", Type: "bool", Default: "false", Description: "When false, directories starting with '.' are skipped. Leaf dotfiles remain findable."},
-			{Name: "respect_gitignore", Type: "bool", Default: "true", Description: "When true, .gitignore at the walk root (--path) is loaded and applied."},
-			{Name: "with_meta", Type: "bool", Default: "false", Description: "When true, each pretty-form row shows '<F|D|L> <size> <yyyy-mm-dd> <path>'. Default is path-only (with trailing '/' for dirs); use 'ash stat' for size/mtime."},
+			{Name: "hidden", Type: "bool", Default: "false", Description: "When false, directories starting with '.' are skipped. Leaf dotfiles remain findable."},
+			{Name: "gi", Type: "bool", Default: "true", Description: "When true, .gitignore at the walk root (--path) is loaded and applied."},
+			{Name: "meta", Type: "bool", Default: "false", Description: "When true, each pretty-form row shows '<F|D|L> <size> <yyyy-mm-dd> <path>'. Default is path-only (with trailing '/' for dirs); use 'ash stat' for size/mtime."},
 		},
 	},
 	{
@@ -78,18 +78,17 @@ var registry = []VerbSchema{
 			{Name: "path", Type: "string", Required: true, Description: "File or directory to search. Returned match paths mirror the input form: absolute input yields absolute paths, relative input yields relative paths."},
 			{Name: "glob", Type: "string", Default: "**", Description: "Doublestar pattern; only files matching this are scanned. Matched against the path relative to --path (the walk root)."},
 			{Name: "case", Type: "string", Default: "smart", Values: []string{"smart", "sensitive", "insensitive"}, Description: "Case sensitivity. smart = insensitive unless pattern has an uppercase letter."},
-			{Name: "fixed_string", Type: "bool", Default: "false", Description: "Treat pattern as literal text instead of a regex."},
-			{Name: "word", Type: "bool", Default: "false", Description: "Require word boundaries (\\b) around the pattern."},
-			{Name: "max_matches", Type: "int", Default: "256", Description: "Cap on total match records. Hard cap is 4096."},
-			{Name: "max_per_file", Type: "int", Default: "0", Description: "Cap on records per file. 0 means unlimited."},
-			{Name: "context_before", Type: "int", Default: "0", Description: "Lines of context before each match. Max 50. Context lines are deduplicated across overlapping matches."},
-			{Name: "context_after", Type: "int", Default: "0", Description: "Lines of context after each match. Max 50. Context lines are deduplicated across overlapping matches."},
-			{Name: "files_only", Type: "bool", Default: "false", Description: "Return only the paths of files containing at least one match."},
-			{Name: "no_text", Type: "bool", Default: "false", Description: "Omit the matched line text from records; pretty form renders path:line:col only."},
-			{Name: "exclude", Type: "string", Default: "", Description: "Doublestar pattern; matching paths are skipped. Matched against path relative to --path (the walk root)."},
-			{Name: "max_depth", Type: "int", Default: "0", Description: "Maximum directory depth to descend. 0 means unlimited."},
-			{Name: "include_hidden", Type: "bool", Default: "false", Description: "When false, directories starting with '.' are skipped."},
-			{Name: "respect_gitignore", Type: "bool", Default: "true", Description: "When true, .gitignore at the walk root (--path) is loaded and applied."},
+			{Name: "lit", Type: "bool", Default: "false", Description: "Treat pattern as literal text instead of a regex."},
+			{Name: "max", Type: "int", Default: "256", Description: "Cap on total match records. Hard cap is 4096."},
+			{Name: "mpf", Type: "int", Default: "0", Description: "Cap on records per file. 0 means unlimited."},
+			{Name: "cb", Type: "int", Default: "0", Description: "Lines of context before each match. Max 50. Context lines are deduplicated across overlapping matches."},
+			{Name: "ca", Type: "int", Default: "0", Description: "Lines of context after each match. Max 50. Context lines are deduplicated across overlapping matches."},
+			{Name: "context", Type: "int", Default: "0", Description: "Symmetric context: sets both --cb and --ca. Per-direction flags take precedence when both are given."},
+			{Name: "fo", Type: "bool", Default: "false", Description: "Return only the paths of files containing at least one match."},
+			{Name: "no-text", Type: "bool", Default: "false", Description: "Omit the matched line text from records; pretty form renders path:line:col only."},
+			{Name: "depth", Type: "int", Default: "0", Description: "Maximum directory depth to descend. 0 means unlimited."},
+			{Name: "hidden", Type: "bool", Default: "false", Description: "When false, directories starting with '.' are skipped."},
+			{Name: "gi", Type: "bool", Default: "true", Description: "When true, .gitignore at the walk root (--path) is loaded and applied."},
 		},
 	},
 	{
@@ -110,7 +109,7 @@ var registry = []VerbSchema{
 			{Name: "pathspec", Type: "string", Default: "", Ops: []string{"log", "diff", "show"}, Description: "[log/diff/show] restrict to a single path (passed after -- to git). Interpreted relative to the repo root, not relative to --path."},
 			{Name: "stat", Type: "bool", Default: "false", Ops: []string{"diff", "show"}, Description: "[diff/show] return per-file addition/deletion counts only (no patch text). Much cheaper in tokens."},
 			{Name: "context", Type: "int", Default: "3", Ops: []string{"diff", "show"}, Description: "[diff/show] unified diff context lines. Max 50."},
-			{Name: "limit_bytes", Type: "int", Default: "262144", Ops: []string{"diff", "show"}, Description: "[diff/show] cap on total patch bytes returned. Files beyond cap have patch omitted but stats preserved. Max 4 MiB."},
+			{Name: "bytes", Type: "int", Default: "262144", Ops: []string{"diff", "show"}, Description: "[diff/show] cap on total patch bytes returned. Files beyond cap have patch omitted but stats preserved. Max 4 MiB."},
 		},
 	},
 	{
@@ -121,7 +120,7 @@ var registry = []VerbSchema{
 			{Name: "content", Type: "string", Required: true, Description: "File content. UTF-8 text by default; base64-encoded bytes when encoding=base64. Pass '-' to read from stdin."},
 			{Name: "encoding", Type: "string", Default: "utf-8", Values: []string{"utf-8", "base64"}, Description: "Content encoding. Use base64 for binary files."},
 			{Name: "mkdir", Type: "bool", Default: "true", Description: "Create missing parent directories."},
-			{Name: "create_only", Type: "bool", Default: "false", Description: "Fail with 'exists' error if the file already exists. Useful as a safety guard against accidental overwrites."},
+			{Name: "no-clobber", Type: "bool", Default: "false", Description: "Fail with 'exists' error if the file already exists. Useful as a safety guard against accidental overwrites."},
 		},
 	},
 	{
@@ -136,13 +135,13 @@ var registry = []VerbSchema{
 		Verb:        "report",
 		Description: "Aggregate per-verb summary across ledger calls: n, ok%, p50/p95 latency, p50/p95 tokens_out, trunc%.",
 		Args: []ArgSchema{
-			{Name: "session", Type: "string", Default: "current", Values: []string{"current", "all", "<id>"}, Description: "Session scope: 'current' (this daemon session), 'all', or an explicit session ID. With --root or --all_roots, defaults to no session filter."},
+			{Name: "session", Type: "string", Default: "current", Values: []string{"current", "all", "<id>"}, Description: "Session scope: 'current' (this daemon session), 'all', or an explicit session ID. With --root or --all, defaults to no session filter."},
 			{Name: "since", Type: "string", Default: "", Description: "Time window, e.g. '15m', '1h', '24h', '7d'. Supports Go duration syntax plus 'd' for days."},
 			{Name: "last", Type: "int", Default: "", Description: "Row cap applied after session/since filters. Maximum is 5000."},
 			{Name: "verb", Type: "string", Default: "", Description: "Restrict aggregation to calls for a specific verb."},
 			{Name: "top", Type: "int", Default: "5", Description: "Max entries shown in truncation hotspots and error histogram sections. Maximum is 100."},
-			{Name: "root", Type: "string", Default: "", Description: "Project root whose ledger to query (read-only). Mutually exclusive with --all_roots. Use to analyze a target repo from outside it."},
-			{Name: "all_roots", Type: "bool", Default: "false", Description: "Aggregate across every root in the installed-repos registry. Pretty form includes a per-root breakdown."},
+			{Name: "root", Type: "string", Default: "", Description: "Project root whose ledger to query (read-only). Mutually exclusive with --all. Use to analyze a target repo from outside it."},
+			{Name: "all", Type: "bool", Default: "false", Description: "Aggregate across every root in the installed-repos registry. Pretty form includes a per-root breakdown."},
 		},
 	},
 	{
@@ -156,14 +155,14 @@ var registry = []VerbSchema{
 		Verb:        "hook",
 		Description: "Claude Code PreToolUse decision engine. Reads a hook payload from stdin (when invoked as `ash hook` from the harness) and returns a deny/allow decision steering the agent toward ash equivalents. Daemon-side dispatch uses tool_name and tool-specific fields directly. Not normally invoked manually.",
 		Args: []ArgSchema{
-			{Name: "tool_name", Type: "string", Description: "Harness tool the agent attempted (e.g. Grep, Bash, Edit, Write, Read)."},
+			{Name: "tool", Type: "string", Description: "Harness tool the agent attempted (e.g. Grep, Bash, Edit, Write, Read)."},
 			{Name: "command", Type: "string", Description: "[Bash] command line."},
 			{Name: "pattern", Type: "string", Description: "[Grep] regex / [Glob] pattern."},
 			{Name: "path", Type: "string", Description: "[Grep/Glob] search root or [Read fallback] path."},
 			{Name: "glob", Type: "string", Description: "[Grep] file glob filter."},
-			{Name: "file_path", Type: "string", Description: "[Read/Edit/Write] target file path (harness key)."},
-			{Name: "old_string", Type: "string", Description: "[Edit] text to replace."},
-			{Name: "new_string", Type: "string", Description: "[Edit] replacement text."},
+			{Name: "file", Type: "string", Description: "[Read/Edit/Write] target file path (harness key)."},
+			{Name: "old", Type: "string", Description: "[Edit] text to replace."},
+			{Name: "new", Type: "string", Description: "[Edit] replacement text."},
 			{Name: "content", Type: "string", Description: "[Write] new file content."},
 		},
 	},
@@ -173,22 +172,21 @@ var registry = []VerbSchema{
 		Args: []ArgSchema{
 			{Name: "paths", Type: "string", PH: "<p1>[,<p2>...]", Description: "Comma-separated list of paths to inspect (e.g. 'cmd/ash/main.go,internal/'). One of --paths or --path is required."},
 			{Name: "path", Type: "string", Description: "Single-path alias for --paths (e.g. --path cmd/ash/main.go). One of --paths or --path is required."},
-			{Name: "follow_symlinks", Type: "bool", Default: "false", Description: "When true, resolve each symlink with os.Stat and report the target's type/size/mtime/mode. link_target is preserved for traceability. Broken symlinks produce error=broken_symlink rather than failing the call."},
-			{Name: "with_meta", Type: "bool", Default: "false", Description: "When true the pretty rows include mode + mtime: `<F|D|L> <size> <mode> <mtime> <path>`. Default lean rows are `<F|D|L> <size> <path>`. Wire data always carries mode + mtime."},
+			{Name: "follow", Type: "bool", Default: "false", Description: "When true, resolve each symlink with os.Stat and report the target's type/size/mtime/mode. link_target is preserved for traceability. Broken symlinks produce error=broken_symlink rather than failing the call."},
 		},
 	},
 	{
 		Verb:        "edit",
-		Description: "In-place file mutation. String-replacement mode (old_string/new_string), line-range mode (range/new_content), or patch mode (patch). Atomic write via temp-file+rename.",
+		Description: "In-place file mutation. String-replacement mode (old/new), line-range mode (range/new), or patch mode (patch). Atomic write via temp-file+rename.",
 		Args: []ArgSchema{
 			{Name: "path", Type: "string", Required: true, Description: "File to edit."},
-			{Name: "old_string", Type: "string", Mode: "string", Description: "[string mode] Exact text to find (required if range/patch not provided). Must appear exactly once unless replace_all=true."},
-			{Name: "new_string", Type: "string", Mode: "string", Default: "", Description: "[string mode] Replacement text. Empty string deletes the matched text."},
-			{Name: "replace_all", Type: "bool", Mode: "string", Default: "false", Description: "[string mode] Replace every occurrence of old_string. If false, errors when old_string appears more than once."},
-			{Name: "range", Type: "string", Mode: "range", Description: "[range mode] Line range to replace, formatted as start:end, 1-based inclusive (required if old_string/patch not provided)."},
-			{Name: "new_content", Type: "string", Mode: "range", Default: "", Description: "[range mode] Replacement text for the specified lines. Empty string deletes the lines."},
-			{Name: "patch", Type: "string", Mode: "patch", PH: "<diff|->", Description: "[patch mode] Unified diff to apply (required if old_string/range not provided). Pass '-' to read from stdin. Error codes: patch_parse_error, patch_failed."},
-			{Name: "dry_run", Type: "bool", Default: "false", Description: "Compute the replacement but do not write. Result includes a unified diff in the patch field."},
+			{Name: "old", Type: "string", Mode: "string", Description: "[string mode] Exact text to find (required if range/patch not provided). Must appear exactly once unless all=true."},
+			{Name: "new", Type: "string", Mode: "string", Default: "", Description: "[string mode] Replacement text. Empty string deletes the matched text."},
+			{Name: "all", Type: "bool", Mode: "string", Default: "false", Description: "[string mode] Replace every occurrence of old. If false, errors when old appears more than once."},
+			{Name: "range", Type: "string", Mode: "range", Description: "[range mode] Line range to replace, formatted as start:end, 1-based inclusive (required if old/patch not provided)."},
+			{Name: "new", Type: "string", Mode: "range", Default: "", Description: "[range mode] Replacement text for the specified lines. Empty string deletes the lines."},
+			{Name: "patch", Type: "string", Mode: "patch", PH: "<diff|->", Description: "[patch mode] Unified diff to apply (required if old/range not provided). Pass '-' to read from stdin. Error codes: patch_parse_error, patch_failed."},
+			{Name: "dry", Type: "bool", Default: "false", Description: "Compute the replacement but do not write. Result includes a unified diff in the patch field."},
 		},
 	},
 	{
@@ -240,7 +238,7 @@ var registry = []VerbSchema{
 		Args: []ArgSchema{
 			{Name: "path", Type: "string", Default: ".", Description: "Target repo root (absolute or relative). Default . uses the daemons project root."},
 			{Name: "force", Type: "bool", Default: "false", Description: "Replace an existing PreToolUse entry that invokes ash with a different command, or replace an existing CLAUDE.md/AGENTS.md ash-managed section whose content differs from the current template. Without --force a conflict produces a warning and no change."},
-			{Name: "no_registry", Type: "bool", Default: "false", Description: "Skip writing the installed-repos registry. Useful for ephemeral test repos."},
+			{Name: "no-registry", Type: "bool", Default: "false", Description: "Skip writing the installed-repos registry. Useful for ephemeral test repos."},
 		},
 	},
 	{
@@ -248,7 +246,7 @@ var registry = []VerbSchema{
 		Description: "Reverse `ash init`: remove the ash PreToolUse entry from .claude/settings.json, drop the .ash/ line from .gitignore, strip the ash-managed section from CLAUDE.md (or AGENTS.md), and remove the registry entry. The .ash/ledger.db and any user content outside the markers are left in place.",
 		Args: []ArgSchema{
 			{Name: "path", Type: "string", Default: ".", Description: "Target repo root."},
-			{Name: "no_registry", Type: "bool", Default: "false", Description: "Skip the registry removal."},
+			{Name: "no-registry", Type: "bool", Default: "false", Description: "Skip the registry removal."},
 		},
 	},
 	{
@@ -407,7 +405,7 @@ func argPlaceholder(a ArgSchema) string {
 			return "<re>"
 		case "content":
 			return "<text|->"
-		case "new_content", "old_string", "new_string":
+		case "new", "old":
 			return "<text>"
 		case "range":
 			return "start:end"
@@ -488,8 +486,8 @@ func renderEditVerb(b *strings.Builder, vs *VerbSchema, termWidth int) {
 		}
 		var tokens []string
 		for _, a := range sharedArgs {
-			if a.Name == "dry_run" {
-				continue // dry_run appended last
+			if a.Name == "dry" {
+				continue // dry appended last
 			}
 			tokens = append(tokens, argToken(a))
 		}
@@ -498,7 +496,7 @@ func renderEditVerb(b *strings.Builder, vs *VerbSchema, termWidth int) {
 		}
 		// dry_run is always last
 		for _, a := range sharedArgs {
-			if a.Name == "dry_run" {
+			if a.Name == "dry" {
 				tokens = append(tokens, argToken(a))
 			}
 		}

@@ -123,23 +123,23 @@ func TestIntegration_AllVerbs(t *testing.T) {
 	}{
 		{"help", map[string]any{}, ""},
 		{"read", map[string]any{"path": goMod}, ""},
-		{"find", map[string]any{"path": repoRoot, "max_depth": "1"}, ""},
+		{"find", map[string]any{"path": repoRoot, "depth": "1"}, ""},
 		{"grep", map[string]any{"pattern": "module", "path": goMod}, ""},
 		{"git", map[string]any{"op": "status", "path": repoRoot}, ""},
 		{"git", map[string]any{"op": "show", "ref": "HEAD", "path": repoRoot, "stat": "true"}, ""},
 		{"stat", map[string]any{"paths": goMod}, ""},
 		{"write", map[string]any{"path": writeTarget, "content": "hello"}, ""},
-		{"edit", map[string]any{"path": writeTarget, "old_string": "hello", "new_string": "world"}, ""},
+		{"edit", map[string]any{"path": writeTarget, "old": "hello", "new": "world"}, ""},
 		{"diff", map[string]any{"path": goMod, "content": "different", "stat": "true"}, ""},
 		{"metrics", map[string]any{}, ""},
 		{"report", map[string]any{}, ""},
-		{"hook", map[string]any{"tool_name": "Bash", "command": "grep foo bar.txt"}, ""},
+		{"hook", map[string]any{"tool": "Bash", "command": "grep foo bar.txt"}, ""},
 		{"bench", map[string]any{"limit": "1"}, ""},
 		// init/uninit pass no_registry=true so the integration test does not
 		// scribble entries into the registry. They still exercise the
 		// settings.json + .gitignore code paths in tmp.
-		{"init", map[string]any{"path": tmp, "no_registry": "true"}, ""},
-		{"uninit", map[string]any{"path": tmp, "no_registry": "true"}, ""},
+		{"init", map[string]any{"path": tmp, "no-registry": "true"}, ""},
+		{"uninit", map[string]any{"path": tmp, "no-registry": "true"}, ""},
 		// test: invoke with a regex that matches no test names so the
 		// verb returns quickly. Uses internal/runner (no test files) to
 		// avoid recursive go-test work in the integration suite.

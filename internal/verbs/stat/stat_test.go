@@ -181,7 +181,7 @@ func TestRun_followSymlinks_broken(t *testing.T) {
 }
 
 func TestParseArgs_followSymlinks(t *testing.T) {
-	a, err := ParseArgs(map[string]any{"paths": "some/file.go", "follow_symlinks": "true"})
+	a, err := ParseArgs(map[string]any{"paths": "some/file.go", "follow": "true"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +201,7 @@ func TestParseArgs_followSymlinks_default(t *testing.T) {
 }
 
 func TestParseArgs_followSymlinks_badString(t *testing.T) {
-	_, perr := ParseArgs(map[string]any{"paths": "f.go", "follow_symlinks": "maybe"})
+	_, perr := ParseArgs(map[string]any{"paths": "f.go", "follow": "maybe"})
 	if perr == nil {
 		t.Error("expected error for follow_symlinks=maybe")
 	}
@@ -299,7 +299,7 @@ func TestPrettyResponse_WithMetaIncludesMtimeAndMode(t *testing.T) {
 	filePath, _, _ := makeFixture(t)
 	res, _ := Run(&Args{Paths: []string{filePath}}, nil)
 	rsp := &proto.Response{OK: true, Data: proto.MustData(res)}
-	req := &proto.Request{Verb: "stat", Args: map[string]any{"with_meta": "true"}}
+	req := &proto.Request{Verb: "stat", Args: map[string]any{"meta": "true"}}
 	out := PrettyResponse(req, rsp)
 	if !strings.Contains(out, "0644") {
 		t.Errorf("with_meta must include mode 0644:\n%s", out)

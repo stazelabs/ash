@@ -45,7 +45,7 @@ func TestParseArgs_WireShape(t *testing.T) {
 	a, perr := ParseArgs(map[string]any{
 		"path":        "f.go",
 		"mkdir":       "false",
-		"create_only": "true",
+		"no-clobber": "true",
 	})
 	if perr != nil {
 		t.Fatalf("valid string args rejected: %v", perr)
@@ -59,7 +59,7 @@ func TestParseArgs_WireShape(t *testing.T) {
 
 	for _, bad := range []struct{ key, val string }{
 		{"mkdir", "maybe"},
-		{"create_only", "maybe"},
+		{"no-clobber", "maybe"},
 	} {
 		_, perr := ParseArgs(map[string]any{"path": "f.go", bad.key: bad.val})
 		if perr == nil {

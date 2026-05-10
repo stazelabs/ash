@@ -57,7 +57,7 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Mkdir, perr = argutil.OptionalBool(in, "mkdir", true); perr != nil {
 		return nil, perr
 	}
-	if a.CreateOnly, perr = argutil.OptionalBool(in, "create_only", false); perr != nil {
+	if a.CreateOnly, perr = argutil.OptionalBool(in, "no-clobber", false); perr != nil {
 		return nil, perr
 	}
 	if perr := jail.CheckPaths(map[string]string{
@@ -91,7 +91,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	created := true
 	if _, err := os.Stat(a.Path); err == nil {
 		if a.CreateOnly {
-			return nil, &proto.Error{Code: "exists", Msg: a.Path + " already exists (create_only=true)"}
+			return nil, &proto.Error{Code: "exists", Msg: a.Path + " already exists (no-clobber=true)"}
 		}
 		created = false
 	}

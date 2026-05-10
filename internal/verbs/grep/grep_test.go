@@ -631,7 +631,7 @@ func TestParseArgs_RejectsBadRegex(t *testing.T) {
 
 func TestParseArgs_LimitClampedToMax(t *testing.T) {
 	a, perr := ParseArgs(map[string]any{
-		"pattern": "x", "path": ".", "max_matches": MaxMaxMatches + 1000,
+		"pattern": "x", "path": ".", "max": MaxMaxMatches + 1000,
 	})
 	if perr != nil {
 		t.Fatalf("unexpected: %+v", perr)
@@ -644,7 +644,7 @@ func TestParseArgs_LimitClampedToMax(t *testing.T) {
 func TestParseArgs_ContextClampedToMax(t *testing.T) {
 	a, perr := ParseArgs(map[string]any{
 		"pattern": "x", "path": ".",
-		"context_before": 999, "context_after": 999,
+		"cb": 999, "ca": 999,
 	})
 	if perr != nil {
 		t.Fatalf("unexpected: %+v", perr)
@@ -730,17 +730,17 @@ func TestParseArgs_WireShape(t *testing.T) {
 	a, perr := ParseArgs(map[string]any{
 		"pattern":           "foo",
 		"path":              root,
-		"max_matches":       "100",
-		"max_per_file":      "5",
-		"context_before":    "2",
-		"context_after":     "3",
-		"max_depth":         "4",
-		"fixed_string":      "true",
+		"max":       "100",
+		"mpf":      "5",
+		"cb":    "2",
+		"ca":     "3",
+		"depth":         "4",
+		"lit":      "true",
 		"word":              "false",
-		"files_only":        "true",
-		"no_text":           "false",
-		"include_hidden":    "true",
-		"respect_gitignore": "false",
+		"fo":        "true",
+		"no-text":           "false",
+		"hidden":    "true",
+		"gi": "false",
 	})
 	if perr != nil {
 		t.Fatalf("valid string args rejected: %v", perr)
@@ -780,17 +780,17 @@ func TestParseArgs_WireShape(t *testing.T) {
 	}
 
 	for _, bad := range []struct{ key, val string }{
-		{"max_matches", "abc"},
-		{"max_per_file", "abc"},
-		{"context_before", "abc"},
-		{"context_after", "abc"},
-		{"max_depth", "abc"},
-		{"fixed_string", "maybe"},
+		{"max", "abc"},
+		{"mpf", "abc"},
+		{"cb", "abc"},
+		{"ca", "abc"},
+		{"depth", "abc"},
+		{"lit", "maybe"},
 		{"word", "maybe"},
-		{"files_only", "maybe"},
-		{"no_text", "maybe"},
-		{"include_hidden", "maybe"},
-		{"respect_gitignore", "maybe"},
+		{"fo", "maybe"},
+		{"no-text", "maybe"},
+		{"hidden", "maybe"},
+		{"gi", "maybe"},
 	} {
 		_, perr := ParseArgs(map[string]any{
 			"pattern": "foo",

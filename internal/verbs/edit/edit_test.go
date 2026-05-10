@@ -12,7 +12,7 @@ import (
 // -- ParseArgs -------------------------------------------------------------
 
 func TestParseArgs_RequiresPath(t *testing.T) {
-	_, perr := ParseArgs(map[string]any{"old_string": "foo"})
+	_, perr := ParseArgs(map[string]any{"old": "foo"})
 	if perr == nil || perr.Code != "args" {
 		t.Fatalf("expected args error for missing path, got %+v", perr)
 	}
@@ -26,14 +26,14 @@ func TestParseArgs_RequiresOldStringOrRange(t *testing.T) {
 }
 
 func TestParseArgs_BothOldStringAndRange(t *testing.T) {
-	_, perr := ParseArgs(map[string]any{"path": "f.go", "old_string": "a", "range": "1:2"})
+	_, perr := ParseArgs(map[string]any{"path": "f.go", "old": "a", "range": "1:2"})
 	if perr == nil || perr.Code != "args" {
 		t.Fatalf("expected args error for both old_string and range, got %+v", perr)
 	}
 }
 
 func TestParseArgs_StringModeDefaults(t *testing.T) {
-	a, perr := ParseArgs(map[string]any{"path": "f.go", "old_string": "old"})
+	a, perr := ParseArgs(map[string]any{"path": "f.go", "old": "old"})
 	if perr != nil {
 		t.Fatalf("unexpected: %+v", perr)
 	}
@@ -50,9 +50,9 @@ func TestParseArgs_StringModeDefaults(t *testing.T) {
 func TestParseArgs_WireShape(t *testing.T) {
 	a, perr := ParseArgs(map[string]any{
 		"path":        "f.go",
-		"old_string":  "old",
-		"replace_all": "true",
-		"dry_run":     "true",
+		"old":  "old",
+		"all": "true",
+		"dry":     "true",
 	})
 	if perr != nil {
 		t.Fatalf("valid string args rejected: %v", perr)
@@ -65,12 +65,12 @@ func TestParseArgs_WireShape(t *testing.T) {
 	}
 
 	for _, bad := range []struct{ key, val string }{
-		{"replace_all", "maybe"},
-		{"dry_run", "maybe"},
+		{"all", "maybe"},
+		{"dry", "maybe"},
 	} {
 		_, perr := ParseArgs(map[string]any{
 			"path":       "f.go",
-			"old_string": "old",
+			"old": "old",
 			bad.key:      bad.val,
 		})
 		if perr == nil {
@@ -101,9 +101,9 @@ func TestParseArgs_PatchMode(t *testing.T) {
 
 func TestParseArgs_PatchExclusive(t *testing.T) {
 	cases := []map[string]any{
-		{"path": "f.go", "patch": "x", "old_string": "y"},
+		{"path": "f.go", "patch": "x", "old": "y"},
 		{"path": "f.go", "patch": "x", "range": "1:2"},
-		{"path": "f.go", "patch": "x", "old_string": "y", "range": "1:2"},
+		{"path": "f.go", "patch": "x", "old": "y", "range": "1:2"},
 	}
 	for _, in := range cases {
 		_, perr := ParseArgs(in)

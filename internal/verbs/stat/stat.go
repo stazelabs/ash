@@ -75,7 +75,7 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if len(paths) == 0 {
 		return nil, &proto.Error{Code: "args", Msg: "paths must contain at least one non-empty path"}
 	}
-	follow, perr2 := argutil.OptionalBool(in, "follow_symlinks", false)
+	follow, perr2 := argutil.OptionalBool(in, "follow", false)
 	if perr2 != nil {
 		return nil, perr2
 	}
@@ -181,7 +181,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	}
 	withMeta := false
 	if req != nil {
-		if v, ok := req.Args["with_meta"]; ok {
+		if v, ok := req.Args["meta"]; ok {
 			if b, ok := argutil.ToBool(v); ok {
 				withMeta = b
 			}

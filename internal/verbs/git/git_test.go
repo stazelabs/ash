@@ -200,7 +200,7 @@ func TestParseArgs_WireShape(t *testing.T) {
 		"op":          "log",
 		"limit":       "5",
 		"context":     "2",
-		"limit_bytes": "512",
+		"bytes": "512",
 		"untracked":   "false",
 		"ignored":     "true",
 		"staged":      "true",
@@ -234,7 +234,7 @@ func TestParseArgs_WireShape(t *testing.T) {
 	for _, bad := range []struct{ key, val string }{
 		{"limit", "abc"},
 		{"context", "abc"},
-		{"limit_bytes", "abc"},
+		{"bytes", "abc"},
 		{"untracked", "maybe"},
 		{"ignored", "maybe"},
 		{"staged", "maybe"},

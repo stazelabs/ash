@@ -347,10 +347,10 @@ func TestParseArgs_WireShape(t *testing.T) {
 	a, perr := ParseArgs(map[string]any{
 		"path":              ".",
 		"limit":             "10",
-		"max_depth":         "3",
-		"include_hidden":    "true",
-		"respect_gitignore": "false",
-		"with_meta":         "true",
+		"depth":         "3",
+		"hidden":    "true",
+		"gi": "false",
+		"meta":         "true",
 	})
 	if perr != nil {
 		t.Fatalf("valid string args rejected: %v", perr)
@@ -373,10 +373,10 @@ func TestParseArgs_WireShape(t *testing.T) {
 
 	for _, bad := range []struct{ key, val string }{
 		{"limit", "abc"},
-		{"max_depth", "abc"},
-		{"include_hidden", "maybe"},
-		{"respect_gitignore", "maybe"},
-		{"with_meta", "maybe"},
+		{"depth", "abc"},
+		{"hidden", "maybe"},
+		{"gi", "maybe"},
+		{"meta", "maybe"},
 	} {
 		_, perr := ParseArgs(map[string]any{"path": ".", bad.key: bad.val})
 		if perr == nil {

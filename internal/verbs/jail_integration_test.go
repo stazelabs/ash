@@ -66,7 +66,7 @@ func TestJailEnforcement_AllVerbs(t *testing.T) {
 			return shim(perr)
 		}},
 		{"edit", func() *protoErrorShim {
-			_, perr := edit.ParseArgs(map[string]any{"path": outsidePath, "old_string": "x", "new_string": "y"})
+			_, perr := edit.ParseArgs(map[string]any{"path": outsidePath, "old": "x"})
 			return shim(perr)
 		}},
 		{"write", func() *protoErrorShim {

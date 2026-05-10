@@ -161,14 +161,14 @@ func TestRun_DirIsError(t *testing.T) {
 // garbage. Guards against a future implementation skipping argutil and
 // silently breaking the string→int coercion path.
 func TestParseArgs_WireShape(t *testing.T) {
-	a, perr := ParseArgs(map[string]any{"path": "f.go", "limit_bytes": "2048"})
+	a, perr := ParseArgs(map[string]any{"path": "f.go", "bytes": "2048"})
 	if perr != nil {
 		t.Fatalf("string limit_bytes rejected: %v", perr)
 	}
 	if a.LimitBytes != 2048 {
 		t.Errorf("limit_bytes: got %d, want 2048", a.LimitBytes)
 	}
-	_, perr = ParseArgs(map[string]any{"path": "f.go", "limit_bytes": "abc"})
+	_, perr = ParseArgs(map[string]any{"path": "f.go", "bytes": "abc"})
 	if perr == nil {
 		t.Error("expected error for limit_bytes=abc")
 	}
@@ -230,7 +230,7 @@ func TestPrettyResponse_WithMetaFull(t *testing.T) {
 			Content:  "package foo\n",
 		}),
 	}
-	req := &proto.Request{Verb: "read", Args: map[string]any{"with_meta": "true"}}
+	req := &proto.Request{Verb: "read", Args: map[string]any{"meta": "true"}}
 	got := PrettyResponse(req, rsp)
 	if !strings.Contains(got, "utf-8") {
 		t.Errorf("with_meta should include encoding, got %q", got)

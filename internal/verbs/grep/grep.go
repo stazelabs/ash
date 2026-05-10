@@ -115,40 +115,51 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Case, perr = argutil.OptionalEnum(in, "case", "smart", []string{"smart", "sensitive", "insensitive"}); perr != nil {
 		return nil, perr
 	}
-	if a.FixedString, perr = argutil.OptionalBool(in, "fixed_string", false); perr != nil {
+	if a.FixedString, perr = argutil.OptionalBool(in, "lit", false); perr != nil {
 		return nil, perr
 	}
 	if a.Word, perr = argutil.OptionalBool(in, "word", false); perr != nil {
 		return nil, perr
 	}
-	if a.MaxMatches, perr = argutil.OptionalPosInt(in, "max_matches", DefaultMaxMatches, MaxMaxMatches); perr != nil {
+	if a.MaxMatches, perr = argutil.OptionalPosInt(in, "max", DefaultMaxMatches, MaxMaxMatches); perr != nil {
 		return nil, perr
 	}
-	if a.MaxPerFile, perr = argutil.OptionalNonNegInt(in, "max_per_file", 0, 0); perr != nil {
+	if a.MaxPerFile, perr = argutil.OptionalNonNegInt(in, "mpf", 0, 0); perr != nil {
 		return nil, perr
 	}
-	if a.ContextBefore, perr = argutil.OptionalNonNegInt(in, "context_before", 0, MaxContextLines); perr != nil {
+	if a.ContextBefore, perr = argutil.OptionalNonNegInt(in, "cb", 0, MaxContextLines); perr != nil {
 		return nil, perr
 	}
-	if a.ContextAfter, perr = argutil.OptionalNonNegInt(in, "context_after", 0, MaxContextLines); perr != nil {
+	if a.ContextAfter, perr = argutil.OptionalNonNegInt(in, "ca", 0, MaxContextLines); perr != nil {
 		return nil, perr
 	}
-	if a.FilesOnly, perr = argutil.OptionalBool(in, "files_only", false); perr != nil {
+	// --context N sets both cb and ca symmetrically; individual flags override it.
+	if ctx, perr2 := argutil.OptionalNonNegInt(in, "context", 0, MaxContextLines); perr2 != nil {
+		return nil, perr2
+	} else if ctx > 0 {
+		if _, hasCB := in["cb"]; !hasCB {
+			a.ContextBefore = ctx
+		}
+		if _, hasCA := in["ca"]; !hasCA {
+			a.ContextAfter = ctx
+		}
+	}
+	if a.FilesOnly, perr = argutil.OptionalBool(in, "fo", false); perr != nil {
 		return nil, perr
 	}
-	if a.NoText, perr = argutil.OptionalBool(in, "no_text", false); perr != nil {
+	if a.NoText, perr = argutil.OptionalBool(in, "no-text", false); perr != nil {
 		return nil, perr
 	}
-	if a.IncludeHidden, perr = argutil.OptionalBool(in, "include_hidden", false); perr != nil {
+	if a.IncludeHidden, perr = argutil.OptionalBool(in, "hidden", false); perr != nil {
 		return nil, perr
 	}
-	if a.RespectGitignore, perr = argutil.OptionalBool(in, "respect_gitignore", true); perr != nil {
+	if a.RespectGitignore, perr = argutil.OptionalBool(in, "gi", true); perr != nil {
 		return nil, perr
 	}
 	if a.Exclude, perr = argutil.OptionalString(in, "exclude", ""); perr != nil {
 		return nil, perr
 	}
-	if a.MaxDepth, perr = argutil.OptionalNonNegInt(in, "max_depth", 0, 0); perr != nil {
+	if a.MaxDepth, perr = argutil.OptionalNonNegInt(in, "depth", 0, 0); perr != nil {
 		return nil, perr
 	}
 	if !doublestar.ValidatePathPattern(a.Glob) {
@@ -255,23 +266,23 @@ func grepTruncHint(ti *proto.TruncInfo, filesOnly bool) string {
 	if ti.Limit >= ti.Max {
 		if filesOnly {
 			return fmt.Sprintf(
-				"hit hard cap of %d distinct files. narrow with --glob or --exclude — --max_matches cannot go higher.",
+				"hit hard cap of %d distinct files. narrow with --glob or --exclude — --max cannot go higher.",
 				ti.Max,
 			)
 		}
 		return fmt.Sprintf(
-			"hit hard cap of %d match records. narrow with --glob, --max_per_file, or --exclude — --max_matches cannot go higher.",
+			"hit hard cap of %d match records. narrow with --glob, --mpf, or --exclude — --max cannot go higher.",
 			ti.Max,
 		)
 	}
 	if filesOnly {
 		return fmt.Sprintf(
-			"hit max_matches=%d distinct files. narrow with --glob, --exclude, or raise --max_matches (max %d).",
+			"hit max=%d distinct files. narrow with --glob, --exclude, or raise --max (max %d).",
 			ti.Limit, ti.Max,
 		)
 	}
 	return fmt.Sprintf(
-		"hit max_matches=%d. narrow with --glob, --max_per_file, --exclude, or raise --max_matches (max %d).",
+		"hit max=%d. narrow with --glob, --mpf, --exclude, or raise --max (max %d).",
 		ti.Limit, ti.Max,
 	)
 }
@@ -534,12 +545,12 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	noText := false
 	if req != nil {
 		// Files-only header
-		if v, ok := req.Args["files_only"]; ok {
+		if v, ok := req.Args["fo"]; ok {
 			if got, ok := argutil.ToBool(v); ok && got {
 				return prettyFilesOnly(req, &r)
 			}
 		}
-		if v, ok := req.Args["no_text"]; ok {
+		if v, ok := req.Args["no-text"]; ok {
 			noText, _ = argutil.ToBool(v)
 		}
 	}
@@ -660,9 +671,9 @@ func scopeFromArgs(req *proto.Request) string {
 	if v, ok := req.Args["case"].(string); ok && v != "" && v != "smart" {
 		parts = append(parts, "case="+v)
 	}
-	if v, ok := req.Args["fixed_string"]; ok {
+	if v, ok := req.Args["lit"]; ok {
 		if b, ok := argutil.ToBool(v); ok && b {
-			parts = append(parts, "fixed_string=true")
+			parts = append(parts, "lit=true")
 		}
 	}
 	if v, ok := req.Args["word"]; ok {
@@ -671,19 +682,19 @@ func scopeFromArgs(req *proto.Request) string {
 		}
 	}
 	// Hide defaults the way find does, surface only overrides.
-	if v, ok := req.Args["respect_gitignore"]; ok {
+	if v, ok := req.Args["gi"]; ok {
 		if b, ok := argutil.ToBool(v); ok && !b {
-			parts = append(parts, "respect_gitignore=false")
+			parts = append(parts, "gi=false")
 		}
 	}
-	if v, ok := req.Args["include_hidden"]; ok {
+	if v, ok := req.Args["hidden"]; ok {
 		if b, ok := argutil.ToBool(v); ok && b {
-			parts = append(parts, "include_hidden=true")
+			parts = append(parts, "hidden=true")
 		}
 	}
-	if v, ok := req.Args["no_text"]; ok {
+	if v, ok := req.Args["no-text"]; ok {
 		if b, ok := argutil.ToBool(v); ok && b {
-			parts = append(parts, "no_text=true")
+			parts = append(parts, "no-text=true")
 		}
 	}
 	return strings.Join(parts, ", ")

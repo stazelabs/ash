@@ -68,25 +68,26 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Path, perr = argutil.RequireString(in, "path"); perr != nil {
 		return nil, perr
 	}
-	if a.OldString, perr = argutil.OptionalString(in, "old_string", ""); perr != nil {
+	if a.OldString, perr = argutil.OptionalString(in, "old", ""); perr != nil {
 		return nil, perr
 	}
-	if a.NewString, perr = argutil.OptionalString(in, "new_string", ""); perr != nil {
-		return nil, perr
+	// --new serves both string mode (new_string) and range mode (new_content).
+	newVal, perr2 := argutil.OptionalString(in, "new", "")
+	if perr2 != nil {
+		return nil, perr2
 	}
+	a.NewString = newVal
+	a.NewContent = newVal
 	if a.Range, perr = argutil.OptionalString(in, "range", ""); perr != nil {
-		return nil, perr
-	}
-	if a.NewContent, perr = argutil.OptionalString(in, "new_content", ""); perr != nil {
 		return nil, perr
 	}
 	if a.Patch, perr = argutil.OptionalString(in, "patch", ""); perr != nil {
 		return nil, perr
 	}
-	if a.ReplaceAll, perr = argutil.OptionalBool(in, "replace_all", false); perr != nil {
+	if a.ReplaceAll, perr = argutil.OptionalBool(in, "all", false); perr != nil {
 		return nil, perr
 	}
-	if a.DryRun, perr = argutil.OptionalBool(in, "dry_run", false); perr != nil {
+	if a.DryRun, perr = argutil.OptionalBool(in, "dry", false); perr != nil {
 		return nil, perr
 	}
 
@@ -105,9 +106,9 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	}
 	switch {
 	case modeCount > 1:
-		return nil, &proto.Error{Code: "args", Msg: "specify exactly one of: old_string, range, or patch"}
+		return nil, &proto.Error{Code: "args", Msg: "specify exactly one of: old, range, or patch"}
 	case modeCount == 0:
-		return nil, &proto.Error{Code: "args", Msg: "one of old_string, range, or patch is required"}
+		return nil, &proto.Error{Code: "args", Msg: "one of old, range, or patch is required"}
 	}
 	if perr := jail.CheckPaths(map[string]string{
 		"path": a.Path,

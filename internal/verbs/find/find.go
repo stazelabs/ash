@@ -4,17 +4,13 @@
 //
 //	path                string  (required) - starting directory
 //	glob                string  (optional) - doublestar pattern, default "**"
-//	type                string  (optional) - "any" | "file" | "dir" | "symlink", default "any"
-//	max_depth           int     (optional) - 0 means unlimited; 0 = path itself only otherwise
+//	type                string  (optional) - "any" | "file" | "dir" | "symlink"
+//	depth               int     (optional) - max directory depth; 0 = unlimited
 //	limit               int     (optional) - cap on records, default 256, hard cap 4096
 //	exclude             string  (optional) - doublestar pattern; matches are skipped
-//	include_hidden      bool    (optional) - if false (default), directories whose name
-//	                                         starts with "." are not recursed into. Leaf
-//	                                         files starting with "." are still findable.
-//	respect_gitignore   bool    (optional) - if true (default), the .gitignore at the walk
-//	                                         root is loaded and its rules exclude matching
-//	                                         paths. Nested .gitignore files are NOT yet
-//	                                         honored. Pass false for raw filesystem walk.
+//	hidden              bool    (optional) - include hidden dirs (default false)
+//	gi                  bool    (optional) - respect .gitignore (default true)
+//	meta                bool    (optional) - include size+mtime in pretty form
 //
 // Path semantics mirror Unix find: the form of paths in results matches the
 // form of --path (relative-in -> relative-out, absolute-in -> absolute-out).
@@ -83,7 +79,7 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Type, perr = argutil.OptionalEnum(in, "type", "any", []string{"any", "file", "dir", "symlink"}); perr != nil {
 		return nil, perr
 	}
-	if a.MaxDepth, perr = argutil.OptionalNonNegInt(in, "max_depth", 0, 0); perr != nil {
+	if a.MaxDepth, perr = argutil.OptionalNonNegInt(in, "depth", 0, 0); perr != nil {
 		return nil, perr
 	}
 	if a.Limit, perr = argutil.OptionalPosInt(in, "limit", DefaultLimit, MaxLimit); perr != nil {
@@ -92,13 +88,13 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Exclude, perr = argutil.OptionalString(in, "exclude", ""); perr != nil {
 		return nil, perr
 	}
-	if a.IncludeHidden, perr = argutil.OptionalBool(in, "include_hidden", false); perr != nil {
+	if a.IncludeHidden, perr = argutil.OptionalBool(in, "hidden", false); perr != nil {
 		return nil, perr
 	}
-	if a.RespectGitignore, perr = argutil.OptionalBool(in, "respect_gitignore", true); perr != nil {
+	if a.RespectGitignore, perr = argutil.OptionalBool(in, "gi", true); perr != nil {
 		return nil, perr
 	}
-	if a.WithMeta, perr = argutil.OptionalBool(in, "with_meta", false); perr != nil {
+	if a.WithMeta, perr = argutil.OptionalBool(in, "meta", false); perr != nil {
 		return nil, perr
 	}
 	if !doublestar.ValidatePathPattern(a.Glob) {
@@ -189,12 +185,12 @@ func findTruncHint(ti *proto.TruncInfo) string {
 	}
 	if ti.Limit >= ti.Max {
 		return fmt.Sprintf(
-			"hit hard cap of %d records. narrow with --glob, --type, --max_depth, or --exclude — --limit cannot go higher.",
+		"hit hard cap of %d records. narrow with --glob, --type, --depth, or --exclude — --limit cannot go higher.",
 			ti.Max,
 		)
 	}
 	return fmt.Sprintf(
-		"hit limit of %d records. narrow with --glob, --type, --max_depth, or --exclude; or raise --limit (max %d).",
+		"hit limit of %d records. narrow with --glob, --type, --depth, or --exclude; or raise --limit (max %d).",
 		ti.Limit, ti.Max,
 	)
 }
@@ -229,7 +225,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	}
 	withMeta := false
 	if req != nil {
-		if v, ok := req.Args["with_meta"]; ok {
+		if v, ok := req.Args["meta"]; ok {
 			if b, ok := argutil.ToBool(v); ok {
 				withMeta = b
 			}
@@ -307,14 +303,14 @@ func scopeFromArgs(req *proto.Request) string {
 	// respect_gitignore is shown only when explicitly disabled, since true is
 	// the default. Same idea for include_hidden: hide the default, show the
 	// override.
-	if v, ok := req.Args["respect_gitignore"]; ok {
+	if v, ok := req.Args["gi"]; ok {
 		if b, ok := argutil.ToBool(v); ok && !b {
-			parts = append(parts, "respect_gitignore=false")
+			parts = append(parts, "gi=false")
 		}
 	}
-	if v, ok := req.Args["include_hidden"]; ok {
+	if v, ok := req.Args["hidden"]; ok {
 		if b, ok := argutil.ToBool(v); ok && b {
-			parts = append(parts, "include_hidden=true")
+			parts = append(parts, "hidden=true")
 		}
 	}
 	return strings.Join(parts, ", ")

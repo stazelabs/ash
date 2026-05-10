@@ -54,7 +54,7 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Path, perr = argutil.OptionalString(in, "path", "."); perr != nil {
 		return nil, perr
 	}
-	if a.NoRegistry, perr = argutil.OptionalBool(in, "no_registry", false); perr != nil {
+	if a.NoRegistry, perr = argutil.OptionalBool(in, "no-registry", false); perr != nil {
 		return nil, perr
 	}
 	if perr := jail.CheckPaths(map[string]string{
