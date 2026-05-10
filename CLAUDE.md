@@ -1,31 +1,23 @@
 # CLAUDE.md — agent guidance for the ash repo
 
-This file is the operational counterpart to `README.md`. The README is the design; this is how an agent works *inside* the project. Keep it short, keep it current, and update it as the surface evolves.
+This file is the operational counterpart to [README.md](README.md). The README is the design and the human-facing pitch; this is how an agent works *inside* the project. Keep it short, keep it current, and update it as the surface evolves.
 
 ## Project context
 
-`ash` is an agentic shell for coding agents — a small, structured, instrumented command surface designed to replace the bash-shaped substrate that agents currently drive. The README has the full pitch.
+`ash` is an agentic shell for coding agents — see [README §Why](README.md#why) and [§How we're building this](README.md#how-were-building-this) for the pitch and the recursive-development premise.
 
-This repo is also a deliberate experiment in *recursive* tool development: as soon as primordial `ash` exists (Phase 1: `find` + `grep` + `read` + daemon + bash shim + ledger), agents working on this repo start using `ash` for those operations. Every session feeds the next phase's design.
-
-**Current phase:** Phase 2, ship 14 — `ash read`, `ash find`, `ash grep`, `ash git --op status|log|diff|show`, `ash metrics`, `ash report`, `ash stat`, `ash bench`, `ash write`, `ash edit`, `ash diff`, `ash test`, `ash init`, `ash uninit`, and `ash stop` are live. `ash init` bootstraps a target repo (PreToolUse hook + `.gitignore` + registry); `ash report --root <p>` and `--all_roots` aggregate across foreign ledgers. `make install` symlinks `ash`/`ashd` onto `$PATH` so a single rebuild updates every installed target. `ash edit` supports `--dry_run true` to preview changes without writing. All string-valued args accept `-` to read from stdin. Daemon (`ashd`) auto-starts on first invocation, persists per-call instrumentation to a SQLite ledger at `.ash/ledger.db`, and tokenizes every response with `cl100k_base` for honest token counts. Sub-phase latency (walk/io/regex µs) is captured in `Metrics.Phases` and surfaces in `ash metrics`. Ledger failures surface in `Metrics.LedgerError` and the client prints a `WARNING` line if any call's metrics didn't persist.
+**Current phase:** Phase 2, ship 14. 17 verbs live (run `ash help` for the authoritative list and per-verb arg schemas). Daemon (`ashd`) auto-starts on first invocation, persists per-call instrumentation to a SQLite ledger at `.ash/ledger.db`, and tokenizes every response with `cl100k_base` for honest token counts.
 
 ## Project constraints
 
-These are hard rules. If a change would violate one, stop and discuss before proceeding.
+See [README §Constraints](README.md#constraints) for the full list. The two operational rules that bite agents most often:
 
-- **No CGO.** All dependencies must be pure Go. We're prioritizing portability — every developer should be able to clone, `go build`, and run, on any platform Go cross-compiles to, with no native toolchain required. This rules out `mattn/go-sqlite3`, CGO-bound tree-sitter, and similar. We've already paid the perf cost on SQLite (`modernc.org/sqlite`) and accept it.
-- **All paths are explicit and absolute-friendly.** No verb relies on `cwd` for path resolution beyond the daemon's project root. The agent passes the full path it cares about; the daemon canonicalizes and validates. As of ASH-61, projects can opt in to a "jail" policy via `ash.toml` `[jail]` that refuses paths outside the project root (plus optional `allow_paths`) and rejects symlink-escapes. Denied calls record a `path_denied` error in the ledger.
+- **No CGO.** All deps must be pure Go. Don't propose `mattn/go-sqlite3` or CGO-bound tree-sitter, even when they're faster.
+- **All paths are explicit and absolute-friendly.** Pass full paths; the daemon canonicalizes. With `[jail].enabled = true` in `ash.toml`, paths outside the project root are denied with `path_denied`.
 
 ## Configuration
 
-`ashd` reads optional TOML configuration from `<root>/ash.toml` (project-level, committed) and `$XDG_CONFIG_HOME/ash/config.toml` (user-global). Layering is last-wins: defaults → user-global → project → `$ASH_CONFIG=<path>` (explicit override). With no file present, behavior is identical to the pre-config era.
-
-- **`[jail]`** — `enabled = true` makes every path-taking verb refuse paths outside the project root or `allow_paths`. Returns `path_denied` on denial. Recorded in the ledger like any other verb error; query via `ash report --verb <v>`.
-- **`[daemon]`** — `max_concurrent_handlers` (default 0 = unlimited; opt-in cap), `read_deadline` (default 30s per-frame socket timeout), `shutdown_grace` (default 5s bounded drain on SIGTERM). Enforced as of ASH-49.
-- **`[git]`** — `backend = "go-git"` (default, in-process via go-git/v5; no system git required) or `"shellout"` (forks system git). gogit backend has full functionality for `status`, `log`, `--range` diff, and `show`. For `--staged` or unstaged worktree diff with patch text (not just counts), opt back to shellout.
-
-Restart the daemon (`ash stop`, then any ash invocation auto-restarts it) after editing `ash.toml`. Hot reload is deliberately deferred. Full design: [docs/configuration.md](docs/configuration.md). Sample config: `ash.toml.example` at repo root.
+See [README §Configuration](README.md#configuration) and [`ash.toml.example`](ash.toml.example) for the schema. Restart with `ash stop` after editing `ash.toml` — hot reload is deferred.
 
 ### Error codes touching this
 
@@ -34,102 +26,51 @@ Restart the daemon (`ash stop`, then any ash invocation auto-restarts it) after 
 
 ## When to prefer ash over bash
 
-This is the operational checklist. It is **gated by which verbs are live**. Do not try to invoke a verb that hasn't shipped yet.
-
-### Phase 2 ship 14 (now) — `read`, `find`, `grep`, `git` (status/log/diff/show), `metrics`, `report`, `stat`, `bench`, `write`, `edit`, `diff`, `test`, `hook`, `help`, `init`, `uninit`, and `stop` are live
+This is the operational checklist. It is **gated by which verbs are live**. Run `ash help` if unsure whether a verb has shipped.
 
 Build the binaries first (one-time per session, cheap to redo):
 
 ```sh
-go build -o bin/ash ./cmd/ash
-go build -o bin/ashd ./cmd/ashd
+make all   # or: go build -o bin/ash ./cmd/ash && go build -o bin/ashd ./cmd/ashd
 ```
 
-Then any `ash` invocation auto-starts the daemon. Use `bin/ash` from the repo root, or add `bin/` to `$PATH` for the session.
+Any `ash` invocation auto-starts the daemon. Use `bin/ash` from the repo root, or add `bin/` to `$PATH` for the session.
 
 **Switch criteria — what to actually use ash for now:**
 
-1. **Any path or filename lookup across more than one directory** — use `ash find`. Examples:
-   - "list all .go files under cmd/" → `ash find --path cmd --glob '**/*.go' --type file`
-   - "show top-level files only" → `ash find --path . --max_depth 1`
-   - "find anything related to ledger" → `ash find --path . --glob '**/*ledger*'`
-   - Hidden directories (`.git`, `.ash`, `.vscode`) are skipped by default. Pass `--include_hidden true` if you actually want them.
-   - `.gitignore` at the walk root is respected by default. Pass `--respect_gitignore false` for a raw walk (e.g. when you genuinely need to inspect generated artifacts in `bin/` or `dist/`).
-2. **Any pattern search across one or more files** — use `ash grep`. Examples:
-   - "where is `ParseArgs` called?" → `ash grep --pattern 'ParseArgs' --path . --glob '**/*.go'`
-   - "find TODO/FIXME notes" → `ash grep --pattern 'TODO|FIXME' --path .`
-   - "literal string with regex metacharacters" → `ash grep --pattern 'cfg.Foo()' --path . --fixed_string true`
-   - "just the file list (e.g. for `ash read` follow-up)" → add `--files_only true`
-   - "with surrounding lines" → `--context_before 2 --context_after 2`
-   - Smart-case is the default: an all-lowercase pattern is matched case-insensitively; any uppercase letter switches to case-sensitive. Override with `--case sensitive` or `--case insensitive`.
-   - Binary files (NUL byte in the leading 8 KiB) and files >16 MiB are skipped silently; the response counts them so you know why a hit didn't appear.
-   - Same hidden-dir and `.gitignore` defaults as `find`.
-3. **`git status`, `git log`, `git diff`, and `git show` in this repo** — use `ash git --op status|log|diff|show` instead of bash. Examples:
-   - "what's the working-tree state?" → `ash git --op status`
-   - "include ignored files (e.g. inspecting `.ash/`)" → `ash git --op status --ignored true`
-   - "last 20 commits" → `ash git --op log` (default `--limit 20`)
-   - "commits in a range" → `ash git --op log --range HEAD~10..HEAD`
-   - "filter by author" → `ash git --op log --author Chris`
-   - "by date / by path" → `--since '1 week ago'` / `--pathspec internal/walker/`
-   - "what changed in the working tree?" → `ash git --op diff`
-   - "what's staged?" → `ash git --op diff --staged true`
-   - "diff the last commit" → `ash git --op diff --range HEAD~1..HEAD`
-   - "token-cheap summary before reading a diff" → `ash git --op diff --stat true`
-   - "diff scoped to one package" → `ash git --op diff --pathspec internal/verbs/git`
-   - "show one commit" → `ash git --op show --ref HEAD` (or `--ref <SHA>`, `--ref HEAD~3`, etc.)
-   - "stat-only show (token-cheap)" → `ash git --op show --ref HEAD --stat true`
-   - Status splits changes into `staged`/`unstaged`/`untracked`/`conflicts`. Log emits structured `Commit` records. Diff and Show return per-file `{path, status, additions, deletions, patch}` with a `limit_bytes` cap (default 256 KiB). Show bundles a Commit record alongside the diff.
-   - Other git ops (blame, commit/push/reset/…) stay in bash until those ops ship.
-4. **Reads of files in this repo** — use `ash read` deliberately at least a few times per session, even when the harness Read tool would suffice. We need ledger data to compare.
-5. **Ledger queries** — use `ash metrics` for raw rows or `ash report` for aggregated synthesis. `ash report` (default: current session) gives per-verb n/ok%/p50-p95 latency/truncation rate at a glance — reach for it first when a session feels heavy. Sub-phase columns (`walk_us`, `io_us`, `regex_us`) appear in `ash metrics` rows when the verb instrumented them.
-6. **Filesystem metadata for one or more explicit, known paths** — use `ash stat`. Examples:
-   - "what's the size and mtime of this file?" → `ash stat --paths cmd/ash/main.go`
-   - "bulk metadata before deciding what to read" → `ash stat --paths a.go,b.go,internal/`
-   - "check if a path exists without reading it" → `ash stat --paths some/path` (error field = "not_found" if absent)
-   - `ash stat` uses `lstat`, so symlinks report as their own type with `link_target` set.
-   - A missing path sets `error="not_found"` on that entry; the call itself still succeeds with the other paths.
-   - Both `--paths` (comma-separated, canonical) and `--path` (single path alias) are accepted.
-7. **Writing files in this repo** — use `ash write` instead of the harness Write tool. Examples:
-   - "create a new file" → `ash write --path internal/foo/foo.go --content '...'`
-   - "overwrite an existing file" → same; default is overwrite
-   - "ensure no accidental overwrite" → add `--create_only true`
-   - "write binary/base64 content" → `--encoding base64`
-   - Parent dirs are created automatically (`--mkdir true` default).
-8. **Editing files in this repo** — use `ash edit` instead of the harness Edit tool. Examples:
-   - "replace a function body" → `ash edit --path internal/foo/foo.go --old_string 'func old() {}' --new_string 'func new() {}'`
-   - "delete a line or block" → `ash edit --path f.go --old_string 'line to remove\n' --new_string ''`
-   - "replace all occurrences" → add `--replace_all true`
-   - "replace a line range" → `ash edit --path f.go --range 5:10 --new_content 'replacement lines\n'`
-   - "delete lines" → `ash edit --path f.go --range 3:5` (omit `--new_content` for deletion)
-   - Errors if `old_string` is not found (`match_not_found`) or appears multiple times without `--replace_all true` (`ambiguous`). Both are signal — the agent should use a more specific string or confirm intent.
-   - "preview without writing" → add `--dry_run true`; result includes a unified diff in `patch` field.
-   - **Shell quoting — default to stdin.** `--old_string`, `--new_string`, `--new_content`, and `--patch` are all shell arguments and silently corrupt content containing backticks, single quotes, backslashes, escape sequences, or multiline blocks. **Default to stdin** for any non-trivial replacement, in this order of preference: (a) `ash edit --path f.go --range 5:10 --new_content - << 'EOF' … EOF` for line-range edits when you know the line numbers; (b) `ash edit --path f.go --patch - << 'EOF' … EOF` for cross-cutting or multi-region edits; (c) `ash write --path f.go --content - << 'EOF' … EOF` for whole-file rewrites (then nothing to merge). Inline `--…='…'` is for short ASCII-only swaps with no quoting hazards. As a last resort for string-match edits with hostile content, write a Python fixer via `ash write --path /tmp/fix.py --content - << 'EOF' … EOF` then `python3 /tmp/fix.py` — Python string concat sidesteps all shell quoting.
-9. **Diffing content in this repo** — use `ash diff` to compare two files or a file against inline text. Examples:
-   - "what changed between these two files?" → `ash diff --path a.go --other b.go`
-   - "what would a replacement produce?" → `ash diff --path f.go --content 'new content'`
-   - "narrow hunk context" → add `--context 1`
-   - "did this change at all / how many lines?" → add `--stat true` (omits patch, much cheaper in tokens)
-   - Pass `--content -` to read the after-side from stdin: `echo 'new' | ash diff --path f.go --content -`
-   - Both inputs capped at 2000 lines; returns unified diff patch + additions/deletions counts. `--stat true` skips the patch entirely.
-10. **Running Go tests** — use `ash test` instead of `go test`. Examples:
-   - "run all tests" → `ash test` (defaults to `./...`, timeout 60s, count=1 to bypass cache)
-   - "one package" → `ash test --packages internal/walker` (bare paths auto-prefix `./`; full import paths and absolute paths pass through)
-   - "filter by name" → `ash test --run TestCacheHit` (regex passed to `go test -run`)
-   - "with race detector" → `ash test --race true`
-   - "longer timeout for big suites" → `ash test --timeout 10m`
-   - "include passing test names per package" → `ash test --verbose true`
-   - Failures arrive as a structured `Tests []Test` slice with extracted `file:line`. Build failures land as `Status=build_failed` with the compile error in `BuildOutput`. `Result.OK=true` only when all packages pass (or are `no_tests`); a tests-failed run is not a verb error — `Metrics.OK` stays true.
-   - Pass `--format json` to inspect the full structured response when the pretty render is not enough.
-11. Bash `find`, `cat`, `head`, `tail`, `ls -R`, `grep`, `rg`, `git status`, `git log`, `git diff`, `go test`, `stat` should be replaced by their `ash` equivalents in this repo.
-12. **Restarting the daemon** (after editing `ash.toml`, or after a rebuild) — use `ash stop`. The next `ash` invocation auto-starts a fresh daemon. Do not reach for `pkill ashd`.
+1. **Any path or filename lookup across more than one directory** — use `ash find`. Canonical: `ash find --path <p> --glob '**/*.go' --type file`. Hidden directories (`.git`, `.ash`, `.vscode`) are skipped by default; `.gitignore` at the walk root is respected. Override with `--include_hidden true` / `--respect_gitignore false`. Run `ash help --verb find` for the full schema.
 
-**The whole point** is that you are the first user. If a verb errors, hangs, or feels heavier than the bash equivalent, that's a bug or a design gap — investigate, don't paper over. Write the session note.
+2. **Any pattern search across one or more files** — use `ash grep`. Canonical: `ash grep --pattern '<re>' --path <p> --glob '**/*.go'`. Smart-case by default (uppercase letter switches to case-sensitive). Add `--files_only true` for a path-only result, `--no_text true` for `path:line:col` rows without excerpts (cheap-form), `--fixed_string true` to escape regex metachars, `--context_before/after N` for surrounding lines. `ash help --verb grep` for the full schema.
+
+3. **`git status`, `git log`, `git diff`, and `git show` in this repo** — use `ash git --op status|log|diff|show`. Canonical examples: `ash git --op status`, `ash git --op log --limit 20`, `ash git --op diff --range HEAD~1..HEAD --stat true`, `ash git --op show --ref HEAD`. Status splits into `staged`/`unstaged`/`untracked`/`conflicts`; log emits structured `Commit` records; diff/show return per-file `{path, status, additions, deletions, patch}` with a `limit_bytes` cap (default 256 KiB). Other git ops (`blame`, `commit`, `push`, `reset`, etc.) stay in bash until they ship under `--op`. `ash help --verb git` for the full schema.
+
+4. **Reads of files in this repo** — use `ash read` deliberately, even when the harness Read tool would suffice. Canonical: `ash read --path <p> --range 100:200`. Default cap 256 KiB; UTF-8 returned as-is; binary base64-encoded. We need ledger data to compare. `ash help --verb read` for the full schema.
+
+5. **Ledger queries** — use `ash report` for synthesis, `ash metrics` for raw rows. `ash report --since 1h` is the most common form when a session feels heavy. `--top N` controls the truncation-hotspot / error-histogram cap. Cross-repo: `--root <p>` reads a foreign repo's ledger; `--all_roots true` aggregates across every `ash init`'d repo. `ash help --verb report` / `--verb metrics` for the full schemas.
+
+6. **Filesystem metadata for explicit paths** — use `ash stat`. Canonical: `ash stat --paths a.go,b.go,internal/`. Uses `lstat` (symlinks report as symlinks). Per-entry `error` (`not_found` / `permission` / `broken_symlink`) keeps a bulk call alive when some paths are missing. Pass `--with_meta true` to include mode + mtime in the pretty rows. `ash help --verb stat` for the full schema.
+
+7. **Writing files in this repo** — use `ash write` instead of the harness Write tool. (Do not fall back to harness `Write`: it requires a prior harness `Read`, which the hook also denies — go straight to `ash write`.) Canonical: `ash write --path <p> --content - << 'EOF' … EOF` for non-trivial content; `--content '…'` only for short ASCII-only writes. Atomic via temp-file+rename. `ash help --verb write` for the full schema.
+
+8. **Editing files in this repo** — use `ash edit`. Three modes: string-replacement (`--old_string` / `--new_string`), line-range (`--range start:end --new_content`), or unified-diff (`--patch`). Canonical: `ash edit --path <p> --range 5:10 --new_content - << 'EOF' … EOF`. Errors `match_not_found` / `ambiguous` are signal — be more specific or pass `--replace_all true`. Add `--dry_run true` to preview as a unified diff. `ash help --verb edit` for the full schema.
+
+   **Shell quoting — default to stdin.** `--old_string`, `--new_string`, `--new_content`, and `--patch` are all shell arguments and silently corrupt content containing backticks, single quotes, backslashes, escape sequences, or multiline blocks. **Default to stdin** for any non-trivial replacement, in this order: (a) `ash edit --path f.go --range 5:10 --new_content - << 'EOF' … EOF` for line-range edits when you know the line numbers; (b) `ash edit --path f.go --patch - << 'EOF' … EOF` for cross-cutting or multi-region edits; (c) `ash write --path f.go --content - << 'EOF' … EOF` for whole-file rewrites. Inline `--…='…'` is for short ASCII-only swaps with no quoting hazards. As a last resort for hostile content, write a Python fixer via `ash write --path /tmp/fix.py --content - << 'EOF' … EOF` then `python3 /tmp/fix.py` — Python string concat sidesteps all shell quoting.
+
+9. **Diffing content in this repo** — use `ash diff`. Canonical: `ash diff --path a.go --other b.go` or `ash diff --path f.go --content - < new.go`. Add `--stat true` for token-cheap counts only. Both inputs capped at 2000 lines. `ash help --verb diff` for the full schema.
+
+10. **Running Go tests** — use `ash test` instead of `go test`. Canonical: `ash test` (defaults to `./...`, `count=1` to bypass cache, 60s timeout). Add `--packages internal/walker` for one package, `--run TestX` for name filter, `--race true` for race detector, `--short true` for `-short` mode, `--timeout 10m` for big suites. Failures arrive as a structured `Tests []Test` slice with `file:line` extracted; build failures land as `Status=build_failed`. `ash help --verb test` for the full schema.
+
+11. **Bash equivalents to retire** — `find`, `cat`, `head`, `tail`, `ls -R`, `grep`, `rg`, `git status`, `git log`, `git diff`, `go test`, `stat` should be replaced by their `ash` equivalents in this repo. The PreToolUse hook (next subsection) enforces this.
+
+12. **Restarting the daemon** (after editing `ash.toml`, or after a rebuild) — use `ash stop`. The next `ash` invocation auto-starts a fresh daemon. Don't reach for `pkill ashd`.
+
+**The whole point** is that you are the first user. If a verb errors, hangs, or feels heavier than the bash equivalent, that's a bug or design gap — investigate, don't paper over. Write the session note.
 
 ### Enforcement
 
-The repo ships a `PreToolUse` hook (registered in `.claude/settings.json`) that runs `ash hook` to deny the harness's built-in `Grep`/`Glob`/`Edit`/`Write`/`Read` tools and bash `grep`/`rg`/`find`/`cat`/`head`/`tail`/`ls -R`/`git status`/`git log`/`stat` in this project, returning the equivalent `ash` invocation as the deny reason. Image/PDF/notebook reads are allowed through (`ash read` can't render them). `git blame`/`show`/`commit`/etc. and other not-yet-shipped ops are allowed through. See [docs/PreToolUse.md](docs/PreToolUse.md) for the full design and behavior matrix.
+The repo ships a `PreToolUse` hook (registered in [.claude/settings.json](.claude/settings.json)) that runs `ash hook` to deny the harness's built-in `Grep`/`Glob`/`Edit`/`Write`/`Read` tools and bash `grep`/`rg`/`find`/`cat`/`head`/`tail`/`ls -R`/`git status`/`git log`/`stat` in this project, returning the equivalent `ash` invocation as the deny reason. Image/PDF/notebook reads are allowed through (`ash read` can't render them). `git blame`/`commit`/etc. and other not-yet-shipped ops are allowed through. See [docs/PreToolUse.md](docs/PreToolUse.md) for the full design and behavior matrix.
 
-`ash hook` is the only client-only verb in ash with ledger instrumentation: the deny decision runs in-process for low latency, then a best-effort fire-and-forget request to the daemon writes a ledger row when the daemon is up. `ash stop` is also fully client-side — it cannot contact the daemon it is stopping. Hook denials are queryable via `ash report --verb hook`.
+`ash hook` is the only client-only verb in ash with ledger instrumentation: the deny decision runs in-process for low latency, then a best-effort fire-and-forget request to the daemon writes a ledger row when the daemon is up. Hook denials are queryable via `ash report --verb hook`. (`ash stop` is also fully client-side — it cannot contact the daemon it is stopping.)
 
 If `ash` genuinely doesn't fit (a verb that hasn't shipped, a non-text artifact, etc.), the hook is best-effort — when it gets in the way, that is a session-note finding, not a hook bug to "work around" with `--no-verify`-style escape hatches.
 
@@ -139,7 +80,7 @@ If `ash` genuinely doesn't fit (a verb that hasn't shipped, a non-text artifact,
 ash <verb> [--key value | --key=value]... [--format pretty|json|msgpack]
 ```
 
-`--format` is a global client flag stripped before the request is sent to the daemon. `pretty` (default) is human-readable; `json` emits the full response envelope as indented JSON; `msgpack` writes the raw wire bytes to stdout.
+`--format` is a global client flag stripped before the request hits the daemon. `pretty` (default) is human-readable; `json` emits the full response envelope; `msgpack` writes raw wire bytes.
 
 The client is `bin/ash`; the daemon is `bin/ashd`. The client auto-starts the daemon on first invocation by exec'ing `bin/ashd` (sibling lookup, then `$PATH`, then `$ASH_DAEMON`). Subsequent calls reuse the same daemon over a per-project Unix domain socket.
 
@@ -149,22 +90,22 @@ State lives in:
 - `.ash/ashd.log` — daemon stderr/stdout.
 - `$XDG_RUNTIME_DIR/ash/` or `$TMPDIR` — UDS file (`ash-<8-byte-hash>.sock`).
 
-The daemon also prints a one-line metrics summary to stderr on every call, which is what you see after the response body.
+The daemon prints a one-line metrics summary to stderr on every call.
 
 ### Inspecting the ledger
 
-Use `ash report` for a synthesized view, `ash metrics` for raw rows — no sqlite3 required:
+Use `ash report` for synthesis, `ash metrics` for raw rows — no `sqlite3` required:
 
 ```sh
 ash report                         # per-verb summary for this session
-ash report --since 1h              # same, filtered to the last hour
+ash report --since 1h              # last hour
 ash report --verb grep             # drill into one verb
-ash metrics                        # last 20 raw rows
-ash metrics --last 50              # last 50 raw rows
+ash report --top 10                # raise the truncation/error histogram cap
+ash metrics --last 50              # raw rows
 ash metrics --verb find            # only find rows
 ```
 
-If you need raw SQL access that these verbs can't express yet:
+If you need raw SQL access these verbs can't express:
 
 ```sh
 sqlite3 .ash/ledger.db "SELECT verb, ok, tokens_in, tokens_out, latency_exec_us FROM calls ORDER BY id DESC LIMIT 20"
@@ -172,29 +113,23 @@ sqlite3 .ash/ledger.db "SELECT verb, ok, tokens_in, tokens_out, latency_exec_us 
 
 The ledger is the substrate for the recursive-development experiment. If a session feels heavy or surprising, query the ledger first — it almost certainly knows why.
 
-### Live verbs
+## Gotchas
 
-- `ash read --path <p> [--range start:end] [--range_kind lines|bytes] [--limit_bytes N]` — read a file (or a line/byte range of one). UTF-8 returned as-is; binary returned base64-encoded with `encoding=base64` in the response. Default size cap is 256 KiB.
-- `ash find --path <p> [--glob <pattern>] [--type any|file|dir|symlink] [--max_depth N] [--limit N] [--exclude <pattern>] [--include_hidden true|false] [--respect_gitignore true|false] [--with_meta true|false]` — list paths under `<p>`. `glob` and `exclude` are doublestar patterns (`**` for recursive, `*.{go,md}` for alternation, etc.). `include_hidden` defaults to false (directories starting with `.` are skipped; leaf dotfiles like `.gitignore` are still findable). `respect_gitignore` defaults to **true** — the `.gitignore` at the walk root (`<p>`) is loaded and applied. Pass `--respect_gitignore false` for a raw filesystem walk. Nested `.gitignore` files are not yet honored. Default `limit` is 256, hard cap 4096; truncation produces a hint about how to narrow. Symlinks are reported but never followed. **Pretty form** is path-only by default (with trailing `/` for directories); pass `--with_meta true` for `<F|D|L> <size> <yyyy-mm-dd> <path>` rows when the per-record overhead (~10 tokens/row, dominated by the date) is worth it. The wire/JSON form always carries size + mtime + type — `--with_meta` only changes the human-readable rendering.
-- `ash grep --pattern <re> --path <p> [--glob <pattern>] [--case smart|sensitive|insensitive] [--fixed_string true|false] [--word true|false] [--max_matches N] [--max_per_file N] [--context_before N] [--context_after N] [--files_only true|false] [--exclude <pattern>] [--max_depth N] [--include_hidden true|false] [--respect_gitignore true|false]` — RE2 pattern search. `path` may be a single file or a directory. `case` defaults to `smart` (insensitive unless the pattern has an uppercase letter, like ripgrep). `fixed_string=true` escapes regex metacharacters; `word=true` wraps with `\b…\b`. Default `max_matches` is 256, hard cap 4096; `max_per_file` is unlimited (0). Context (before/after) is capped at 50 lines per side and dedups across overlapping matches. `files_only=true` returns just the paths of matching files. Same `.gitignore`, hidden-dir, and walk semantics as `find`. Binary files (NUL in first 8 KiB) and files >16 MiB are skipped silently and reported via `files_skipped_binary` / `files_skipped_large`. Symlinks are not followed.
-- `ash git --op <op> [--path <p>] [op-specific flags]` — version control as structured calls. Single verb with `--op` discriminator. Live ops: `status`, `log`, `diff`, `show`.
-  - `status` splits changes into `staged`/`unstaged`/`untracked`/`conflicts` (a file with index AND worktree changes appears in both). Branch info: `branch`, `upstream`, `ahead`, `behind`, `detached`, `initial`. Args: `--untracked` (default true), `--ignored` (default false).
-  - `log` returns structured `Commit` records: full+short SHA, author/committer name+email+time (unix nanos), parents (full SHAs), subject, body. Body retains embedded newlines. Args: `--limit` (default 20, max 200), `--range`, `--author`, `--since`, `--until`, `--pathspec`.
-  - `diff` returns per-file structured diff: path, old_path (renames), status (A/D/M/R/C), additions, deletions, raw patch text. Args: `--staged` (index vs HEAD), `--range` (e.g. `HEAD~1..HEAD`), `--pathspec`, `--stat true` (token-cheap counts-only mode), `--context` (default 3), `--limit_bytes` (default 256 KiB).
-  - `show` bundles a single commit's metadata (`Commit` record from log) with its diff (`DiffResult` from diff). Args: `--ref` (required; SHA, HEAD, HEAD~1, branch, tag), `--pathspec`, `--stat`, `--context`, `--limit_bytes`. Root commits diff against the empty tree. `ref_not_found` when the ref doesn't resolve.
-  - Shells out to system `git`; `git_not_found` / `not_a_repo` / `git_failed` / `ref_not_found` error codes. Future ops (`blame`) follow in subsequent ships.
-- `ash metrics [--last N] [--verb <verb>]` — query recent call history from the ledger. Returns a table of timestamp / verb / ok / tokens_in / tokens_out / latency_exec_us, with `walk_us` / `io_us` / `regex_us` columns appended when the verb instrumented them. `last` defaults to 20, max 200. `verb` filters to a single verb (e.g. `--verb find`). Use this instead of shelling out to `sqlite3`.
-- `ash report [--session current|all|<id>] [--since <duration>] [--last <N>] [--verb <verb>] [--root <p>] [--all_roots true|false]` — aggregated per-verb summary from the ledger: call count, ok%, p50/p95 exec latency, p50/p95 tokens_out, truncation rate. Defaults to the current daemon session. Use instead of `ash metrics --last 200` when you want synthesis rather than raw rows. Duration accepts Go format plus `d` suffix (e.g. `--since 1h`, `--since 7d`). Pass `--root <p>` to query a foreign repos ledger read-only (no daemon contact in that repo); pass `--all_roots true` to aggregate across every repo `ash init` has touched (per-root breakdown rendered alongside the per-verb table). With either flag, `--session` defaults to no filter (cross-session) since the daemons "current" session is meaningless in a foreign context.
-- `ash help [--verb <verb>]` — return the structured argument schema for one verb or all live verbs. Omit `--verb` to see all schemas. Useful for checking defaults and valid values without reading source.
-- `ash stat --paths <p1>[,<p2>...] [--follow_symlinks true|false]` — lstat one or more explicit paths and return `{type, size, mtime, mode, link_target?}` per entry. Per-entry `error` field (not_found / permission / stat / broken_symlink) keeps a bulk call alive when some paths are missing. Use for pre-read size/mtime checks or existence testing without a full walk. `--follow_symlinks true` resolves each symlink with `os.Stat` and reports the target's metadata; `link_target` is preserved for traceability. Broken symlinks produce `error=broken_symlink` rather than failing the call.
-- `ash write --path <p> --content <text|-> [--encoding utf-8|base64] [--mkdir true|false] [--create_only true|false]` — write content to a file. Parent directories are created by default (`--mkdir true`). Atomic via temp-file+rename. Pass `--content -` to read from stdin (avoids shell quoting issues with special characters). Result reports `bytes_written` and `created` (bool).
-- `ash edit --path <p> --old_string <text> [--new_string <text>] [--replace_all true|false] [--dry_run true|false]` — in-place string replacement. `--dry_run true` computes the change and returns a unified diff in `patch` without writing. Errors with `match_not_found` if not found, `ambiguous` if found multiple times. Atomic write.
-- `ash edit --path <p> --range <start:end> [--new_content <text>] [--dry_run true|false]` — line-range replacement (1-based, inclusive). End is clamped to file length. `--dry_run true` supported. Result reports `bytes_written`, `lines_total`, and `occurrences`.
-- `ash diff --path <p> (--other <p2> | --content <text|->) [--context N] [--stat true|false]` — unified diff between a file and another file or inline content. `--content -` reads from stdin. Returns `additions`, `deletions`, and `patch` (unified diff text). Both inputs capped at 2000 lines (`too_large` error above that). `--stat true` omits `patch` entirely — use when you only need counts.
-- `ash bench [--verb <verb>] [--case <name>] [--limit N]` — run a canonical case list against ash and the bash equivalent the agent would otherwise have used; tokenize both with the same encoder and report per-case Δtokens / Δlatency, plus per-verb and overall summaries. Use to answer "is ash actually saving tokens, per verb and per query shape?" — see [docs/bench.md](docs/bench.md). Bash subprocesses are sandboxed (timeout, 16 MiB stdout cap); the bench call itself is recorded in the ledger like any other verb, but per-case ash dispatches are not.
-- `ash init [--path <p>] [--force true|false] [--no_registry true|false]` — bootstrap a target repo for ash: write the `ash hook` PreToolUse entry into `<path>/.claude/settings.json`, append `.ash/` to its `.gitignore` (if present), and record the absolute root in the global installed-repos registry (`$XDG_CONFIG_HOME/ash/installed-repos.txt`). Idempotent: re-running on an installed repo reports `already_installed=true`. A pre-existing PreToolUse entry that invokes ash with a different command (e.g. the per-repo `$CLAUDE_PROJECT_DIR/bin/ash` form) produces a warning and is left alone unless `--force true`. Pair with `make install` from the ash repo so target repos resolve `ash hook` from `$PATH`.
-- `ash uninit [--path <p>] [--no_registry true|false]` — reverse `ash init`: drop the `ash hook` PreToolUse entry from `.claude/settings.json` (preserving any unrelated entries), strip the `.ash/` line from `.gitignore`, and remove the registry row. The captured `.ash/ledger.db` is left in place — teardown should not destroy data the agent might still want to inspect via `ash report --root <p>`.
-- `ash stop` — send SIGTERM to the per-project daemon and wait for clean exit (up to 7s). Idempotent: returns success when no daemon is running. The next `ash` invocation auto-starts a fresh daemon. Use after editing `ash.toml` to pick up config changes.
+Hard-won wisdom from real session friction. Read these once; they save tuition.
+
+- **Shell quoting on `ash edit`/`ash write` is the #1 footgun.** Inline string args silently corrupt backticks, single quotes, backslashes, escape sequences, and multiline content. Detailed rules live in switch criterion 8 above; the short version: **default to stdin** (`--content -`, `--new_content -`, `--patch -`) for any non-trivial content. Confirmed by ASH-48 / ASH-60 / ASH-63 session friction.
+
+- **Daemon stickiness — config changes don't hot-reload.** Edits to `ash.toml` (jail policy, git backend, daemon limits) take effect only on daemon restart. Run `ash stop`; the next `ash` invocation auto-starts a fresh daemon. Don't `pkill ashd` (it bypasses graceful shutdown). If a verb behaves as though it's running with old config, this is the first thing to check.
+
+- **Path-form semantics differ across verbs.** `ash find` and `ash grep` mirror the input form: relative `--path` produces relative output paths, absolute produces absolute. `ash git --op *` always returns repo-root-relative paths regardless of `--path`. Don't assume one rule covers all verbs.
+
+- **Ledger-first debugging.** When a session feels slow or surprising, run `ash report --since 1h` before reaching for `sqlite3` or strace. Sub-phase columns (`walk_us` / `io_us` / `regex_us` in `ash metrics` rows) usually tell you exactly which phase is heavy.
+
+- **`ash help` text can lag code.** ASH-33 swept several mismatches; new ones may appear. If a flag's behavior surprises you, verify against [internal/verbs/](internal/verbs/) source and write a session note. Help is authoritative for arg names and types but not for every defaulted edge case.
+
+- **`ash read --range` end is clamped, start is not.** Out-of-bounds end clamps silently to file length (the result reports actual bytes returned); out-of-bounds start returns `range_out_of_bounds` (ASH-57 made the start-side strict so an obviously wrong call fails loudly instead of returning empty).
+
+- **Hook has known-bad cases worth knowing.** `cat > FILE << EOF` produces a malformed `ash read --path '>'` suggestion (ASH-69). When you need to stage multiline content, pipe the heredoc directly into `ash write --content -` instead of using a temp file.
 
 ## Session feedback ritual
 
@@ -211,7 +146,7 @@ This is the most important habit in this repo. The whole point of building `ash`
 - **Friction.** Where did `ash` fall short? Where did bash feel heavier than it needed to?
 - **Workarounds.** Bash incantations or extra steps the agent reached for.
 - **Suggestions.** New verbs, new flags, behavior changes — anything the experience pointed at.
-- **Instrumentation.** When the ledger exists: paste the relevant rows, or summarize them. Numbers beat impressions.
+- **Instrumentation.** Paste the relevant ledger rows, or summarize them. Numbers beat impressions.
 
 Keep notes terse. A bullet list is fine. The goal is signal, not prose.
 
@@ -219,7 +154,7 @@ Keep notes terse. A bullet list is fine. The goal is signal, not prose.
 
 Even after primordial `ash` ships, some operations stay in bash. Track them here so the dogfooding rule doesn't push agents into pretending verbs exist that don't.
 
-- **`git` ops other than `status`, `log`, and `diff`** — `blame`, `show`, and all destructive ops (commit/push/reset/rebase/checkout/etc.) stay in bash until those ops ship under `ash git --op <name>`.
+- **`git` ops other than `status`, `log`, `diff`, `show`** — `blame` and all destructive ops (commit/push/reset/rebase/checkout/etc.) stay in bash until they ship under `ash git --op <name>`.
 - **`go build`, `go vet`** — until `build` lands in Phase 2, build/vet orchestration stays in bash. `go test` is now `ash test`.
 - **System package management** (`brew`, `apt`, `npm install -g`, etc.) — never in scope for `ash`.
 - **Process management at the OS level** — bash. (`proc` hasn't shipped yet.)
@@ -229,6 +164,6 @@ Update this list as verbs ship and as new bash-only operations are identified.
 
 ## Memory hygiene
 
-This file evolves with the surface. **Do not trust stale guidance.** If the verb list in the README has changed but the checklist here hasn't, the checklist is wrong — fix it before relying on it. If you're a fresh agent reading this for the first time, cross-reference the README's "Roadmap" section against the "When to prefer ash" checklist and reconcile any drift before acting.
+This file evolves with the surface. **Do not trust stale guidance.** If [README §The verb surface](README.md#the-verb-surface) has changed but the checklist here hasn't, the checklist is wrong — fix it before relying on it. Cross-reference `ash help` (authoritative) against the "When to prefer ash" list and reconcile any drift before acting.
 
-The single rule that does not change: when in doubt, use bash, write a session note, and let the next agent benefit from your friction.
+The single rule that doesn't change: when in doubt, use bash, write a session note, and let the next agent benefit from your friction.
