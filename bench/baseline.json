@@ -1,10 +1,10 @@
 {
   "schema": "ash-bench-baseline-v1",
-  "ts": "2026-05-10T22:09:38Z",
+  "ts": "2026-05-10T22:16:35Z",
   "ash_version": "0.1.0",
-  "ash_commit_sha": "1ded64de9586ff57aa1bb94bbf5459921a45f6d1",
+  "ash_commit_sha": "4828ebad61e9f481dcbdc9efee829f714790f4d6",
   "case_set_version": "cs-913b838c885bf357",
-  "repo_sha": "1ded64de9586ff57aa1bb94bbf5459921a45f6d1",
+  "repo_sha": "4828ebad61e9f481dcbdc9efee829f714790f4d6",
   "repo_dirty": true,
   "cases": [
     {
@@ -46,20 +46,20 @@
     {
       "name": "git_log_20",
       "verb": "git",
-      "ash_tokens": 766,
-      "bash_tokens": 4719
+      "ash_tokens": 754,
+      "bash_tokens": 4585
     },
     {
       "name": "git_status",
       "verb": "git",
-      "ash_tokens": 48,
-      "bash_tokens": 96
+      "ash_tokens": 100,
+      "bash_tokens": 158
     },
     {
       "name": "grep_files_only",
       "verb": "grep",
       "ash_tokens": 685,
-      "bash_tokens": 794
+      "bash_tokens": 803
     },
     {
       "name": "grep_heavy_func_internal",
@@ -124,8 +124,8 @@
   ],
   "summary": {
     "n_cases": 19,
-    "ash_tokens_total": 30658,
-    "bash_tokens_total": 66330,
-    "delta_tok_pct": -53.77958691391527
+    "ash_tokens_total": 30698,
+    "bash_tokens_total": 66267,
+    "delta_tok_pct": -53.675283323524525
   }
 }

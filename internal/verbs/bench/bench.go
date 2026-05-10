@@ -270,7 +270,7 @@ func persistRun(d Deps, res *Result, a *Args) string {
 		CaseSetVersion: prov.CaseSetVersion,
 		RepoSHA:        prov.RepoSHA,
 		RepoDirty:      prov.RepoDirty,
-		Hostname:       prov.Hostname,
+		Platform:       prov.Platform,
 		CPUCount:       prov.CPUCount,
 		DaemonUptimeUs: prov.DaemonUptimeUs,
 		RepeatN:        a.Repeat,

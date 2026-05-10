@@ -1,7 +1,6 @@
 package bench
 
 import (
-	"os"
 	"runtime"
 	"time"
 
@@ -12,14 +11,14 @@ import (
 // Provenance is the run-context metadata persisted alongside each
 // `ash bench` invocation. It exists so a bench row from six months ago
 // is interpretable: which ash, which case set, which repo state, which
-// machine.
+// platform (GOOS/GOARCH).
 type Provenance struct {
 	AshVersion     string
 	AshCommitSHA   string
 	CaseSetVersion string
 	RepoSHA        string
 	RepoDirty      bool
-	Hostname       string
+	Platform       string
 	CPUCount       int
 	DaemonUptimeUs int64
 }
@@ -40,9 +39,7 @@ func CaptureProvenance(daemonStart time.Time, projectRoot string) Provenance {
 		CPUCount:       runtime.NumCPU(),
 		DaemonUptimeUs: time.Since(daemonStart).Microseconds(),
 	}
-	if h, err := os.Hostname(); err == nil {
-		p.Hostname = h
-	}
+	p.Platform = runtime.GOOS + "/" + runtime.GOARCH
 	if sha, dirty, ok := readRepoSHA(projectRoot); ok {
 		p.RepoSHA = sha
 		p.RepoDirty = dirty

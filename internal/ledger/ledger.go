@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS bench_runs (
 	case_set_version    TEXT NOT NULL,
 	repo_sha            TEXT,
 	repo_dirty          INTEGER NOT NULL DEFAULT 0,
-	hostname            TEXT,
+	platform            TEXT,
 	cpu_count           INTEGER NOT NULL DEFAULT 0,
 	daemon_uptime_us    INTEGER NOT NULL DEFAULT 0,
 	repeat_n            INTEGER NOT NULL DEFAULT 1,
@@ -121,6 +121,17 @@ func Open(path, projectRoot, clientInfo string) (*Ledger, error) {
 	if _, err := db.Exec(`INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', ?)`, schemaVersion); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("ledger: schema version: %w", err)
+	}
+	// Idempotent migration: pre-platform schemas stored os.Hostname() in
+	// bench_runs.hostname. Rename to `platform` and scrub historic values
+	// (they were machine-identifying). RENAME COLUMN errors silently on
+	// fresh DBs where `platform` already exists from schemaSQL.
+	_, _ = db.Exec(`ALTER TABLE bench_runs RENAME COLUMN hostname TO platform`)
+	var migDone string
+	_ = db.QueryRow(`SELECT value FROM meta WHERE key='mig_bench_platform'`).Scan(&migDone)
+	if migDone != "1" {
+		_, _ = db.Exec(`UPDATE bench_runs SET platform = NULL`)
+		_, _ = db.Exec(`INSERT OR REPLACE INTO meta (key, value) VALUES ('mig_bench_platform', '1')`)
 	}
 	sid := newSessionID()
 	if _, err := db.Exec(

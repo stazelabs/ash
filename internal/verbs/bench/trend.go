@@ -27,7 +27,7 @@ type RunSummary struct {
 	CaseSetVersion  string    `msgpack:"case_set_version"`
 	RepoSHA         string    `msgpack:"repo_sha,omitempty"`
 	RepoDirty       bool      `msgpack:"repo_dirty,omitempty"`
-	Hostname        string    `msgpack:"hostname,omitempty"`
+	Platform        string    `msgpack:"platform,omitempty"`
 	RepeatN         int       `msgpack:"repeat_n"`
 	WarmupN         int       `msgpack:"warmup_n"`
 	Cases           int       `msgpack:"cases"`
@@ -224,7 +224,7 @@ func summarizeRun(led *ledger.Ledger, r ledger.BenchRun) RunSummary {
 		CaseSetVersion: r.CaseSetVersion,
 		RepoSHA:        r.RepoSHA,
 		RepoDirty:      r.RepoDirty,
-		Hostname:       r.Hostname,
+		Platform:       r.Platform,
 		RepeatN:        r.RepeatN,
 		WarmupN:        r.WarmupN,
 	}

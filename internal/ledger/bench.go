@@ -21,7 +21,7 @@ type BenchRun struct {
 	CaseSetVersion string
 	RepoSHA        string
 	RepoDirty      bool
-	Hostname       string
+	Platform       string
 	CPUCount       int
 	DaemonUptimeUs int64
 	RepeatN        int
@@ -64,11 +64,11 @@ func (l *Ledger) RecordBenchRun(run *BenchRun, results []BenchCaseResult) (int64
 
 	res, err := tx.Exec(`INSERT INTO bench_runs (
 		run_uuid, ts, ash_version, ash_commit_sha, case_set_version,
-		repo_sha, repo_dirty, hostname, cpu_count, daemon_uptime_us,
+		repo_sha, repo_dirty, platform, cpu_count, daemon_uptime_us,
 		repeat_n, warmup_n, notes
 	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		run.RunUUID, run.Timestamp.UnixNano(), run.AshVersion, run.AshCommitSHA, run.CaseSetVersion,
-		run.RepoSHA, boolToInt(run.RepoDirty), run.Hostname, run.CPUCount, run.DaemonUptimeUs,
+		run.RepoSHA, boolToInt(run.RepoDirty), run.Platform, run.CPUCount, run.DaemonUptimeUs,
 		run.RepeatN, run.WarmupN, run.Notes,
 	)
 	if err != nil {
@@ -119,7 +119,7 @@ func (l *Ledger) QueryBenchRuns(limit int) ([]BenchRun, error) {
 		limit = 50
 	}
 	rows, err := l.db.Query(`SELECT id, run_uuid, ts, ash_version, ash_commit_sha,
-		case_set_version, repo_sha, repo_dirty, hostname, cpu_count,
+		case_set_version, repo_sha, repo_dirty, platform, cpu_count,
 		daemon_uptime_us, repeat_n, warmup_n, COALESCE(notes,'')
 		FROM bench_runs ORDER BY id DESC LIMIT ?`, limit)
 	if err != nil {
@@ -145,11 +145,11 @@ func (l *Ledger) QueryBenchRun(runUUID string) (*BenchRun, []BenchCaseResult, er
 	var ts int64
 	var dirtyInt int
 	err = l.db.QueryRow(`SELECT id, run_uuid, ts, ash_version, COALESCE(ash_commit_sha,''),
-		case_set_version, COALESCE(repo_sha,''), repo_dirty, COALESCE(hostname,''), cpu_count,
+		case_set_version, COALESCE(repo_sha,''), repo_dirty, COALESCE(platform,''), cpu_count,
 		daemon_uptime_us, repeat_n, warmup_n, COALESCE(notes,'')
 		FROM bench_runs WHERE run_uuid = ?`, resolved).Scan(
 		&run.ID, &run.RunUUID, &ts, &run.AshVersion, &run.AshCommitSHA,
-		&run.CaseSetVersion, &run.RepoSHA, &dirtyInt, &run.Hostname, &run.CPUCount,
+		&run.CaseSetVersion, &run.RepoSHA, &dirtyInt, &run.Platform, &run.CPUCount,
 		&run.DaemonUptimeUs, &run.RepeatN, &run.WarmupN, &run.Notes,
 	)
 	if err != nil {
@@ -294,10 +294,10 @@ func scanBenchRuns(rows *sql.Rows) ([]BenchRun, error) {
 		var r BenchRun
 		var ts int64
 		var dirtyInt int
-		var commit, repo, host sql.NullString
+		var commit, repo, platform sql.NullString
 		if err := rows.Scan(
 			&r.ID, &r.RunUUID, &ts, &r.AshVersion, &commit,
-			&r.CaseSetVersion, &repo, &dirtyInt, &host, &r.CPUCount,
+			&r.CaseSetVersion, &repo, &dirtyInt, &platform, &r.CPUCount,
 			&r.DaemonUptimeUs, &r.RepeatN, &r.WarmupN, &r.Notes,
 		); err != nil {
 			return nil, err
@@ -305,7 +305,7 @@ func scanBenchRuns(rows *sql.Rows) ([]BenchRun, error) {
 		r.Timestamp = time.Unix(0, ts)
 		r.AshCommitSHA = commit.String
 		r.RepoSHA = repo.String
-		r.Hostname = host.String
+		r.Platform = platform.String
 		r.RepoDirty = dirtyInt != 0
 		out = append(out, r)
 	}

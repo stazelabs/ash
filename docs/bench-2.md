@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS bench_runs (
     case_set_version    TEXT NOT NULL,
     repo_sha            TEXT,
     repo_dirty          INTEGER NOT NULL DEFAULT 0,
-    hostname            TEXT,
+    platform            TEXT,
     cpu_count           INTEGER NOT NULL DEFAULT 0,
     daemon_uptime_us    INTEGER NOT NULL DEFAULT 0,
     repeat_n            INTEGER NOT NULL DEFAULT 1,
@@ -87,8 +87,8 @@ The existing `Cleanup` does not touch `bench_*` tables; add a one-line carve-out
 - `func CaseSetVersion() string` — SHA-256 of canonical `Cases` data (name, verb, sorted (k,v) arg pairs), `sync.Once`-cached. Format: `cs-<first-8-hex>`.
 
 **[../internal/bench/provenance.go](../internal/bench/provenance.go) (new):**
-- `type Provenance struct { AshVersion, AshCommitSHA, CaseSetVersion, RepoSHA string; RepoDirty bool; Hostname string; CPUCount int; DaemonUptimeUs int64 }`
-- `func CaptureProvenance(daemonStart time.Time, gitBackend git.Backend) Provenance` — uses the in-process git backend (already wired for `ash git`) for `RepoSHA` / `RepoDirty`. `os.Hostname`, `runtime.NumCPU` for the rest.
+- `type Provenance struct { AshVersion, AshCommitSHA, CaseSetVersion, RepoSHA string; RepoDirty bool; Platform string; CPUCount int; DaemonUptimeUs int64 }`
+- `func CaptureProvenance(daemonStart time.Time, gitBackend git.Backend) Provenance` — uses the in-process git backend (already wired for `ash git`) for `RepoSHA` / `RepoDirty`. `runtime.GOOS + "/" + runtime.GOARCH` for `Platform`, `runtime.NumCPU` for the rest.
 
 **[../internal/proto/version.go](../internal/proto/version.go) (new):**
 - `const AshVersion = "0.1.0"` — manually bumped per ship for now. No build-time injection.
@@ -271,7 +271,7 @@ bench/
 
 `baseline.json` schema: `{schema, ts, ash_version, ash_commit_sha, case_set_version, repo_sha, cases:[{name, verb, ash_tokens, bash_tokens, ash_truncated, bash_truncated}], summary:{n_cases, ash_tokens_total, bash_tokens_total, delta_tok_pct}}`.
 
-`latency-snapshot.json` adds `hostname`, `cpu_count`, and per-case `ash_us_p50/min`, `bash_us_p50/min`. *Not* the source of truth for regression CI.
+`latency-snapshot.json` adds `platform`, `cpu_count`, and per-case `ash_us_p50/min`, `bash_us_p50/min`. *Not* the source of truth for regression CI.
 
 ### 5.2 New flags
 

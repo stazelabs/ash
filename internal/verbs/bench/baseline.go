@@ -89,7 +89,7 @@ type LatencyCase struct {
 type LatencySnapshotFile struct {
 	Schema    string        `json:"schema"`
 	Timestamp string        `json:"ts"`
-	Hostname  string        `json:"hostname,omitempty"`
+	Platform  string        `json:"platform,omitempty"`
 	CPUCount  int           `json:"cpu_count,omitempty"`
 	RepeatN   int           `json:"repeat_n"`
 	WarmupN   int           `json:"warmup_n"`
@@ -275,7 +275,7 @@ func buildLatencySnapshot(res *Result, prov bench.Provenance, a *Args) LatencySn
 	lf := LatencySnapshotFile{
 		Schema:    latencySnapshotSchemaVersion,
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
-		Hostname:  prov.Hostname,
+		Platform:  prov.Platform,
 		CPUCount:  prov.CPUCount,
 		RepeatN:   maxInt(a.Repeat, 1),
 		WarmupN:   a.Warmup,
@@ -300,7 +300,7 @@ func buildLatencySnapshotFromLedger(run ledger.BenchRun, cases []ledger.BenchCas
 	lf := LatencySnapshotFile{
 		Schema:    latencySnapshotSchemaVersion,
 		Timestamp: run.Timestamp.UTC().Format(time.RFC3339),
-		Hostname:  run.Hostname,
+		Platform:  run.Platform,
 		CPUCount:  run.CPUCount,
 		RepeatN:   run.RepeatN,
 		WarmupN:   run.WarmupN,
@@ -362,8 +362,8 @@ func renderBaselineMarkdown(bf BaselineFile, lf LatencySnapshotFile) string {
 		bf.Summary.NCases, bf.Summary.AshTokensTotal, bf.Summary.BashTokensTotal, bf.Summary.DeltaTokPct)
 
 	if len(lf.Cases) > 0 {
-		fmt.Fprintf(&b, "\nLatency (informational; machine `%s`, %d CPUs, repeat=%d, warmup=%d):\n\n",
-			lf.Hostname, lf.CPUCount, lf.RepeatN, lf.WarmupN)
+		fmt.Fprintf(&b, "\nLatency (informational; platform `%s`, %d CPUs, repeat=%d, warmup=%d):\n\n",
+			lf.Platform, lf.CPUCount, lf.RepeatN, lf.WarmupN)
 		b.WriteString("| case | ash_us_p50 | ash_us_min | bash_us_p50 | bash_us_min |\n")
 		b.WriteString("|---|---:|---:|---:|---:|\n")
 		for _, c := range lf.Cases {
