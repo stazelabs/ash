@@ -23,6 +23,15 @@ func TestDefaults(t *testing.T) {
 	if c.Daemon.ShutdownGrace.AsDuration() != DefaultShutdownGrace {
 		t.Errorf("shutdown_grace default: want %v, got %v", DefaultShutdownGrace, c.Daemon.ShutdownGrace.AsDuration())
 	}
+	if c.Ledger.MaxAge.AsDuration() != DefaultLedgerMaxAge {
+		t.Errorf("ledger max_age default: want %v, got %v", DefaultLedgerMaxAge, c.Ledger.MaxAge.AsDuration())
+	}
+	if c.Ledger.MaxRows != 0 {
+		t.Errorf("ledger max_rows default: want 0, got %d", c.Ledger.MaxRows)
+	}
+	if c.Ledger.Vacuum {
+		t.Errorf("ledger vacuum must default to false")
+	}
 }
 
 func TestDuration_UnmarshalText(t *testing.T) {
@@ -138,6 +147,31 @@ allow_paths = ["/tmp/scratch"]
 	}
 	if len(cfg.Jail.AllowPaths) != 1 || cfg.Jail.AllowPaths[0] != "/tmp/scratch" {
 		t.Errorf("jail allow_paths: got %v", cfg.Jail.AllowPaths)
+	}
+}
+
+func TestLoad_LedgerConfig(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("ASH_CONFIG", "")
+
+	if err := writeFile(t, filepath.Join(root, "ash.toml"),
+		"[ledger]\nmax_age = \"168h\"\nmax_rows = 500\nvacuum = true\n"); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, _, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Ledger.MaxAge.AsDuration() != 7*24*time.Hour {
+		t.Errorf("max_age: want 168h, got %v", cfg.Ledger.MaxAge.AsDuration())
+	}
+	if cfg.Ledger.MaxRows != 500 {
+		t.Errorf("max_rows: want 500, got %d", cfg.Ledger.MaxRows)
+	}
+	if !cfg.Ledger.Vacuum {
+		t.Errorf("vacuum: want true")
 	}
 }
 

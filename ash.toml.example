@@ -57,3 +57,18 @@
 # # (b) git-CLI rename-detection thresholds, (c) relative date forms in
 # # log --since "1 week ago".
 # backend = "go-git"
+
+# [ledger]
+# # How long to retain call rows in .ash/ledger.db. Default "720h" (30 days).
+# # Cleanup runs once at daemon startup before accepting connections.
+# # Set to "0s" to disable age-based cleanup entirely (unbounded growth).
+# max_age = "720h"
+#
+# # Cap total rows kept after age-based cleanup. 0 (default) = no row limit.
+# # Applied after max_age, so it bounds growth on high-frequency repos.
+# max_rows = 0
+#
+# # Run PRAGMA VACUUM after cleanup. This rewrites the DB file and reclaims
+# # disk space but is slow on large ledgers. Default false — PRAGMA optimize
+# # runs instead, which is cheap and sufficient for routine maintenance.
+# vacuum = false

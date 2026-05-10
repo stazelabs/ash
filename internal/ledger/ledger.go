@@ -305,6 +305,72 @@ func (l *Ledger) Record(c *Call) (int64, error) {
 	return id, err
 }
 
+type CleanupCfg struct {
+	MaxAge  time.Duration // 0 = no age limit
+	MaxRows int           // 0 = no row limit
+	Vacuum  bool
+}
+
+type CleanupResult struct {
+	DeletedCalls    int64
+	DeletedSessions int64
+	Vacuumed        bool
+}
+
+// Cleanup removes old call rows and orphaned sessions from the ledger.
+// It is called once at daemon startup before any connections are accepted.
+// Errors are non-fatal; callers should log them but continue.
+func (l *Ledger) Cleanup(cfg CleanupCfg) (*CleanupResult, error) {
+	res := &CleanupResult{}
+
+	if cfg.MaxAge > 0 {
+		cutoff := time.Now().Add(-cfg.MaxAge).UnixNano()
+		r, err := l.db.Exec(`DELETE FROM calls WHERE ts < ?`, cutoff)
+		if err != nil {
+			return nil, fmt.Errorf("ledger cleanup age: %w", err)
+		}
+		res.DeletedCalls, _ = r.RowsAffected()
+	}
+
+	if cfg.MaxRows > 0 {
+		var count int
+		if err := l.db.QueryRow(`SELECT COUNT(*) FROM calls`).Scan(&count); err != nil {
+			return nil, fmt.Errorf("ledger cleanup count: %w", err)
+		}
+		if excess := count - cfg.MaxRows; excess > 0 {
+			r, err := l.db.Exec(
+				`DELETE FROM calls WHERE id IN (SELECT id FROM calls ORDER BY id ASC LIMIT ?)`,
+				excess)
+			if err != nil {
+				return nil, fmt.Errorf("ledger cleanup rows: %w", err)
+			}
+			n, _ := r.RowsAffected()
+			res.DeletedCalls += n
+		}
+	}
+
+	// Delete sessions that have no remaining calls, excluding the current
+	// session (which was just created in Open and has no calls yet).
+	r, err := l.db.Exec(
+		`DELETE FROM sessions WHERE id NOT IN (SELECT DISTINCT session_id FROM calls) AND id != ?`,
+		l.sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("ledger cleanup sessions: %w", err)
+	}
+	res.DeletedSessions, _ = r.RowsAffected()
+
+	l.db.Exec(`PRAGMA optimize`)
+
+	if cfg.Vacuum {
+		if _, err := l.db.Exec(`VACUUM`); err != nil {
+			return nil, fmt.Errorf("ledger vacuum: %w", err)
+		}
+		res.Vacuumed = true
+	}
+
+	return res, nil
+}
+
 func (l *Ledger) UpdateSerializeStats(rowID int64, bytesOut int, serializeUs int64) error {
 	_, err := l.db.Exec(
 		`UPDATE calls SET bytes_out = ?, latency_serialize_us = ? WHERE id = ?`,

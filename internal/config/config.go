@@ -25,6 +25,7 @@ type Config struct {
 	Daemon DaemonConfig `toml:"daemon"`
 	Jail   JailConfig   `toml:"jail"`
 	Git    GitConfig    `toml:"git"`
+	Ledger LedgerConfig `toml:"ledger"`
 }
 
 // DaemonConfig collects daemon-process knobs. None of these are
@@ -69,6 +70,20 @@ type GitConfig struct {
 	Backend string `toml:"backend"`
 }
 
+// LedgerConfig controls automatic cleanup of the per-project SQLite ledger.
+// Cleanup runs once at daemon startup before the accept loop opens.
+type LedgerConfig struct {
+	// MaxAge is how long to retain call rows. 0 = no age limit (unbounded growth).
+	MaxAge Duration `toml:"max_age"`
+	// MaxRows caps the total number of call rows kept after age-based cleanup.
+	// 0 = no row limit.
+	MaxRows int `toml:"max_rows"`
+	// Vacuum runs PRAGMA VACUUM after cleanup. This rewrites the DB file and
+	// reclaims disk space but is slow on large ledgers. Default false; PRAGMA
+	// optimize runs instead, which is cheap and sufficient for routine maintenance.
+	Vacuum bool `toml:"vacuum"`
+}
+
 const (
 	// GitBackendShellout is the default backend value. Everything that
 	// works today continues to work without an ash.toml entry.
@@ -92,6 +107,10 @@ const DefaultReadDeadline = 30 * time.Second
 // with SIGKILL if the user wanted them gone.
 const DefaultShutdownGrace = 5 * time.Second
 
+// DefaultLedgerMaxAge is the default retention window for ledger call rows.
+// Rows older than this are deleted at each daemon startup.
+const DefaultLedgerMaxAge = 30 * 24 * time.Hour
+
 // Defaults returns the compiled-in baseline, used as the lowest layer
 // when nothing is configured.
 func Defaults() *Config {
@@ -101,8 +120,9 @@ func Defaults() *Config {
 			ReadDeadline:          Duration(DefaultReadDeadline),
 			ShutdownGrace:         Duration(DefaultShutdownGrace),
 		},
-		Jail: JailConfig{},
-		Git:  GitConfig{Backend: GitBackendGoGit},
+		Jail:   JailConfig{},
+		Git:    GitConfig{Backend: GitBackendGoGit},
+		Ledger: LedgerConfig{MaxAge: Duration(DefaultLedgerMaxAge)},
 	}
 }
 

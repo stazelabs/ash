@@ -47,7 +47,15 @@ type JailConfig struct {
 type GitConfig struct {
     Backend string `toml:"backend"` // "go-git" (default, in-process) | "shellout" (forks system git)
 }
+
+type LedgerConfig struct {
+    MaxAge  Duration `toml:"max_age"`   // default 30d; 0 = no age limit (unbounded growth)
+    MaxRows int      `toml:"max_rows"`  // default 0 = no row cap
+    Vacuum  bool     `toml:"vacuum"`    // default false; PRAGMA optimize runs instead
+}
 ```
+
+`LedgerConfig` governs automatic cleanup at daemon startup. With defaults applied, the ledger retains 30 days of call history. Set `max_age = "0s"` to restore the old unbounded behavior.
 
 `Duration` is a thin wrapper over `time.Duration` with an `UnmarshalText` so TOML strings like `"30s"` parse cleanly.
 

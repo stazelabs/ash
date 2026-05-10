@@ -68,6 +68,17 @@ func main() {
 	}
 	defer led.Close()
 
+	cleanCfg := ledger.CleanupCfg{
+		MaxAge:  cfg.Ledger.MaxAge.AsDuration(),
+		MaxRows: cfg.Ledger.MaxRows,
+		Vacuum:  cfg.Ledger.Vacuum,
+	}
+	if cr, err := led.Cleanup(cleanCfg); err != nil {
+		log.Printf("ashd: ledger cleanup: %v", err)
+	} else if cr.DeletedCalls > 0 || cr.DeletedSessions > 0 {
+		log.Printf("ashd: ledger cleanup: deleted %d calls, %d sessions", cr.DeletedCalls, cr.DeletedSessions)
+	}
+
 	runners := verbs.Runners(led, cfg)
 	pretty := verbs.PrettyHandlers()
 
