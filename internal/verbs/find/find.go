@@ -248,9 +248,10 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "=== ash find: %d results", r.Count)
-	if scope := scopeFromArgs(req); scope != "" {
-		fmt.Fprintf(&b, " [%s]", scope)
-	}
+	// Note: the request args are deliberately not echoed in the header
+	// (the agent already has them); only Count and TRUNCATED are novel.
+	// scopeFromArgs() remains in this file for potential future use
+	// (e.g. --meta=true diagnostic output).
 	if r.Truncated {
 		b.WriteString(" TRUNCATED")
 	}

@@ -239,3 +239,76 @@ func TestPrettyResponse_WithMetaFull(t *testing.T) {
 		t.Errorf("with_meta should include mtime, got %q", got)
 	}
 }
+
+// On a verbatim range request (returned range == requested, line count ==
+// end-start+1) both NL and range= would echo the request. They are
+// suppressed to save tokens.
+func TestPrettyResponse_VerbatimRangeSuppressesNLAndRange(t *testing.T) {
+	rsp := &proto.Response{
+		OK: true,
+		Data: proto.MustData(&Result{
+			Path:          "go.mod",
+			Size:          1967,
+			Lines:         5,
+			Encoding:      "utf-8",
+			RangeReturned: "1:5",
+			Content:       "module github.com/x\n\ngo 1.26\n\nrequire (\n",
+		}),
+	}
+	req := &proto.Request{Verb: "read", Args: map[string]any{"range": "1:5", "unit": "lines"}}
+	got := PrettyResponse(req, rsp)
+	if !strings.HasPrefix(got, "=== go.mod [1967B] ===\n") {
+		t.Errorf("expected minimal header on verbatim range, got %q", got)
+	}
+	if strings.Contains(got, "range=") {
+		t.Errorf("range= should be suppressed when verbatim of request: %q", got)
+	}
+	if strings.Contains(got, "5L") {
+		t.Errorf("NL should be suppressed when r.Lines == end-start+1: %q", got)
+	}
+}
+
+// Short file in lines mode: applyRange returns fewer lines than asked
+// for, but does not clamp the canonical range string. r.Lines therefore
+// diverges from end-start+1 and is emitted as the "you got less than
+// you asked for" signal. r.RangeReturned still matches request and stays
+// suppressed.
+func TestPrettyResponse_ShortFileEmitsNL(t *testing.T) {
+	rsp := &proto.Response{
+		OK: true,
+		Data: proto.MustData(&Result{
+			Path:          "tiny.txt",
+			Size:          6,
+			Lines:         3,
+			Encoding:      "utf-8",
+			RangeReturned: "1:10",
+			Content:       "a\nb\nc\n",
+		}),
+	}
+	req := &proto.Request{Verb: "read", Args: map[string]any{"range": "1:10", "unit": "lines"}}
+	got := PrettyResponse(req, rsp)
+	if !strings.Contains(got, ", 3L") {
+		t.Errorf("NL=3 must be emitted on short-file divergence: %q", got)
+	}
+}
+
+// Bytes mode: applyRange clamps end to file length, so r.RangeReturned
+// diverges from the request. range= must be emitted so the agent knows
+// it got less than it asked for.
+func TestPrettyResponse_BytesClampEmitsRange(t *testing.T) {
+	rsp := &proto.Response{
+		OK: true,
+		Data: proto.MustData(&Result{
+			Path:          "go.mod",
+			Size:          100,
+			Encoding:      "utf-8",
+			RangeReturned: "50:100",
+			Content:       "tail bytes here",
+		}),
+	}
+	req := &proto.Request{Verb: "read", Args: map[string]any{"range": "50:9999", "unit": "bytes"}}
+	got := PrettyResponse(req, rsp)
+	if !strings.Contains(got, "range=50:100") {
+		t.Errorf("range=50:100 must be emitted on bytes-end clamp: %q", got)
+	}
+}

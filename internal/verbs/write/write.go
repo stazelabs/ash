@@ -128,6 +128,11 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	}, nil
 }
 
+// PrettyResponse renders the post-write acknowledgement. It is intentionally
+// chatty (~20 tokens for the success line) where the bash equivalent (`cat >
+// FILE`) is silent on success: bytes_written + created-vs-overwritten are
+// load-bearing for the agent's next move, and a follow-up `stat` would
+// cost more tokens than the inlined ack.
 func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)

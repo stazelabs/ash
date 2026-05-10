@@ -199,19 +199,39 @@ func applyRange(body []byte, spec, kind string) ([]byte, string, *proto.Error) {
 	return body[lineStart:lineEnd], fmt.Sprintf("%d:%d", start, end), nil
 }
 
+// reqRangeBounds parses a "start:end" range request string the same way
+// applyRange does, so PrettyResponse can detect when the returned range
+// or line count is a pure echo of the request and suppress them. Returns
+// (0, 0, false) on parse error, which callers treat as "no comparable
+// request range."
+func reqRangeBounds(spec string) (start, end int, ok bool) {
+	parts := strings.SplitN(spec, ":", 2)
+	if len(parts) != 2 {
+		return 0, 0, false
+	}
+	s, err1 := strconv.Atoi(parts[0])
+	e, err2 := strconv.Atoi(parts[1])
+	if err1 != nil || err2 != nil {
+		return 0, 0, false
+	}
+	return s, e, true
+}
+
 // PrettyResponse renders a successful read response in the canonical
 // agent-facing form. Used both for client display and for daemon-side token
 // counting.
 //
-// Default ("lean") header: `=== <path> [<size>B, <lines>L[, encoding=base64]
+// Default ("lean") header: `=== <path> [<size>B[, <lines>L][, encoding=base64]
 // [, range=<r>][, TRUNCATED]] ===`. Encoding surfaces only when non-utf-8
 // (base64) since that changes how the agent must consume the body. Mtime
-// encoding regardless of value).
+// is included only with --meta=true (the verbose form).
 //
-// Rationale: the mtime tokenizes as ~9 tokens because cl100k splits on
-// every digit/colon; on small range reads it can be 5-10% of total
-// tokens. Wire data still carries Encoding + Mtime — only the rendering
-// changes.
+// `<lines>L` and `range=<r>` are emitted only when they convey novel
+// info: when no range was requested (NL = total file lines) or when
+// they diverge from the request (short file in lines mode, bytes-end
+// clamp). On a verbatim range request both fields would echo what the
+// agent already has from its own args — suppressed to save tokens
+// (the header was the dominant cost on small range reads).
 func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)
@@ -221,20 +241,25 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		return "ok\n<unrecognized read result>"
 	}
 	withMeta := false
+	var reqRange string
 	if req != nil {
 		if v, ok := req.Args["meta"]; ok {
 			if b, ok := argutil.ToBool(v); ok {
 				withMeta = b
 			}
 		}
+		if v, ok := req.Args["range"].(string); ok {
+			reqRange = v
+		}
 	}
+	reqStart, reqEnd, hasReqRange := reqRangeBounds(reqRange)
 	var b strings.Builder
 	b.WriteString("=== ")
 	b.WriteString(jail.PrettyPath(r.Path))
 	b.WriteString(" [")
 	b.WriteString(strconv.FormatInt(r.Size, 10))
 	b.WriteString("B")
-	if r.Lines > 0 {
+	if r.Lines > 0 && (!hasReqRange || r.Lines != reqEnd-reqStart+1) {
 		b.WriteString(", ")
 		b.WriteString(strconv.Itoa(r.Lines))
 		b.WriteString("L")
@@ -249,8 +274,11 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		b.WriteString(r.Encoding)
 	}
 	if r.RangeReturned != "" {
-		b.WriteString(", range=")
-		b.WriteString(r.RangeReturned)
+		showRange := !hasReqRange || r.RangeReturned != fmt.Sprintf("%d:%d", reqStart, reqEnd)
+		if showRange {
+			b.WriteString(", range=")
+			b.WriteString(r.RangeReturned)
+		}
 	}
 	if r.Truncated {
 		b.WriteString(", TRUNCATED")

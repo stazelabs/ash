@@ -500,6 +500,52 @@ func TestParseArgs_AbsoluteFlag(t *testing.T) {
 	}
 }
 
+// Fix 3: scope echo is no longer emitted in the pretty header. The agent
+// already has its own request args; only Count + TRUNCATED are novel info.
+func TestPrettyResponse_HeaderHasNoScope(t *testing.T) {
+	rsp := &proto.Response{
+		OK: true,
+		Data: proto.MustData(&Result{
+			Count: 3,
+			Records: []Record{
+				{Path: "docs/a.md", Type: "file"},
+				{Path: "docs/b.md", Type: "file"},
+				{Path: "docs/c.md", Type: "file"},
+			},
+		}),
+	}
+	req := &proto.Request{
+		Verb: "find",
+		Args: map[string]any{"path": "docs", "glob": "**/*.md", "type": "file"},
+	}
+	got := PrettyResponse(req, rsp)
+	if !strings.HasPrefix(got, "=== ash find: 3 results ===\n") {
+		t.Errorf("expected header without scope echo, got %q", got)
+	}
+	if strings.Contains(got, "[path=") || strings.Contains(got, "[glob=") || strings.Contains(got, "[type=") {
+		t.Errorf("scope must be absent from header: %q", got)
+	}
+}
+
+func TestPrettyResponse_HeaderShowsTruncated(t *testing.T) {
+	rsp := &proto.Response{
+		OK: true,
+		Data: proto.MustData(&Result{
+			Count:     2,
+			Truncated: true,
+			Records: []Record{
+				{Path: "a.go", Type: "file"},
+				{Path: "b.go", Type: "file"},
+			},
+		}),
+	}
+	req := &proto.Request{Verb: "find", Args: map[string]any{}}
+	got := PrettyResponse(req, rsp)
+	if !strings.Contains(got, "TRUNCATED") {
+		t.Errorf("TRUNCATED marker must remain in header: %q", got)
+	}
+}
+
 func hasRecord(records []Record, path string) bool {
 	for _, r := range records {
 		if r.Path == path {
