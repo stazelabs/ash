@@ -1,6 +1,9 @@
 package ledger
 
 import (
+	"sort"
+	"strings"
+
 	"github.com/pkoukk/tiktoken-go"
 	tiktoken_loader "github.com/pkoukk/tiktoken-go-loader"
 )
@@ -34,4 +37,31 @@ func (c *Counter) Count(s string) int {
 		return 0
 	}
 	return len(c.enc.Encode(s, nil, nil))
+}
+
+// StripPrefixes returns s with every occurrence of "<prefix>/" replaced
+// by the empty string, for each prefix in prefixes. Longest prefixes
+// are tried first so "/a/b" strips before "/a" would mask it.
+//
+// Used to compute a path-prefix-free variant of the pretty response for
+// the ledger's tokens_out_no_prefix column (ASH-71). The substitution
+// is literal — no path-context check — which is fine for measurement:
+// the worst case is over-stripping a prefix that happens to appear in
+// non-path text, which only inflates the estimated tax slightly.
+func StripPrefixes(s string, prefixes []string) string {
+	if s == "" || len(prefixes) == 0 {
+		return s
+	}
+	sorted := make([]string, 0, len(prefixes))
+	for _, p := range prefixes {
+		if p == "" || p == "/" {
+			continue
+		}
+		sorted = append(sorted, p)
+	}
+	sort.Slice(sorted, func(i, j int) bool { return len(sorted[i]) > len(sorted[j]) })
+	for _, p := range sorted {
+		s = strings.ReplaceAll(s, p+"/", "")
+	}
+	return s
 }

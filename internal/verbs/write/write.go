@@ -140,5 +140,5 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if r.Created {
 		verb = "created"
 	}
-	return fmt.Sprintf("=== ash write: %s [%dB, %s] ===", r.Path, r.BytesWritten, verb)
+	return fmt.Sprintf("=== ash write: %s [%dB, %s] ===", jail.PrettyPath(r.Path), r.BytesWritten, verb)
 }

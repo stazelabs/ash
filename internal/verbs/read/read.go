@@ -230,7 +230,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	}
 	var b strings.Builder
 	b.WriteString("=== ")
-	b.WriteString(r.Path)
+	b.WriteString(jail.PrettyPath(r.Path))
 	b.WriteString(" [")
 	b.WriteString(strconv.FormatInt(r.Size, 10))
 	b.WriteString("B")

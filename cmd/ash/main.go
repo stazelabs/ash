@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/session"
 	"github.com/stazelabs/ash/internal/verbs"
@@ -72,6 +73,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "ash: project root:", err)
 		os.Exit(1)
 	}
+	// Register a cosmetic policy so client-side pretty renderers can
+	// strip the project-root prefix from path-heavy headers (ASH-71).
+	// Enforcement happens daemon-side; this is enabled=false purely so
+	// jail.PathPrefixes returns the right set on the client process.
+	jail.SetPolicy(jail.FromConfig(false, root, nil, nil))
 	sockPath := session.SocketPath(root)
 
 	// `ash stop` is a client-side verb: it terminates the daemon, so it must

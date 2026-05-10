@@ -266,6 +266,12 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 		}
 		tokensIn := led.Counter().Count(prettyReq)
 		tokensOut := led.Counter().Count(prettyRsp)
+		// ASH-71: measure the path-prefix tax by retokenizing the
+		// pretty response with known prefixes stripped. Cheap (in-
+		// memory tiktoken) and keeps the rendered output untouched.
+		tokensOutNoPrefix := led.Counter().Count(
+			ledger.StripPrefixes(prettyRsp, jail.PathPrefixes()),
+		)
 
 		// BytesOut and LatencySerializeUs cannot be known until after the wire
 		// encode (circular dependency: both values are in the metrics envelope
@@ -308,6 +314,7 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 			LatencySerializeUs: 0,
 			TokensIn:           tokensIn,
 			TokensOut:          tokensOut,
+			TokensOutNoPrefix:  tokensOutNoPrefix,
 			TokensMethod:       ledger.TokensMethod,
 			BytesIn:            len(reqBuf),
 			BytesOut:           0,

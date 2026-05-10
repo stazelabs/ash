@@ -20,7 +20,9 @@
 //	exclude             string  (optional) - doublestar pattern; matching paths are skipped
 //	max_depth           int     (optional) - 0 = unlimited
 //
-// Path semantics mirror find: relative-in -> relative-out, absolute-in -> absolute-out.
+// Path semantics (ASH-71): records carry repo-root-relative paths by default
+// regardless of --path form, mirroring the project root out of every line.
+// Pass --absolute true to opt back into the legacy input-mirroring form.
 //
 // Binary files (NUL byte in the first 8 KiB) are skipped silently. Files larger
 // than 16 MiB are skipped silently. Both are reported in counters on the
@@ -77,6 +79,7 @@ type Args struct {
 	RespectGitignore bool
 	Exclude          string
 	MaxDepth         int
+	Absolute         bool // emit absolute paths instead of repo-root-relative
 }
 
 type Match struct {
@@ -160,6 +163,9 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 		return nil, perr
 	}
 	if a.MaxDepth, perr = argutil.OptionalNonNegInt(in, "depth", 0, 0); perr != nil {
+		return nil, perr
+	}
+	if a.Absolute, perr = argutil.OptionalBool(in, "absolute", false); perr != nil {
 		return nil, perr
 	}
 	if !doublestar.ValidatePathPattern(a.Glob) {
@@ -250,6 +256,19 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	}
 	res.MatchCount = st.matchCount
 	res.FileCount = len(st.matchedFiles)
+
+	// ASH-71: drop the repeated project-root prefix from path-heavy
+	// match output unless the caller explicitly asked for absolute paths.
+	if !a.Absolute {
+		rel := jail.NewProjectRelativizer(a.Path)
+		for i := range res.Matches {
+			res.Matches[i].Path = rel.Apply(res.Matches[i].Path)
+		}
+		for i := range res.Files {
+			res.Files[i] = rel.Apply(res.Files[i])
+		}
+	}
+
 	if st.limitHit {
 		res.Truncated = true
 		res.TruncInfo = &proto.TruncInfo{Trunc: 1, Limit: a.MaxMatches, Max: MaxMaxMatches}
@@ -663,7 +682,7 @@ func scopeFromArgs(req *proto.Request) string {
 		parts = append(parts, "pattern="+strconv.Quote(v))
 	}
 	if v, ok := req.Args["path"].(string); ok {
-		parts = append(parts, "path="+v)
+		parts = append(parts, "path="+jail.PrettyPath(v))
 	}
 	if v, ok := req.Args["glob"].(string); ok && v != "" && v != DefaultGlob {
 		parts = append(parts, "glob="+v)

@@ -141,3 +141,44 @@ func TestCleanup_Vacuum(t *testing.T) {
 		t.Fatalf("Cleanup with Vacuum: %v", err)
 	}
 }
+
+// ASH-71: a recorded TokensOutNoPrefix value must round-trip through
+// the INSERT and through both QueryWindow and QueryRecent scans. This
+// is the regression test for the schema/INSERT/SELECT triple needing
+// to stay in sync as the column count grows.
+func TestRecord_TokensOutNoPrefix_RoundTrip(t *testing.T) {
+	l := openTestLedger(t)
+	_, err := l.Record(&Call{
+		Timestamp:         time.Now(),
+		Verb:              "find",
+		OK:                true,
+		TokensOut:         100,
+		TokensOutNoPrefix: 40,
+	})
+	if err != nil {
+		t.Fatalf("Record: %v", err)
+	}
+
+	winCalls, err := l.QueryWindow(QueryOpts{})
+	if err != nil {
+		t.Fatalf("QueryWindow: %v", err)
+	}
+	if len(winCalls) != 1 {
+		t.Fatalf("QueryWindow rows: want 1, got %d", len(winCalls))
+	}
+	if winCalls[0].TokensOut != 100 || winCalls[0].TokensOutNoPrefix != 40 {
+		t.Errorf("QueryWindow: tokens_out=%d tokens_out_no_prefix=%d (want 100/40)",
+			winCalls[0].TokensOut, winCalls[0].TokensOutNoPrefix)
+	}
+
+	recCalls, err := l.QueryRecent(10, "")
+	if err != nil {
+		t.Fatalf("QueryRecent: %v", err)
+	}
+	if len(recCalls) != 1 {
+		t.Fatalf("QueryRecent rows: want 1, got %d", len(recCalls))
+	}
+	if recCalls[0].TokensOutNoPrefix != 40 {
+		t.Errorf("QueryRecent: tokens_out_no_prefix=%d (want 40)", recCalls[0].TokensOutNoPrefix)
+	}
+}

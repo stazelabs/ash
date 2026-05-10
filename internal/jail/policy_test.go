@@ -142,6 +142,96 @@ func TestCheckPaths_EmptyValuesSkipped(t *testing.T) {
 	}
 }
 
+func TestAllowedRoots_NoPolicy(t *testing.T) {
+	SetPolicy(nil)
+	if got := AllowedRoots(); got != nil {
+		t.Errorf("AllowedRoots with no policy: want nil, got %v", got)
+	}
+}
+
+func TestAllowedRoots_ReturnsCanonicalRootFirst(t *testing.T) {
+	root := t.TempDir()
+	allow := t.TempDir()
+	SetPolicy(FromConfig(false, root, []string{allow}, nil))
+	defer SetPolicy(nil)
+	got := AllowedRoots()
+	if len(got) != 2 {
+		t.Fatalf("AllowedRoots len: want 2, got %d (%v)", len(got), got)
+	}
+	// Project root is always first; FromConfig canonicalizes, which on
+	// macOS resolves /var/folders -> /private/var/folders. Compare via
+	// EvalSymlinks-equivalent: filepath.Clean of the resolved tempdir.
+	canonRoot, _ := filepath.EvalSymlinks(root)
+	canonAllow, _ := filepath.EvalSymlinks(allow)
+	if got[0] != canonRoot {
+		t.Errorf("AllowedRoots[0]: want %q, got %q", canonRoot, got[0])
+	}
+	if got[1] != canonAllow {
+		t.Errorf("AllowedRoots[1]: want %q, got %q", canonAllow, got[1])
+	}
+}
+
+func TestAllowedRoots_ReturnsCopy(t *testing.T) {
+	// Mutating the returned slice must not affect the active policy.
+	root := t.TempDir()
+	SetPolicy(FromConfig(false, root, nil, nil))
+	defer SetPolicy(nil)
+	got := AllowedRoots()
+	if len(got) == 0 {
+		t.Fatal("AllowedRoots returned empty")
+	}
+	got[0] = "/mutated"
+	got2 := AllowedRoots()
+	if got2[0] == "/mutated" {
+		t.Errorf("AllowedRoots returned shared slice; mutation leaked: %v", got2)
+	}
+}
+
+func TestAllowedRoots_IgnoresEnabledFlag(t *testing.T) {
+	// AllowedRoots is for cosmetic stripping, not enforcement; it should
+	// return roots regardless of whether the policy is enabled.
+	root := t.TempDir()
+	SetPolicy(FromConfig(false, root, nil, nil)) // disabled
+	defer SetPolicy(nil)
+	if got := AllowedRoots(); len(got) == 0 {
+		t.Errorf("AllowedRoots with disabled policy: want roots, got empty")
+	}
+}
+
+func TestPrettyPath(t *testing.T) {
+	root := t.TempDir()
+	canonRoot, _ := filepath.EvalSymlinks(root)
+	SetPolicy(FromConfig(false, root, nil, nil))
+	defer SetPolicy(nil)
+
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"empty", "", ""},
+		{"exact root", canonRoot, "."},
+		{"sub of root", canonRoot + "/cmd/ashd", "cmd/ashd"},
+		{"unrelated absolute", "/etc/hosts", "/etc/hosts"},
+		{"already relative", "cmd/ashd", "cmd/ashd"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := PrettyPath(tc.in)
+			if got != tc.want {
+				t.Errorf("PrettyPath(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPrettyPath_NoPolicy(t *testing.T) {
+	SetPolicy(nil)
+	if got := PrettyPath("/Users/me/repo/foo.go"); got != "/Users/me/repo/foo.go" {
+		t.Errorf("PrettyPath with no policy should pass through, got %q", got)
+	}
+}
+
 func contains(s, sub string) bool {
 	return len(sub) > 0 && len(s) >= len(sub) && indexOf(s, sub) >= 0
 }

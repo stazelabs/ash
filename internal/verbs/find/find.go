@@ -11,9 +11,13 @@
 //	hidden              bool    (optional) - include hidden dirs (default false)
 //	gi                  bool    (optional) - respect .gitignore (default true)
 //	meta                bool    (optional) - include size+mtime in pretty form
+//	absolute            bool    (optional) - emit absolute paths (default false)
 //
-// Path semantics mirror Unix find: the form of paths in results matches the
-// form of --path (relative-in -> relative-out, absolute-in -> absolute-out).
+// Path semantics (ASH-71): records carry repo-root-relative paths by default
+// regardless of --path form, so the project root never re-appears on every
+// line. Pass --absolute true to opt back into the input-mirroring legacy
+// form. Paths under jail.allow_paths that sit outside the project root fall
+// back to absolute even in default mode (relative-with-".." is not a win).
 //
 // Symlinks are reported as their own type and never followed; this prevents
 // loops and avoids implicitly escaping the walk root.
@@ -51,6 +55,7 @@ type Args struct {
 	IncludeHidden    bool
 	RespectGitignore bool
 	WithMeta         bool // include size + mtime + type prefix in pretty form
+	Absolute         bool // emit absolute paths instead of repo-root-relative
 }
 
 type Record struct {
@@ -95,6 +100,9 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 		return nil, perr
 	}
 	if a.WithMeta, perr = argutil.OptionalBool(in, "meta", false); perr != nil {
+		return nil, perr
+	}
+	if a.Absolute, perr = argutil.OptionalBool(in, "absolute", false); perr != nil {
 		return nil, perr
 	}
 	if !doublestar.ValidatePathPattern(a.Glob) {
@@ -166,6 +174,13 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	tr.AddWalk(time.Since(walkStart))
 	if walkErr != nil {
 		return nil, &proto.Error{Code: "walk", Msg: walkErr.Error()}
+	}
+
+	if !a.Absolute {
+		rel := jail.NewProjectRelativizer(a.Path)
+		for i := range res.Records {
+			res.Records[i].Path = rel.Apply(res.Records[i].Path)
+		}
 	}
 
 	res.Count = len(res.Records)
@@ -292,7 +307,7 @@ func scopeFromArgs(req *proto.Request) string {
 	}
 	parts := make([]string, 0, 4)
 	if v, ok := req.Args["path"].(string); ok {
-		parts = append(parts, "path="+v)
+		parts = append(parts, "path="+jail.PrettyPath(v))
 	}
 	if v, ok := req.Args["glob"].(string); ok && v != "" && v != DefaultGlob {
 		parts = append(parts, "glob="+v)

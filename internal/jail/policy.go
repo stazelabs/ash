@@ -32,6 +32,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 
@@ -117,6 +118,73 @@ func SetPolicy(p *Policy) {
 	mu.Lock()
 	defer mu.Unlock()
 	active = p
+}
+
+// AllowedRoots returns a copy of the active policy's AllowedRoots slice.
+// The project root is always element [0] when a policy is set via
+// FromConfig. Returns nil when no policy is registered, which is the
+// no-jail default (tests, fresh daemons before SetPolicy).
+//
+// Exposed for callers that need the single canonical project root
+// (e.g. the ProjectRelativizer). For prefix-stripping in pretty output,
+// prefer PathPrefixes which also includes lexical-abs variants.
+func AllowedRoots() []string {
+	mu.RLock()
+	p := active
+	mu.RUnlock()
+	if p == nil || len(p.AllowedRoots) == 0 {
+		return nil
+	}
+	out := make([]string, len(p.AllowedRoots))
+	copy(out, p.AllowedRoots)
+	return out
+}
+
+// PathPrefixes returns the set of strings that should be stripped from
+// rendered paths for token-tax purposes (ASH-71). For each allowed
+// root, both the canonical (EvalSymlinks-resolved) form and the
+// lexical-abs form are included when they differ. This catches the
+// macOS /var/folders -> /private/var/folders case and any other
+// symlinked parent: an agent that passes the un-canonical form ends up
+// with un-canonical paths in the response, while jail roots store the
+// canonical form — stripping needs both.
+//
+// Order is longest-first so ledger.StripPrefixes (which iterates in
+// receive order) doesn't need to re-sort.
+func PathPrefixes() []string {
+	roots := AllowedRoots()
+	if len(roots) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(roots)*2)
+	out := make([]string, 0, len(roots)*2)
+	add := func(s string) {
+		if s == "" || s == "/" {
+			return
+		}
+		if _, ok := seen[s]; ok {
+			return
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+	for _, r := range roots {
+		add(r)
+		if abs, err := filepath.Abs(r); err == nil {
+			add(abs)
+		}
+		// Also include the un-resolved form of r if it differs from r.
+		// EvalSymlinks resolves; we want the OPPOSITE direction here,
+		// which canonicalize already discarded. We can't recover it,
+		// but we can synthesize the common macOS variant by stripping
+		// the /private prefix that EvalSymlinks adds to /var, /tmp,
+		// /etc on darwin.
+		if stripped, ok := strings.CutPrefix(r, "/private"); ok {
+			add(stripped)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return len(out[i]) > len(out[j]) })
+	return out
 }
 
 // CheckPaths validates a set of {arg-key -> path} entries against the

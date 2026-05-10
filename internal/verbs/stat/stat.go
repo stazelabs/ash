@@ -202,8 +202,12 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 }
 
 func writeEntry(b *strings.Builder, e Entry, withMeta bool) {
+	// ASH-71: render the path repo-relative when possible. The wire
+	// Entry.Path stays as-passed so JSON consumers see the unmodified
+	// input echo.
+	prettyPath := jail.PrettyPath(e.Path)
 	if e.Error != "" {
-		fmt.Fprintf(b, "? - %s [%s]\n", e.Path, e.Error)
+		fmt.Fprintf(b, "? - %s [%s]\n", prettyPath, e.Error)
 		return
 	}
 	typeChar := "F"
@@ -220,16 +224,16 @@ func writeEntry(b *strings.Builder, e Entry, withMeta bool) {
 	if withMeta {
 		mtime := time.Unix(0, e.Mtime).UTC().Format("2006-01-02T15:04:05Z")
 		if e.LinkTarget != "" {
-			fmt.Fprintf(b, "%s %-10s %s %s %s -> %s\n", typeChar, sizeStr, e.Mode, mtime, e.Path, e.LinkTarget)
+			fmt.Fprintf(b, "%s %-10s %s %s %s -> %s\n", typeChar, sizeStr, e.Mode, mtime, prettyPath, e.LinkTarget)
 		} else {
-			fmt.Fprintf(b, "%s %-10s %s %s %s\n", typeChar, sizeStr, e.Mode, mtime, e.Path)
+			fmt.Fprintf(b, "%s %-10s %s %s %s\n", typeChar, sizeStr, e.Mode, mtime, prettyPath)
 		}
 		return
 	}
 	if e.LinkTarget != "" {
-		fmt.Fprintf(b, "%s %s %s -> %s\n", typeChar, sizeStr, e.Path, e.LinkTarget)
+		fmt.Fprintf(b, "%s %s %s -> %s\n", typeChar, sizeStr, prettyPath, e.LinkTarget)
 	} else {
-		fmt.Fprintf(b, "%s %s %s\n", typeChar, sizeStr, e.Path)
+		fmt.Fprintf(b, "%s %s %s\n", typeChar, sizeStr, prettyPath)
 	}
 }
 

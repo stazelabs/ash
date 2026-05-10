@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/proto"
 )
 
@@ -800,5 +801,149 @@ func TestParseArgs_WireShape(t *testing.T) {
 		if perr == nil {
 			t.Errorf("expected error for %s=%q", bad.key, bad.val)
 		}
+	}
+}
+
+// ASH-71: matches default to repo-root-relative paths once a jail policy
+// names the walk root. Without the policy, behavior is unchanged.
+func TestRun_DefaultStripsRepoRootPrefixInMatches(t *testing.T) {
+	root := makeTree(t)
+	jail.SetPolicy(jail.FromConfig(false, root, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	res, perr := Run(&Args{
+		Pattern:          "Foo",
+		Path:             root,
+		Glob:             DefaultGlob,
+		Case:             "sensitive",
+		MaxMatches:       DefaultMaxMatches,
+		RespectGitignore: true,
+	}, nil)
+	if perr != nil {
+		t.Fatalf("unexpected error: %+v", perr)
+	}
+	if len(res.Matches) == 0 {
+		t.Fatal("expected matches, got none")
+	}
+	for _, m := range res.Matches {
+		if filepath.IsAbs(m.Path) {
+			t.Errorf("match path should be repo-relative, got absolute: %q", m.Path)
+		}
+		if strings.HasPrefix(m.Path, "./") {
+			t.Errorf("match path should be bare relative, got leading ./: %q", m.Path)
+		}
+	}
+	// Sanity: known matching files appear with bare paths.
+	wantPaths := map[string]bool{"a.go": false, "b.go": false, "src/main.go": false}
+	for _, m := range res.Matches {
+		if _, ok := wantPaths[m.Path]; ok {
+			wantPaths[m.Path] = true
+		}
+	}
+	for p, seen := range wantPaths {
+		if !seen {
+			t.Errorf("expected match in %s; got matches: %v", p, res.Matches)
+		}
+	}
+}
+
+// --absolute true preserves the legacy input-mirroring form. files_only
+// is also covered so the Files slice gets the same treatment.
+func TestRun_AbsoluteFlagPreservesAbsolutePaths(t *testing.T) {
+	root := makeTree(t)
+	jail.SetPolicy(jail.FromConfig(false, root, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	res, perr := Run(&Args{
+		Pattern:          "Foo",
+		Path:             root,
+		Glob:             DefaultGlob,
+		Case:             "sensitive",
+		MaxMatches:       DefaultMaxMatches,
+		RespectGitignore: true,
+		FilesOnly:        true,
+		Absolute:         true,
+	}, nil)
+	if perr != nil {
+		t.Fatalf("unexpected error: %+v", perr)
+	}
+	if len(res.Files) == 0 {
+		t.Fatal("expected files, got none")
+	}
+	for _, f := range res.Files {
+		if !filepath.IsAbs(f) {
+			t.Errorf("with --absolute true, file path should be absolute: %q", f)
+		}
+	}
+}
+
+// files_only output gets the same default repo-relative treatment as the
+// match records. This is the test for ASH-71's wider-coverage claim.
+func TestRun_DefaultStripsRepoRootPrefixInFilesOnly(t *testing.T) {
+	root := makeTree(t)
+	jail.SetPolicy(jail.FromConfig(false, root, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	res, perr := Run(&Args{
+		Pattern:          "Foo",
+		Path:             root,
+		Glob:             DefaultGlob,
+		Case:             "sensitive",
+		MaxMatches:       DefaultMaxMatches,
+		RespectGitignore: true,
+		FilesOnly:        true,
+	}, nil)
+	if perr != nil {
+		t.Fatalf("unexpected error: %+v", perr)
+	}
+	if len(res.Files) == 0 {
+		t.Fatal("expected files, got none")
+	}
+	for _, f := range res.Files {
+		if filepath.IsAbs(f) {
+			t.Errorf("files_only path should be repo-relative, got absolute: %q", f)
+		}
+	}
+}
+
+// No jail policy → paths stay in their input-mirroring form (current
+// daemon behavior before SetPolicy runs).
+func TestRun_NoPolicyLeavesMatchesAlone(t *testing.T) {
+	root := makeTree(t)
+	jail.SetPolicy(nil)
+
+	res, perr := Run(&Args{
+		Pattern:          "Foo",
+		Path:             root,
+		Glob:             DefaultGlob,
+		Case:             "sensitive",
+		MaxMatches:       DefaultMaxMatches,
+		RespectGitignore: true,
+	}, nil)
+	if perr != nil {
+		t.Fatalf("unexpected error: %+v", perr)
+	}
+	for _, m := range res.Matches {
+		if !filepath.IsAbs(m.Path) {
+			t.Errorf("without jail policy, absolute input should yield absolute paths: %q", m.Path)
+		}
+	}
+}
+
+// --absolute parses through ParseArgs.
+func TestParseArgs_AbsoluteFlag(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{"pattern": "x", "path": ".", "absolute": true})
+	if perr != nil {
+		t.Fatalf("unexpected error: %v", perr)
+	}
+	if !a.Absolute {
+		t.Error("Absolute: want true")
+	}
+	a2, perr := ParseArgs(map[string]any{"pattern": "x", "path": "."})
+	if perr != nil {
+		t.Fatalf("unexpected error: %v", perr)
+	}
+	if a2.Absolute {
+		t.Error("Absolute default: want false")
 	}
 }

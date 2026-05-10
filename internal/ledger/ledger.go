@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS calls (
 	latency_serialize_us INTEGER NOT NULL,
 	tokens_in INTEGER,
 	tokens_out INTEGER,
+	tokens_out_no_prefix INTEGER NOT NULL DEFAULT 0,
 	tokens_method TEXT,
 	bytes_in INTEGER NOT NULL,
 	bytes_out INTEGER NOT NULL,
@@ -127,6 +128,10 @@ func Open(path, projectRoot, clientInfo string) (*Ledger, error) {
 	// (they were machine-identifying). RENAME COLUMN errors silently on
 	// fresh DBs where `platform` already exists from schemaSQL.
 	_, _ = db.Exec(`ALTER TABLE bench_runs RENAME COLUMN hostname TO platform`)
+	// ASH-71: tokens_out_no_prefix captures the tokenized response with
+	// known path prefixes stripped, so reports can quote the path-prefix
+	// tax. Errors silently on fresh DBs where the column already exists.
+	_, _ = db.Exec(`ALTER TABLE calls ADD COLUMN tokens_out_no_prefix INTEGER NOT NULL DEFAULT 0`)
 	var migDone string
 	_ = db.QueryRow(`SELECT value FROM meta WHERE key='mig_bench_platform'`).Scan(&migDone)
 	if migDone != "1" {
@@ -183,6 +188,7 @@ type Call struct {
 	LatencySerializeUs int64
 	TokensIn           int
 	TokensOut          int
+	TokensOutNoPrefix  int
 	TokensMethod       string
 	BytesIn            int
 	BytesOut           int
@@ -249,7 +255,7 @@ func (l *Ledger) QueryWindow(opts QueryOpts) ([]Call, error) {
 	rows, err := l.db.Query(`
 		SELECT ts, verb, ok, err_code, err_msg,
 		       latency_parse_us, latency_exec_us, latency_serialize_us,
-		       tokens_in, tokens_out, tokens_method,
+		       tokens_in, tokens_out, tokens_out_no_prefix, tokens_method,
 		       bytes_in, bytes_out, truncated,
 		       walk_us, io_us, regex_us, regex_compile_us, latency_dispatch_us,
 		       args_msgpack
@@ -267,7 +273,7 @@ func (l *Ledger) QueryWindow(opts QueryOpts) ([]Call, error) {
 		if err := rows.Scan(
 			&ts, &c.Verb, &okInt, &c.ErrCode, &c.ErrMsg,
 			&c.LatencyParseUs, &c.LatencyExecUs, &c.LatencySerializeUs,
-			&c.TokensIn, &c.TokensOut, &c.TokensMethod,
+			&c.TokensIn, &c.TokensOut, &c.TokensOutNoPrefix, &c.TokensMethod,
 			&c.BytesIn, &c.BytesOut, &truncInt,
 			&c.WalkUs, &c.IOUs, &c.RegexUs, &c.RegexCompileUs, &c.LatencyDispatchUs,
 			&c.ArgsMsgpack,
@@ -293,7 +299,7 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 		rows, err = l.db.Query(`
 			SELECT ts, verb, ok, err_code, err_msg,
 			       latency_parse_us, latency_exec_us, latency_serialize_us,
-			       tokens_in, tokens_out, tokens_method,
+			       tokens_in, tokens_out, tokens_out_no_prefix, tokens_method,
 			       bytes_in, bytes_out, truncated,
 			       walk_us, io_us, regex_us, regex_compile_us, latency_dispatch_us
 			FROM calls WHERE verb = ?
@@ -302,7 +308,7 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 		rows, err = l.db.Query(`
 			SELECT ts, verb, ok, err_code, err_msg,
 			       latency_parse_us, latency_exec_us, latency_serialize_us,
-			       tokens_in, tokens_out, tokens_method,
+			       tokens_in, tokens_out, tokens_out_no_prefix, tokens_method,
 			       bytes_in, bytes_out, truncated,
 			       walk_us, io_us, regex_us, regex_compile_us, latency_dispatch_us
 			FROM calls ORDER BY id DESC LIMIT ?`, n)
@@ -320,7 +326,7 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 		if err := rows.Scan(
 			&ts, &c.Verb, &okInt, &c.ErrCode, &c.ErrMsg,
 			&c.LatencyParseUs, &c.LatencyExecUs, &c.LatencySerializeUs,
-			&c.TokensIn, &c.TokensOut, &c.TokensMethod,
+			&c.TokensIn, &c.TokensOut, &c.TokensOutNoPrefix, &c.TokensMethod,
 			&c.BytesIn, &c.BytesOut, &truncInt,
 			&c.WalkUs, &c.IOUs, &c.RegexUs, &c.RegexCompileUs, &c.LatencyDispatchUs,
 		); err != nil {
@@ -339,14 +345,14 @@ func (l *Ledger) Record(c *Call) (int64, error) {
 		session_id, request_id, ts, verb, args_msgpack,
 		ok, err_code, err_msg,
 		latency_parse_us, latency_exec_us, latency_serialize_us,
-		tokens_in, tokens_out, tokens_method,
+		tokens_in, tokens_out, tokens_out_no_prefix, tokens_method,
 		bytes_in, bytes_out, truncated,
 		walk_us, io_us, regex_us, regex_compile_us, latency_dispatch_us
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		l.sessionID, int64(c.RequestID), c.Timestamp.UnixNano(), c.Verb, c.ArgsMsgpack,
 		boolToInt(c.OK), c.ErrCode, c.ErrMsg,
 		c.LatencyParseUs, c.LatencyExecUs, c.LatencySerializeUs,
-		c.TokensIn, c.TokensOut, c.TokensMethod,
+		c.TokensIn, c.TokensOut, c.TokensOutNoPrefix, c.TokensMethod,
 		c.BytesIn, c.BytesOut, boolToInt(c.Truncated),
 		c.WalkUs, c.IOUs, c.RegexUs, c.RegexCompileUs, c.LatencyDispatchUs,
 	)

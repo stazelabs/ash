@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/ledger"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/vmihailenco/msgpack/v5"
@@ -597,6 +598,64 @@ func TestCollectArgDists_keysAlphabetical(t *testing.T) {
 		if keys[i] < keys[i-1] {
 			t.Errorf("keys not sorted alphabetically: %v", keys)
 		}
+	}
+}
+
+// ASH-71c: arg distribution values for string-typed args have the active
+// project-root prefix stripped before counting, so reports do not echo
+// the full absolute prefix on every row.
+func TestCollectArgDists_StripsProjectRootPrefix(t *testing.T) {
+	root := t.TempDir()
+	jail.SetPolicy(jail.FromConfig(false, root, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	subpath := root + "/internal/verbs/find/find.go"
+	blob := encodeArgs(t, "grep", map[string]any{"pattern": "Run", "path": subpath})
+	calls := []ledger.Call{{Verb: "grep", OK: true, ArgsMsgpack: blob}}
+
+	dists := collectArgDists(map[string][]ledger.Call{"grep": calls}, []string{"grep"})
+	if len(dists) == 0 || len(dists[0].Args) == 0 {
+		t.Fatal("expected arg dists")
+	}
+	var pathDist *ArgDist
+	for i, d := range dists[0].Args {
+		if d.Key == "path" {
+			pathDist = &dists[0].Args[i]
+			break
+		}
+	}
+	if pathDist == nil {
+		t.Fatal("expected path key in arg dist")
+	}
+	if len(pathDist.Values) != 1 {
+		t.Fatalf("expected 1 value, got %d: %v", len(pathDist.Values), pathDist.Values)
+	}
+	got := pathDist.Values[0].Value
+	if strings.HasPrefix(got, root) {
+		t.Errorf("arg dist value should not carry the project-root prefix: got %q (root=%s)", got, root)
+	}
+	// What remains should be the in-repo subpath.
+	if got != "internal/verbs/find/find.go" {
+		t.Errorf("stripped value: got %q, want %q", got, "internal/verbs/find/find.go")
+	}
+}
+
+// ASH-71c: decodeArgsSummary (used in truncation hotspots) also strips
+// the project-root prefix so the "sample args" line on each hotspot is
+// short and readable.
+func TestDecodeArgsSummary_StripsProjectRootPrefix(t *testing.T) {
+	root := t.TempDir()
+	jail.SetPolicy(jail.FromConfig(false, root, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	subpath := root + "/cmd/ashd"
+	blob := encodeArgs(t, "find", map[string]any{"path": subpath, "glob": "**/*.go"})
+	got := decodeArgsSummary(blob)
+	if strings.Contains(got, root) {
+		t.Errorf("summary should not contain project root: %q (root=%s)", got, root)
+	}
+	if !strings.Contains(got, "path=cmd/ashd") {
+		t.Errorf("expected stripped path=cmd/ashd in summary: %q", got)
 	}
 }
 

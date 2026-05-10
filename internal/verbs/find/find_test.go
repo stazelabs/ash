@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/proto"
 )
 
@@ -383,4 +384,135 @@ func TestParseArgs_WireShape(t *testing.T) {
 			t.Errorf("expected error for %s=%q", bad.key, bad.val)
 		}
 	}
+}
+
+// ASH-71: with a jail policy that names the walk root as the project
+// root, absolute input must yield bare repo-relative paths in each
+// record (no leading "/", no leading "./").
+func TestRun_DefaultStripsRepoRootPrefix(t *testing.T) {
+	root := makeTree(t)
+	jail.SetPolicy(jail.FromConfig(false, root, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	res, perr := Run(&Args{Path: root, Glob: DefaultGlob, Type: "any", Limit: 100}, nil)
+	if perr != nil {
+		t.Fatalf("unexpected error: %+v", perr)
+	}
+	if len(res.Records) == 0 {
+		t.Fatal("expected records, got none")
+	}
+	for _, rec := range res.Records {
+		if filepath.IsAbs(rec.Path) {
+			t.Errorf("record path should be repo-relative, got absolute: %q", rec.Path)
+		}
+		if strings.HasPrefix(rec.Path, "./") {
+			t.Errorf("record path should be bare relative, got leading ./: %q", rec.Path)
+		}
+	}
+	// Spot-check a known entry.
+	if !hasRecord(res.Records, "src/main.go") {
+		t.Errorf("expected to find src/main.go in records, got: %v", recordPaths(res.Records))
+	}
+}
+
+// --absolute true must restore absolute paths even when a project root
+// is known. This is the explicit opt-out for callers piping output into
+// tools that need absolute references.
+func TestRun_AbsoluteFlagPreservesAbsolutePaths(t *testing.T) {
+	root := makeTree(t)
+	jail.SetPolicy(jail.FromConfig(false, root, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	res, perr := Run(&Args{Path: root, Glob: DefaultGlob, Type: "any", Limit: 100, Absolute: true}, nil)
+	if perr != nil {
+		t.Fatalf("unexpected error: %+v", perr)
+	}
+	if len(res.Records) == 0 {
+		t.Fatal("expected records, got none")
+	}
+	for _, rec := range res.Records {
+		if !filepath.IsAbs(rec.Path) {
+			t.Errorf("with --absolute true, path should be absolute: %q", rec.Path)
+		}
+	}
+}
+
+// Records that sit outside the project root (e.g., a walk under
+// jail.allow_paths) must be left absolute even in default mode —
+// relative-with-".." is harder to read and not a token win.
+func TestRun_DefaultLeavesOutsideRootAsAbsolute(t *testing.T) {
+	root := t.TempDir()  // project root (no files in it)
+	other := makeTree(t) // walk target, outside project root
+	jail.SetPolicy(jail.FromConfig(false, root, []string{other}, nil))
+	defer jail.SetPolicy(nil)
+
+	res, perr := Run(&Args{Path: other, Glob: DefaultGlob, Type: "any", Limit: 100}, nil)
+	if perr != nil {
+		t.Fatalf("unexpected error: %+v", perr)
+	}
+	if len(res.Records) == 0 {
+		t.Fatal("expected records, got none")
+	}
+	// Paths under `other` aren't under `root`, so default mode must keep
+	// them absolute rather than producing "../<other>/..." gibberish.
+	for _, rec := range res.Records {
+		if !filepath.IsAbs(rec.Path) {
+			t.Errorf("path outside project root should stay absolute, got: %q", rec.Path)
+		}
+		if strings.HasPrefix(rec.Path, "..") {
+			t.Errorf("path should never start with ..: %q", rec.Path)
+		}
+	}
+}
+
+// No jail policy registered → no transformation. This is the test-side
+// default and also matches the daemon behavior before SetPolicy runs.
+func TestRun_NoPolicyLeavesPathsAlone(t *testing.T) {
+	root := makeTree(t)
+	jail.SetPolicy(nil)
+
+	res, perr := Run(&Args{Path: root, Glob: DefaultGlob, Type: "any", Limit: 100}, nil)
+	if perr != nil {
+		t.Fatalf("unexpected error: %+v", perr)
+	}
+	for _, rec := range res.Records {
+		if !filepath.IsAbs(rec.Path) {
+			t.Errorf("without jail policy, absolute input should yield absolute paths: %q", rec.Path)
+		}
+	}
+}
+
+// --absolute parses through ParseArgs.
+func TestParseArgs_AbsoluteFlag(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{"path": ".", "absolute": true})
+	if perr != nil {
+		t.Fatalf("unexpected error: %v", perr)
+	}
+	if !a.Absolute {
+		t.Error("Absolute: want true")
+	}
+	a2, perr := ParseArgs(map[string]any{"path": "."})
+	if perr != nil {
+		t.Fatalf("unexpected error: %v", perr)
+	}
+	if a2.Absolute {
+		t.Error("Absolute default: want false")
+	}
+}
+
+func hasRecord(records []Record, path string) bool {
+	for _, r := range records {
+		if r.Path == path {
+			return true
+		}
+	}
+	return false
+}
+
+func recordPaths(records []Record) []string {
+	out := make([]string, len(records))
+	for i, r := range records {
+		out[i] = r.Path
+	}
+	return out
 }

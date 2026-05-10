@@ -154,12 +154,15 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if err := proto.UnmarshalData(rsp, &r); err != nil {
 		return "ok\n<unrecognized diff result>"
 	}
+	// ASH-71: header echoes the file paths in repo-relative form when
+	// they sit under the project root.
+	a, c := jail.PrettyPath(r.PathA), jail.PrettyPath(r.PathB)
 	if r.Unchanged {
-		return fmt.Sprintf("=== ash diff: %s vs %s [identical] ===", r.PathA, r.PathB)
+		return fmt.Sprintf("=== ash diff: %s vs %s [identical] ===", a, c)
 	}
 	if r.Patch == "" {
-		return fmt.Sprintf("=== ash diff: %s vs %s [+%d -%d] ===", r.PathA, r.PathB, r.Additions, r.Deletions)
+		return fmt.Sprintf("=== ash diff: %s vs %s [+%d -%d] ===", a, c, r.Additions, r.Deletions)
 	}
-	header := fmt.Sprintf("=== ash diff: %s vs %s [+%d -%d] ===\n", r.PathA, r.PathB, r.Additions, r.Deletions)
+	header := fmt.Sprintf("=== ash diff: %s vs %s [+%d -%d] ===\n", a, c, r.Additions, r.Deletions)
 	return header + r.Patch
 }

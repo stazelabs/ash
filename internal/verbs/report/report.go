@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/ledger"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/registry"
@@ -76,12 +77,13 @@ type RootStats struct {
 }
 
 type Totals struct {
-	Calls     int   `msgpack:"calls"`
-	OK        int   `msgpack:"ok"`
-	Errors    int   `msgpack:"errors"`
-	TokensIn  int64 `msgpack:"tokens_in"`
-	TokensOut int64 `msgpack:"tokens_out"`
-	ExecSumUs int64 `msgpack:"exec_sum_us"`
+	Calls             int   `msgpack:"calls"`
+	OK                int   `msgpack:"ok"`
+	Errors            int   `msgpack:"errors"`
+	TokensIn          int64 `msgpack:"tokens_in"`
+	TokensOut         int64 `msgpack:"tokens_out"`
+	TokensOutNoPrefix int64 `msgpack:"tokens_out_no_prefix"`
+	ExecSumUs         int64 `msgpack:"exec_sum_us"`
 }
 
 // VerbSubPhase holds the percentage of exec_us attributed to one named phase.
@@ -111,18 +113,20 @@ type VerbArgDist struct {
 }
 
 type VerbStats struct {
-	Verb         string         `msgpack:"verb"`
-	N            int            `msgpack:"n"`
-	OKCount      int            `msgpack:"ok_count"`
-	OKPct        float64        `msgpack:"ok_pct"`
-	P50ExecUs    int64          `msgpack:"p50_exec_us"`
-	P95ExecUs    int64          `msgpack:"p95_exec_us"`
-	P50TokensOut int64          `msgpack:"p50_tokens_out"`
-	P95TokensOut int64          `msgpack:"p95_tokens_out"`
-	TruncatedN   int            `msgpack:"truncated_n"`
-	TruncatedPct float64        `msgpack:"truncated_pct"`
-	SubPhases    []VerbSubPhase `msgpack:"sub_phases,omitempty"`
-	TokPerKiB    float64        `msgpack:"tok_per_kib,omitempty"` // tokens_out / (bytes_out/1024)
+	Verb              string         `msgpack:"verb"`
+	N                 int            `msgpack:"n"`
+	OKCount           int            `msgpack:"ok_count"`
+	OKPct             float64        `msgpack:"ok_pct"`
+	P50ExecUs         int64          `msgpack:"p50_exec_us"`
+	P95ExecUs         int64          `msgpack:"p95_exec_us"`
+	P50TokensOut      int64          `msgpack:"p50_tokens_out"`
+	P95TokensOut      int64          `msgpack:"p95_tokens_out"`
+	TokensOutSum      int64          `msgpack:"tokens_out_sum,omitempty"`
+	TokensOutNoPrefix int64          `msgpack:"tokens_out_no_prefix_sum,omitempty"`
+	TruncatedN        int            `msgpack:"truncated_n"`
+	TruncatedPct      float64        `msgpack:"truncated_pct"`
+	SubPhases         []VerbSubPhase `msgpack:"sub_phases,omitempty"`
+	TokPerKiB         float64        `msgpack:"tok_per_kib,omitempty"` // tokens_out / (bytes_out/1024)
 }
 
 // ErrEntry is one row in the error-code histogram.
@@ -385,6 +389,7 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 	for _, c := range calls {
 		totals.TokensIn += int64(c.TokensIn)
 		totals.TokensOut += int64(c.TokensOut)
+		totals.TokensOutNoPrefix += int64(c.TokensOutNoPrefix)
 		totals.ExecSumUs += c.LatencyExecUs
 		if c.OK {
 			totals.OK++
@@ -414,7 +419,7 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 		execUs := make([]int64, len(cs))
 		tokOut := make([]int64, len(cs))
 		var sumExec, sumWalk, sumIO, sumRegex, sumRegexCompile int64
-		var sumTokOut, sumBytesOut int64
+		var sumTokOut, sumTokOutNoPrefix, sumBytesOut int64
 		for i, c := range cs {
 			if c.OK {
 				vs.OKCount++
@@ -433,8 +438,11 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 			sumRegex += c.RegexUs
 			sumRegexCompile += c.RegexCompileUs
 			sumTokOut += int64(c.TokensOut)
+			sumTokOutNoPrefix += int64(c.TokensOutNoPrefix)
 			sumBytesOut += int64(c.BytesOut)
 		}
+		vs.TokensOutSum = sumTokOut
+		vs.TokensOutNoPrefix = sumTokOutNoPrefix
 		vs.OKPct = pct(vs.OKCount, vs.N)
 		vs.TruncatedPct = pct(vs.TruncatedN, vs.N)
 		vs.P50ExecUs = percentile(execUs, 0.50)
@@ -509,9 +517,32 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 	}
 }
 
+// prettyArgValue strips active jail prefixes from s in two passes so
+// arg-dist values both echo paths short and tolerate strings that embed
+// paths mid-text (e.g. hook commands like "bin/ash diff --path /Users/.../ash/x").
+// ASH-71.
+func prettyArgValue(s string) string {
+	prefixes := jail.PathPrefixes()
+	// Pass 1: mid-string "<prefix>/" → "" (catches embedded paths).
+	out := ledger.StripPrefixes(s, prefixes)
+	// Pass 2: if the result is exactly a known prefix, render as ".".
+	for _, p := range prefixes {
+		if out == p {
+			return "."
+		}
+	}
+	return out
+}
+
 // collectArgDists builds per-verb arg frequency distributions from call ArgsMsgpack blobs.
 // Keys are sorted alphabetically; values within each key are sorted by count desc.
 // Callers cap values to topN via RunWithLedger.
+//
+// ASH-71: string values are run through prettyArgValue so the project-
+// root prefix does not bloat the histogram, exact-root values render as
+// ".", and embedded paths (e.g. inside hook commands) also get stripped.
+// Counting happens on the stripped value, so identical underlying paths
+// merge into one bucket.
 func collectArgDists(byVerb map[string][]ledger.Call, order []string) []VerbArgDist {
 	var result []VerbArgDist
 	for _, verb := range order {
@@ -525,6 +556,9 @@ func collectArgDists(byVerb map[string][]ledger.Call, order []string) []VerbArgD
 			}
 			for k, v := range args {
 				val := fmt.Sprintf("%v", v)
+				if s, ok := v.(string); ok {
+					val = prettyArgValue(s)
+				}
 				if val == "" {
 					continue
 				}
@@ -617,6 +651,14 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	okPct := pct(int(r.Totals.OK), int(r.Totals.Calls))
 	fmt.Fprintf(&b, "totals: ok=%d/%d (%.0f%%), tokens_in=%d, tokens_out=%d\n",
 		r.Totals.OK, r.Totals.Calls, okPct, r.Totals.TokensIn, r.Totals.TokensOut)
+
+	// ASH-71: path-prefix tax. Shown only when material — pre-migration
+	// rows back-filled to 0 would otherwise report a misleading 100% tax.
+	if r.Totals.TokensOutNoPrefix > 0 && r.Totals.TokensOutNoPrefix < r.Totals.TokensOut {
+		tax := r.Totals.TokensOut - r.Totals.TokensOutNoPrefix
+		taxPct := float64(tax) / float64(r.Totals.TokensOut) * 100
+		fmt.Fprintf(&b, "path-prefix tax: %d tokens (%.0f%% of out)\n", tax, taxPct)
+	}
 
 	if len(r.ByVerb) == 0 {
 		b.WriteString("(no calls)\n")
@@ -798,6 +840,10 @@ func decodeArgsMap(blob []byte) map[string]any {
 // decodeArgsSummary decodes an args blob and returns a compact key=value
 // summary (e.g. "glob=**/*.go path=. limit=256"). Returns "" on any error
 // or if no args are present.
+//
+// ASH-71: string values are run through jail.PrettyPath so the
+// truncation-hotspot line does not repeat the project-root prefix on
+// every entry.
 func decodeArgsSummary(blob []byte) string {
 	args := decodeArgsMap(blob)
 	if len(args) == 0 {
@@ -811,6 +857,9 @@ func decodeArgsSummary(blob []byte) string {
 	var parts []string
 	for _, k := range keys {
 		v := fmt.Sprintf("%v", args[k])
+		if s, ok := args[k].(string); ok {
+			v = prettyArgValue(s)
+		}
 		if v != "" {
 			parts = append(parts, k+"="+v)
 		}
