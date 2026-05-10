@@ -68,7 +68,7 @@ type Result struct {
 	Records        []Record `msgpack:"records"`
 	Count          int      `msgpack:"count"`
 	Truncated      bool     `msgpack:"truncated,omitempty"`
-	TruncationHint string   `msgpack:"truncation_hint,omitempty"`
+	TruncInfo      *proto.TruncInfo `msgpack:"truncation_hint,omitempty"`
 }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
@@ -175,24 +175,27 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	res.Count = len(res.Records)
 	if limitHit {
 		res.Truncated = true
-		res.TruncationHint = truncationHint(a.Limit)
+		res.TruncInfo = &proto.TruncInfo{Trunc: 1, Limit: a.Limit, Max: MaxLimit}
 	}
 	return res, nil
 }
 
-// truncationHint adapts the message to whether the user hit their own
-// --limit (raisable up to MaxLimit) or the hard cap itself (not raisable;
-// only narrowing helps). ASH-12.
-func truncationHint(limit int) string {
-	if limit >= MaxLimit {
+// findTruncHint reconstructs the human-readable truncation message from
+// structured TruncInfo. Limit==Max signals the hard cap: raising is
+// not possible. ASH-76.
+func findTruncHint(ti *proto.TruncInfo) string {
+	if ti == nil {
+		return ""
+	}
+	if ti.Limit >= ti.Max {
 		return fmt.Sprintf(
 			"hit hard cap of %d records. narrow with --glob, --type, --max_depth, or --exclude — --limit cannot go higher.",
-			MaxLimit,
+			ti.Max,
 		)
 	}
 	return fmt.Sprintf(
 		"hit limit of %d records. narrow with --glob, --type, --max_depth, or --exclude; or raise --limit (max %d).",
-		limit, MaxLimit,
+		ti.Limit, ti.Max,
 	)
 }
 
@@ -248,9 +251,9 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 			writeRecordLean(&b, rec)
 		}
 	}
-	if r.Truncated {
+	if r.Truncated && r.TruncInfo != nil {
 		b.WriteString("\n[truncation: ")
-		b.WriteString(r.TruncationHint)
+		b.WriteString(findTruncHint(r.TruncInfo))
 		b.WriteString("]")
 	}
 	return strings.TrimRight(b.String(), "\n")

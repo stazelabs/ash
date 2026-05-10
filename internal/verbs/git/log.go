@@ -41,7 +41,7 @@ type LogResult struct {
 	Commits        []Commit `msgpack:"commits,omitempty"`
 	Count          int      `msgpack:"count"`
 	Truncated      bool     `msgpack:"truncated,omitempty"`
-	TruncationHint string   `msgpack:"truncation_hint,omitempty"`
+	TruncInfo      *proto.TruncInfo `msgpack:"truncation_hint,omitempty"`
 }
 
 // Commit captures one revision. Times are unix nanoseconds (consistent
@@ -137,7 +137,7 @@ func parseLog(out []byte, limit int) (*LogResult, *proto.Error) {
 	if len(res.Commits) > limit {
 		res.Commits = res.Commits[:limit]
 		res.Truncated = true
-		res.TruncationHint = logTruncationHint(limit)
+		res.TruncInfo = &proto.TruncInfo{Trunc: 1, Limit: limit, Max: LogMaxLimit}
 	}
 	res.Count = len(res.Commits)
 	return res, nil
@@ -170,16 +170,21 @@ func parseCommit(rec []byte) (Commit, bool) {
 	return c, true
 }
 
-func logTruncationHint(limit int) string {
-	if limit >= LogMaxLimit {
+// logTruncHint reconstructs the human-readable truncation message from
+// structured TruncInfo. Limit==Max signals the hard cap. ASH-76.
+func logTruncHint(ti *proto.TruncInfo) string {
+	if ti == nil {
+		return ""
+	}
+	if ti.Limit >= ti.Max {
 		return fmt.Sprintf(
 			"hit hard cap of %d commits. narrow with --range/--author/--since/--pathspec — --limit cannot go higher.",
-			LogMaxLimit,
+			ti.Max,
 		)
 	}
 	return fmt.Sprintf(
 		"hit limit of %d commits. narrow with --range/--author/--since/--pathspec, or raise --limit (max %d).",
-		limit, LogMaxLimit,
+		ti.Limit, ti.Max,
 	)
 }
 
@@ -203,9 +208,9 @@ func prettyLog(l *LogResult) string {
 		date := time.Unix(0, c.AuthorTime).UTC().Format("2006-01-02")
 		fmt.Fprintf(&b, "%s  %s  %s  %s\n", c.ShortSHA, date, c.AuthorName, c.Subject)
 	}
-	if l.Truncated && l.TruncationHint != "" {
+	if l.Truncated && l.TruncInfo != nil {
 		b.WriteString("\n[truncation: ")
-		b.WriteString(l.TruncationHint)
+		b.WriteString(logTruncHint(l.TruncInfo))
 		b.WriteString("]")
 	}
 	return strings.TrimRight(b.String(), "\n")

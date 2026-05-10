@@ -100,7 +100,7 @@ func runLogGogit(a *Args, tr *proto.Tracer) (*LogResult, *proto.Error) {
 	if len(res.Commits) > a.Limit {
 		res.Commits = res.Commits[:a.Limit]
 		res.Truncated = true
-		res.TruncationHint = logTruncationHint(a.Limit)
+		res.TruncInfo = &proto.TruncInfo{Trunc: 1, Limit: a.Limit, Max: LogMaxLimit}
 	}
 	res.Count = len(res.Commits)
 	return res, nil

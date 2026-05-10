@@ -46,7 +46,7 @@ type Result struct {
 	Lines          int    `msgpack:"lines,omitempty"`
 	RangeReturned  string `msgpack:"range_returned,omitempty"`
 	Truncated      bool   `msgpack:"truncated,omitempty"`
-	TruncationHint string `msgpack:"truncation_hint,omitempty"`
+	TruncInfo      *proto.TruncInfo `msgpack:"truncation_hint,omitempty"`
 }
 
 // ParseArgs validates and normalizes the loosely-typed args from the wire.
@@ -115,10 +115,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 
 	if len(slice) > a.LimitBytes {
 		res.Truncated = true
-		res.TruncationHint = fmt.Sprintf(
-			"limit_bytes=%d hit at offset %d. narrow with --range or raise --limit_bytes (max %d)",
-			a.LimitBytes, len(slice), MaxLimitBytes,
-		)
+		res.TruncInfo = &proto.TruncInfo{Trunc: 1, Limit: a.LimitBytes, Max: MaxLimitBytes}
 		slice = slice[:a.LimitBytes]
 	}
 
@@ -261,10 +258,12 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	}
 	b.WriteString("] ===\n")
 	b.WriteString(r.Content)
-	if r.Truncated {
-		b.WriteString("\n\n[truncation: ")
-		b.WriteString(r.TruncationHint)
-		b.WriteString("]")
+	if r.Truncated && r.TruncInfo != nil {
+		b.WriteString("\n\n[truncation: limit_bytes=")
+		b.WriteString(strconv.Itoa(r.TruncInfo.Limit))
+		b.WriteString(" hit. narrow with --range or raise --limit_bytes (max ")
+		b.WriteString(strconv.Itoa(r.TruncInfo.Max))
+		b.WriteString(")]")
 	}
 	return b.String()
 }

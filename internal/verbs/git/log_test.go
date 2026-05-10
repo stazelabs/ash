@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stazelabs/ash/internal/proto"
 )
 
 // makeRecord builds a single commit record matching runLog's --format
@@ -153,17 +155,22 @@ func TestParseLog_TruncatesAtLimit(t *testing.T) {
 	if res.Count != limit {
 		t.Errorf("count=%d want %d", res.Count, limit)
 	}
-	if !strings.Contains(res.TruncationHint, "limit of 3") {
-		t.Errorf("hint missing limit info: %q", res.TruncationHint)
+	if res.TruncInfo == nil {
+		t.Fatal("TruncInfo should be set when truncated")
 	}
-	if !strings.Contains(res.TruncationHint, "raise --limit") {
-		t.Errorf("hint should suggest raising --limit below cap: %q", res.TruncationHint)
+	if res.TruncInfo.Limit != 3 {
+		t.Errorf("TruncInfo.Limit=%d want 3", res.TruncInfo.Limit)
+	}
+	// Below hard cap: Limit < Max means raising --limit is still possible.
+	if res.TruncInfo.Limit >= res.TruncInfo.Max {
+		t.Errorf("below cap: Limit=%d should be < Max=%d", res.TruncInfo.Limit, res.TruncInfo.Max)
 	}
 }
 
 func TestLogTruncationHint_AtHardCap(t *testing.T) {
-	// ASH-12 semantics: at the hard cap, "raise --limit" is a dead end.
-	hint := logTruncationHint(LogMaxLimit)
+	// ASH-12: Limit==Max signals no raise possible; hint must say so.
+	ti := &proto.TruncInfo{Trunc: 1, Limit: LogMaxLimit, Max: LogMaxLimit}
+	hint := logTruncHint(ti)
 	if strings.Contains(hint, "raise --limit") {
 		t.Errorf("hint at cap must not suggest raising: %q", hint)
 	}

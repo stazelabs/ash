@@ -97,7 +97,7 @@ type Result struct {
 	FilesSkippedBinary int      `msgpack:"files_skipped_binary,omitempty"`
 	FilesSkippedLarge  int      `msgpack:"files_skipped_large,omitempty"`
 	Truncated          bool     `msgpack:"truncated,omitempty"`
-	TruncationHint     string   `msgpack:"truncation_hint,omitempty"`
+	TruncInfo          *proto.TruncInfo `msgpack:"truncation_hint,omitempty"`
 }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
@@ -241,36 +241,38 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	res.FileCount = len(st.matchedFiles)
 	if st.limitHit {
 		res.Truncated = true
-		res.TruncationHint = truncationHint(a.MaxMatches, a.FilesOnly)
+		res.TruncInfo = &proto.TruncInfo{Trunc: 1, Limit: a.MaxMatches, Max: MaxMaxMatches}
 	}
 	return res, nil
 }
 
-// truncationHint adapts the message to whether the user hit their own
-// --max_matches (raisable up to MaxMaxMatches) or the hard cap itself
-// (not raisable; only narrowing helps). ASH-12.
-func truncationHint(limit int, filesOnly bool) string {
-	if limit >= MaxMaxMatches {
+// grepTruncHint reconstructs the human-readable truncation message from
+// structured TruncInfo. Limit==Max signals the hard cap. ASH-76.
+func grepTruncHint(ti *proto.TruncInfo, filesOnly bool) string {
+	if ti == nil {
+		return ""
+	}
+	if ti.Limit >= ti.Max {
 		if filesOnly {
 			return fmt.Sprintf(
 				"hit hard cap of %d distinct files. narrow with --glob or --exclude — --max_matches cannot go higher.",
-				MaxMaxMatches,
+				ti.Max,
 			)
 		}
 		return fmt.Sprintf(
 			"hit hard cap of %d match records. narrow with --glob, --max_per_file, or --exclude — --max_matches cannot go higher.",
-			MaxMaxMatches,
+			ti.Max,
 		)
 	}
 	if filesOnly {
 		return fmt.Sprintf(
 			"hit max_matches=%d distinct files. narrow with --glob, --exclude, or raise --max_matches (max %d).",
-			limit, MaxMaxMatches,
+			ti.Limit, ti.Max,
 		)
 	}
 	return fmt.Sprintf(
 		"hit max_matches=%d. narrow with --glob, --max_per_file, --exclude, or raise --max_matches (max %d).",
-		limit, MaxMaxMatches,
+		ti.Limit, ti.Max,
 	)
 }
 
@@ -571,9 +573,9 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	}
 	flush(len(r.Matches))
 
-	if r.Truncated && r.TruncationHint != "" {
+	if r.Truncated && r.TruncInfo != nil {
 		b.WriteString("\n[truncation: ")
-		b.WriteString(r.TruncationHint)
+		b.WriteString(grepTruncHint(r.TruncInfo, false))
 		b.WriteString("]")
 	}
 	return strings.TrimRight(b.String(), "\n")
@@ -594,9 +596,9 @@ func prettyFilesOnly(req *proto.Request, r *Result) string {
 		b.WriteString(f)
 		b.WriteByte('\n')
 	}
-	if r.Truncated && r.TruncationHint != "" {
+	if r.Truncated && r.TruncInfo != nil {
 		b.WriteString("\n[truncation: ")
-		b.WriteString(r.TruncationHint)
+		b.WriteString(grepTruncHint(r.TruncInfo, true))
 		b.WriteString("]")
 	}
 	return strings.TrimRight(b.String(), "\n")

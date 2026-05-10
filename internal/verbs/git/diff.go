@@ -24,7 +24,7 @@ type DiffResult struct {
 	TotalAdditions int        `msgpack:"total_additions"`
 	TotalDeletions int        `msgpack:"total_deletions"`
 	Truncated      bool       `msgpack:"truncated,omitempty"`
-	TruncationHint string     `msgpack:"truncation_hint,omitempty"`
+	TruncInfo      *proto.TruncInfo `msgpack:"truncation_hint,omitempty"`
 	StatOnly       bool       `msgpack:"stat_only,omitempty"`
 }
 
@@ -249,15 +249,20 @@ func parseDiffUnified(out []byte, limitBytes int) (*DiffResult, *proto.Error) {
 
 	res.Files = files
 	if res.Truncated {
-		res.TruncationHint = diffTruncationHint(limitBytes)
+		res.TruncInfo = &proto.TruncInfo{Trunc: 1, Limit: limitBytes, Max: DiffMaxLimitBytes}
 	}
 	return res, nil
 }
 
-func diffTruncationHint(limitBytes int) string {
+// diffTruncHint reconstructs the human-readable truncation message from
+// structured TruncInfo. ASH-76.
+func diffTruncHint(ti *proto.TruncInfo) string {
+	if ti == nil {
+		return ""
+	}
 	return fmt.Sprintf(
 		"patch output exceeded %d bytes. narrow with --pathspec, use --stat true for a summary, or raise --limit_bytes (max %d).",
-		limitBytes, DiffMaxLimitBytes,
+		ti.Limit, ti.Max,
 	)
 }
 
@@ -298,9 +303,9 @@ func prettyDiff(d *DiffResult) string {
 		}
 	}
 
-	if d.Truncated && d.TruncationHint != "" {
+	if d.Truncated && d.TruncInfo != nil {
 		b.WriteString("\n[truncation: ")
-		b.WriteString(d.TruncationHint)
+		b.WriteString(diffTruncHint(d.TruncInfo))
 		b.WriteString("]")
 	}
 	return strings.TrimRight(b.String(), "\n")

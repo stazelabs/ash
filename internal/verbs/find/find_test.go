@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/stazelabs/ash/internal/proto"
 )
 
 // makeTree builds a small fixture for tests:
@@ -252,21 +254,23 @@ func TestRun_LimitTruncatesWithHint(t *testing.T) {
 	if len(res.Records) != 3 {
 		t.Errorf("expected 3 records, got %d", len(res.Records))
 	}
-	if !strings.Contains(res.TruncationHint, "limit of 3") {
-		t.Errorf("hint missing limit info: %q", res.TruncationHint)
+	if res.TruncInfo == nil {
+		t.Fatal("TruncInfo should be set when truncated")
 	}
-	// User-set limit is below the hard cap, so the hint should still suggest
-	// raising --limit (ASH-12: dead-end suggestion only at the cap).
-	if !strings.Contains(res.TruncationHint, "raise --limit") {
-		t.Errorf("hint should suggest raising --limit when below cap: %q", res.TruncationHint)
+	if res.TruncInfo.Limit != 3 {
+		t.Errorf("TruncInfo.Limit=%d want 3", res.TruncInfo.Limit)
+	}
+	// Below hard cap: Limit < Max means raising --limit is still possible.
+	if res.TruncInfo.Limit >= res.TruncInfo.Max {
+		t.Errorf("below cap: Limit=%d should be < Max=%d", res.TruncInfo.Limit, res.TruncInfo.Max)
 	}
 }
 
-// TestRun_TruncationHintAtHardCap covers ASH-12: when the user's --limit is
-// at the hard cap (MaxLimit), suggesting "raise --limit" is a dead end.
-// The hint should instead point at narrowing.
+// TestRun_TruncationHintAtHardCap covers ASH-12: Limit==Max signals the hard
+// cap; the reconstructed hint must not suggest raising --limit.
 func TestRun_TruncationHintAtHardCap(t *testing.T) {
-	hint := truncationHint(MaxLimit)
+	ti := &proto.TruncInfo{Trunc: 1, Limit: MaxLimit, Max: MaxLimit}
+	hint := findTruncHint(ti)
 	if strings.Contains(hint, "raise --limit") {
 		t.Errorf("hint at hard cap must not suggest raising --limit: %q", hint)
 	}

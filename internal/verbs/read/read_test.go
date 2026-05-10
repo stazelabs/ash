@@ -133,8 +133,11 @@ func TestRun_TruncationHint(t *testing.T) {
 	if len(res.Content) != 100 {
 		t.Errorf("content len: got %d want 100", len(res.Content))
 	}
-	if !strings.Contains(res.TruncationHint, "limit_bytes=100") {
-		t.Errorf("hint missing limit_bytes=100: %q", res.TruncationHint)
+	if res.TruncInfo == nil {
+		t.Fatal("TruncInfo should be set when truncated")
+	}
+	if res.TruncInfo.Limit != 100 {
+		t.Errorf("TruncInfo.Limit=%d want 100", res.TruncInfo.Limit)
 	}
 }
 

@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/stazelabs/ash/internal/proto"
 )
 
 // makeTree builds a small fixture for tests. Files contain known patterns
@@ -433,21 +435,24 @@ func TestRun_MaxMatchesGlobalTruncates(t *testing.T) {
 	if res.MatchCount != 3 {
 		t.Errorf("expected 3 matches, got %d", res.MatchCount)
 	}
-	if !strings.Contains(res.TruncationHint, "max_matches=3") {
-		t.Errorf("hint missing max_matches info: %q", res.TruncationHint)
+	if res.TruncInfo == nil {
+		t.Fatal("TruncInfo should be set when truncated")
 	}
-	// User-set limit below cap; raising should still be suggested.
-	if !strings.Contains(res.TruncationHint, "raise --max_matches") {
-		t.Errorf("hint should suggest raising --max_matches below cap: %q", res.TruncationHint)
+	if res.TruncInfo.Limit != 3 {
+		t.Errorf("TruncInfo.Limit=%d want 3", res.TruncInfo.Limit)
+	}
+	// Below hard cap: Limit < Max means raising --max_matches is still possible.
+	if res.TruncInfo.Limit >= res.TruncInfo.Max {
+		t.Errorf("below cap: Limit=%d should be < Max=%d", res.TruncInfo.Limit, res.TruncInfo.Max)
 	}
 }
 
-// TestRun_TruncationHintAtHardCap covers ASH-12: when --max_matches is at
-// MaxMaxMatches, "raise --max_matches" is a dead-end suggestion. Hint should
-// pivot to narrowing.
+// TestRun_TruncationHintAtHardCap covers ASH-12: Limit==Max signals the hard
+// cap; the reconstructed hint must not suggest raising --max_matches.
 func TestRun_TruncationHintAtHardCap(t *testing.T) {
 	t.Run("matches mode", func(t *testing.T) {
-		hint := truncationHint(MaxMaxMatches, false)
+		ti := &proto.TruncInfo{Trunc: 1, Limit: MaxMaxMatches, Max: MaxMaxMatches}
+		hint := grepTruncHint(ti, false)
 		if strings.Contains(hint, "raise --max_matches") {
 			t.Errorf("hint at cap must not suggest raising: %q", hint)
 		}
@@ -456,7 +461,8 @@ func TestRun_TruncationHintAtHardCap(t *testing.T) {
 		}
 	})
 	t.Run("files_only mode", func(t *testing.T) {
-		hint := truncationHint(MaxMaxMatches, true)
+		ti := &proto.TruncInfo{Trunc: 1, Limit: MaxMaxMatches, Max: MaxMaxMatches}
+		hint := grepTruncHint(ti, true)
 		if strings.Contains(hint, "raise --max_matches") {
 			t.Errorf("files_only hint at cap must not suggest raising: %q", hint)
 		}

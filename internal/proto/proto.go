@@ -58,6 +58,16 @@ type Error struct {
 	Msg  string `msgpack:"msg"  json:"msg"`
 }
 
+// TruncInfo carries structured truncation metadata in place of the prose
+// truncation_hint string, saving 20-30 tokens per truncated call (ASH-76).
+// Limit is the cap that triggered truncation; Max is the hard cap (if
+// Limit==Max, the only recourse is narrowing — raising is not possible).
+type TruncInfo struct {
+	Trunc int `msgpack:"trunc"`
+	Limit int `msgpack:"limit"`
+	Max   int `msgpack:"max"`
+}
+
 type Metrics struct {
 	LatencyParseUs     int64  `msgpack:"latency_parse_us,omitempty"     json:"latency_parse_us,omitempty"`
 	LatencyExecUs      int64  `msgpack:"latency_exec_us,omitempty"      json:"latency_exec_us,omitempty"`

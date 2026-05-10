@@ -175,9 +175,9 @@ func prettyShow(s *ShowResult) string {
 		}
 	}
 
-	if d.Truncated && d.TruncationHint != "" {
+	if d.Truncated && d.TruncInfo != nil {
 		b.WriteString("\n[truncation: ")
-		b.WriteString(d.TruncationHint)
+		b.WriteString(diffTruncHint(d.TruncInfo))
 		b.WriteString("]")
 	}
 	return strings.TrimRight(b.String(), "\n")
