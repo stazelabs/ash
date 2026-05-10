@@ -191,7 +191,7 @@ var MeasuredVerbs = []string{
 var ExemptVerbs = map[string]string{
 	"metrics": "reads ledger; size depends on session, no honest bash equivalent",
 	"report":  "reads ledger; size depends on session",
-	"help":    "static schema render; trivially small",
+	"help":    "no honest bash equivalent; token budget enforced by TestNoArgTokenBudget in internal/verbs/help",
 	"init":    "one-shot setup; mutates files",
 	"uninit":  "one-shot teardown; mutates files",
 	"stop":    "kills daemon",
