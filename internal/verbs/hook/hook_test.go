@@ -209,6 +209,61 @@ func TestDecide_bash(t *testing.T) {
 		{name: "space before strip-tabs delimiter allows (ASH-68)",
 			command: "ash write --path /tmp/x --content - <<- 'EOF'\n\tgrep foo .\n\tEOF",
 			want: "allow"},
+
+		// ASH-69: redirection operators must not pollute suggestion paths,
+		// and cat/echo/printf/tee + > should route to ash write rather
+		// than ash read.
+		{name: "cat > FILE << EOF redirects to ash write",
+			command: "cat > foo.txt << 'EOF'\nhi\nEOF",
+			want: "deny", wantRule: "Bash:redirect-write",
+			wantSugg: "ash write --path foo.txt --content - << 'EOF'"},
+		{name: "echo > FILE redirects to ash write",
+			command: `echo "hello" > foo.txt`,
+			want: "deny", wantRule: "Bash:redirect-write",
+			wantSugg: "ash write --path foo.txt"},
+		{name: "printf > FILE redirects to ash write",
+			command: `printf "line1\n" > out.txt`,
+			want: "deny", wantRule: "Bash:redirect-write",
+			wantSugg: "ash write --path out.txt"},
+		{name: "tee with output redirect routes to ash write",
+			command: "tee >> log.txt",
+			want: "deny", wantRule: "Bash:redirect-write",
+			wantSugg: "ash write --path log.txt"},
+		{name: "cat foo > bar disambiguates to ash write (no malformed >)",
+			command: "cat foo.txt > bar.txt",
+			want: "deny", wantRule: "Bash:redirect-write",
+			wantSugg: "ash write --path bar.txt"},
+		{name: "cat foo > /dev/null produces non-malformed write suggestion",
+			command: "cat foo.txt > /dev/null",
+			want: "deny", wantRule: "Bash:redirect-write",
+			wantSugg: "ash write --path /dev/null"},
+		{name: "glued > suggests write",
+			command: "echo hi >out.txt",
+			want: "deny", wantRule: "Bash:redirect-write",
+			wantSugg: "ash write --path out.txt"},
+		{name: "&> redirects also write",
+			command: "echo hi &> out.txt",
+			want: "deny", wantRule: "Bash:redirect-write",
+			wantSugg: "ash write --path out.txt"},
+		{name: "cat with no redirect still denies as read",
+			command: "cat foo.txt",
+			want: "deny", wantRule: "Bash:cat",
+			wantSugg: "ash read --path foo.txt"},
+		{name: "grep with stderr redirect doesn't pollute path",
+			command: "grep foo bar.txt 2>&1",
+			want: "deny", wantRule: "Bash:grep",
+			wantSugg: "ash grep --pattern foo --path bar.txt"},
+		{name: "find with stderr redirect doesn't pollute path",
+			command: "find . -name '*.go' 2>&1",
+			want: "deny", wantRule: "Bash:find"},
+		{name: "ls -R with stdout redirect strips path target",
+			command: "ls -R internal/ > /tmp/list",
+			want: "deny", wantRule: "Bash:ls-R",
+			wantSugg: "ash find --path internal/"},
+		{name: "stat with stderr redirect doesn't pollute paths",
+			command: "stat foo.go bar.go 2>/dev/null",
+			want: "deny", wantRule: "Bash:stat",
+			wantSugg: "ash stat --paths foo.go,bar.go"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -224,6 +279,15 @@ func TestDecide_bash(t *testing.T) {
 			}
 			if r.Decision == "deny" && !strings.Contains(r.Reason, "session-notes") {
 				t.Errorf("deny reason should include nudge tail: %q", r.Reason)
+			}
+			// ASH-69 regression: a redirection operator must never end up as
+			// a literal --path value in the suggestion.
+			if r.Decision == "deny" {
+				for _, bad := range []string{"--path '>'", "--path >", "--path '<'", "--path '2>&1'"} {
+					if strings.Contains(r.Suggested, bad) {
+						t.Errorf("suggested path is a redirection operator (%q): %q", bad, r.Suggested)
+					}
+				}
 			}
 		})
 	}
@@ -484,5 +548,102 @@ func TestParseArgs_excludeVerbs(t *testing.T) {
 	}
 	if len(a.ExcludeVerbs) != 2 || a.ExcludeVerbs[0] != "grep" || a.ExcludeVerbs[1] != "find" {
 		t.Errorf("ExcludeVerbs: %v", a.ExcludeVerbs)
+	}
+}
+
+func TestClassifyRedirectToken(t *testing.T) {
+	cases := []struct {
+		tok          string
+		isRedirect   bool
+		consumesNext bool
+	}{
+		{">", true, true},
+		{">>", true, true},
+		{"<", true, true},
+		{"<<", true, true},
+		{"<<-", true, true},
+		{"&>", true, true},
+		{"&>>", true, true},
+		{"2>", true, true},
+		{"1>>", true, true},
+		{">foo", true, false},
+		{">>foo", true, false},
+		{"<foo", true, false},
+		{"<<EOF", true, false},
+		{"<<-EOF", true, false},
+		{"2>&1", true, false},
+		{"2>file", true, false},
+		{"&>/dev/null", true, false},
+		{"foo", false, false},
+		{"-n", false, false},
+		{"&", false, false},
+		{"", false, false},
+	}
+	for _, tc := range cases {
+		gotRed, gotConsume := classifyRedirectToken(tc.tok)
+		if gotRed != tc.isRedirect || gotConsume != tc.consumesNext {
+			t.Errorf("classifyRedirectToken(%q) = (%v, %v), want (%v, %v)",
+				tc.tok, gotRed, gotConsume, tc.isRedirect, tc.consumesNext)
+		}
+	}
+}
+
+func TestStripRedirections(t *testing.T) {
+	cases := []struct {
+		name string
+		in   []string
+		want []string
+	}{
+		{"no redirects", []string{"foo", "bar"}, []string{"foo", "bar"}},
+		{"bare > consumes target", []string{"foo", ">", "out.txt"}, []string{"foo"}},
+		{"glued >FILE drops single token", []string{"foo", ">out.txt"}, []string{"foo"}},
+		{"2>&1 drops alone", []string{"foo", "bar.txt", "2>&1"}, []string{"foo", "bar.txt"}},
+		{"heredoc bare", []string{"<<", "EOF"}, []string{}},
+		{"heredoc glued", []string{"<<EOF"}, []string{}},
+		{"input redirect bare", []string{"<", "in.txt"}, []string{}},
+		{"mixed redirects", []string{"foo", ">", "out", "2>&1", "<<", "EOF"}, []string{"foo"}},
+	}
+	for _, tc := range cases {
+		got := stripRedirections(tc.in)
+		if len(got) != len(tc.want) {
+			t.Errorf("%s: stripRedirections(%v) = %v, want %v", tc.name, tc.in, got, tc.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != tc.want[i] {
+				t.Errorf("%s: stripRedirections(%v) = %v, want %v", tc.name, tc.in, got, tc.want)
+				break
+			}
+		}
+	}
+}
+
+func TestDetectOutputRedirect(t *testing.T) {
+	cases := []struct {
+		name       string
+		args       []string
+		wantTarget string
+		wantOk     bool
+	}{
+		{"bare > with target", []string{">", "foo.txt"}, "foo.txt", true},
+		{"bare >> with target", []string{">>", "foo.txt"}, "foo.txt", true},
+		{"glued >FILE", []string{">foo.txt"}, "foo.txt", true},
+		{"glued >>FILE", []string{">>foo.txt"}, "foo.txt", true},
+		{"&> with target", []string{"&>", "out"}, "out", true},
+		{"glued &>FILE", []string{"&>out"}, "out", true},
+		{"after positional args", []string{"-n", "foo", ">", "out"}, "out", true},
+		{"with stderr first", []string{"foo", "2>&1", ">", "out"}, "out", true},
+		{"input redirect ignored", []string{"<", "in.txt"}, "", false},
+		{"stderr-only ignored", []string{"2>", "err.txt"}, "", false},
+		{"2>&1 alone ignored", []string{"2>&1"}, "", false},
+		{"no redirect", []string{"foo", "bar"}, "", false},
+		{"bare > no target", []string{">"}, "", false},
+	}
+	for _, tc := range cases {
+		got, ok := detectOutputRedirect(tc.args)
+		if got != tc.wantTarget || ok != tc.wantOk {
+			t.Errorf("%s: detectOutputRedirect(%v) = (%q, %v), want (%q, %v)",
+				tc.name, tc.args, got, ok, tc.wantTarget, tc.wantOk)
+		}
 	}
 }

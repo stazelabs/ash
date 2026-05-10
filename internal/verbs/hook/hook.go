@@ -381,6 +381,17 @@ func suggestWrite(path string) string {
 	return "ash write --path " + shellquote(path) + " --content <text>"
 }
 
+// suggestWriteRedirect renders the canonical heredoc write form for the
+// `cat/echo/printf/tee > FILE` idioms (ASH-69). Heredoc form is the
+// CLAUDE.md prescription — it sidesteps shell-quoting hazards on
+// non-trivial content.
+func suggestWriteRedirect(path string) string {
+	if path == "" {
+		path = "<file>"
+	}
+	return "ash write --path " + shellquote(path) + " --content - << 'EOF'"
+}
+
 func suggestTest(packages []string) string {
 	if len(packages) == 0 {
 		return "ash test"
@@ -416,7 +427,7 @@ var verbRuleMap = map[string][]string{
 	"find":  {"Glob", "Bash:find", "Bash:ls-R"},
 	"read":  {"Read", "Bash:cat", "Bash:head", "Bash:tail"},
 	"edit":  {"Edit"},
-	"write": {"Write"},
+	"write": {"Write", "Bash:redirect-write"},
 	"stat":  {"Bash:stat"},
 	"git":   {"Bash:git-status", "Bash:git-log", "Bash:git-diff", "Bash:git-show"},
 	"test":  {"Bash:go-test"},
@@ -794,6 +805,12 @@ var grepLike = map[string]bool{"grep": true, "rg": true, "egrep": true, "fgrep":
 var readLike = map[string]bool{"cat": true, "head": true, "tail": true}
 var gitRedirect = map[string]bool{"status": true, "log": true, "diff": true, "show": true}
 
+// writeRedirectProgs are bash programs whose canonical write idiom is an
+// output redirection: `cat > FILE`, `echo "x" > FILE`, `printf "..." > FILE`,
+// `tee FILE` (or `tee >> FILE`). When one of these runs with a `>`/`>>`/`&>`
+// redirect we route to ash write rather than ash read (ASH-69).
+var writeRedirectProgs = map[string]bool{"cat": true, "echo": true, "printf": true, "tee": true}
+
 func decideBash(command string, excludeVerbs []string) *Result {
 	if strings.TrimSpace(command) == "" {
 		return &Result{Decision: "allow", ToolName: "Bash"}
@@ -808,6 +825,13 @@ func decideBash(command string, excludeVerbs []string) *Result {
 		prog, args := firstToken(seg)
 		if prog == "" {
 			continue
+		}
+		if writeRedirectProgs[prog] {
+			if target, ok := detectOutputRedirect(args); ok {
+				reason := fmt.Sprintf("Use ash instead: `%s` (bash `%s ... > FILE` is redirected to ash write in this repo).",
+					suggestWriteRedirect(target), prog)
+				return deny("Bash", "Bash:redirect-write", reason)
+			}
 		}
 		if grepLike[prog] {
 			pos := positionalArgs(args)
@@ -887,6 +911,7 @@ func decideBash(command string, excludeVerbs []string) *Result {
 }
 
 func positionalArgs(args []string) []string {
+	args = stripRedirections(args)
 	out := make([]string, 0, len(args))
 	for _, a := range args {
 		if !strings.HasPrefix(a, "-") {
@@ -894,6 +919,103 @@ func positionalArgs(args []string) []string {
 		}
 	}
 	return out
+}
+
+// classifyRedirectToken inspects a single token (after whitespace
+// tokenization) and reports whether it is a shell redirection operator.
+// consumesFilename is true for bare operators (`>`, `>>`, `<`, `<<`,
+// `<<-`, `&>`, `&>>`, `2>`, etc.) where the next token is the redirect
+// target; false for glued forms (`>foo`, `2>&1`, `<<EOF`) and
+// fd-duplications that contain the target inline. Used by
+// stripRedirections to keep redirection tokens out of suggestion paths
+// (ASH-69).
+func classifyRedirectToken(tok string) (isRedirect, consumesFilename bool) {
+	n := len(tok)
+	if n == 0 {
+		return false, false
+	}
+	i := 0
+	for i < n && tok[i] >= '0' && tok[i] <= '9' {
+		i++
+	}
+	if i < n && tok[i] == '&' {
+		if i+1 < n && tok[i+1] == '>' {
+			i++
+		} else {
+			return false, false
+		}
+	}
+	if i >= n || (tok[i] != '<' && tok[i] != '>') {
+		return false, false
+	}
+	op := tok[i]
+	i++
+	if i < n && tok[i] == op {
+		i++
+	}
+	if op == '<' && i < n && tok[i] == '-' {
+		i++
+	}
+	return true, i == n
+}
+
+// stripRedirections returns args with shell redirection tokens removed.
+// Bare operators consume the following token (the target filename); glued
+// forms (`>foo`, `2>&1`, `<<EOF`) drop on their own.
+func stripRedirections(args []string) []string {
+	out := make([]string, 0, len(args))
+	skipNext := false
+	for _, a := range args {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+		isRed, consumes := classifyRedirectToken(a)
+		if isRed {
+			if consumes {
+				skipNext = true
+			}
+			continue
+		}
+		out = append(out, a)
+	}
+	return out
+}
+
+// detectOutputRedirect scans args (still raw, before stripRedirections)
+// for an output redirection (`>`, `>>`, `&>`, `&>>`) and returns the
+// target path when present. Stderr-only (`2>...`), input (`<...`), and
+// fd-duplication (`>&N`) redirections do not count as a write target.
+func detectOutputRedirect(args []string) (string, bool) {
+	for i, a := range args {
+		if a == "" {
+			continue
+		}
+		j := 0
+		if a[j] == '&' {
+			j++
+		} else if a[j] >= '0' && a[j] <= '9' {
+			continue
+		}
+		if j >= len(a) || a[j] != '>' {
+			continue
+		}
+		for j < len(a) && a[j] == '>' {
+			j++
+		}
+		target := a[j:]
+		if target != "" {
+			return target, true
+		}
+		if i+1 < len(args) {
+			next := args[i+1]
+			if isRed, _ := classifyRedirectToken(next); !isRed {
+				return next, true
+			}
+		}
+		return "", false
+	}
+	return "", false
 }
 
 func lsIsRecursive(args []string) bool {
