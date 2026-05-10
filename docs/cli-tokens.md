@@ -48,7 +48,7 @@ Plus the per-call stderr footer (`[ash metrics: bytes_in=…bytes_out=…tokens_
 - Emits `{"k":["ts","verb","ok","ti","to","ex_us","bi","bo"],"r":[[...],[...]]}` — keys appear once.
 - **Where:** New `internal/proto/compact.go`. Apply to row-shaped verbs only: `metrics`, `report.by_verb`, `git --op log/status/diff`, `test packages[].tests[]`, `find`, `grep`, `stat`. Other verbs fall back to JSON.
 - **Token savings:** Replaces ~14 keys/row with positional values. `metrics --last 50` saves ~600–900 tokens on key overhead alone. **40–60% reduction on row-shaped responses.**
-- **Recommendation:** Make `compact` the default for row-shaped verbs immediately. Keep `pretty` (human debugging) and `json` (debuggable reference) as opt-in. No staged rollout needed at prototype stage.
+- **Format invariant (ASH-93):** `pretty` is the default for all verbs. `--format compact` is available explicitly; `--format json` emits the full envelope. The bench tokenizes `pretty` output (via `d.Pretty()`) which matches what agents receive — the measurement is honest. Never make `compact` the default: it couples the bench substrate to the on-wire format and causes silent misalignment.
 - **Risk/cost:** Low. ~120 LOC + per-verb shims (~10 LOC × 7 verbs).
 
 **1.3. Aggressive `omitempty` on Metrics + drop default-zero fields**

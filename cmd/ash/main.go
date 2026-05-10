@@ -45,10 +45,7 @@ func main() {
 		return
 	}
 
-	format, fmtSpecified, remaining := extractFormat(os.Args[2:])
-	if !fmtSpecified && rowVerbs[verb] {
-		format = "compact"
-	}
+	format, _, remaining := extractFormat(os.Args[2:])
 	args, err := parseFlags(verb, remaining)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "ash:", err)
@@ -258,18 +255,6 @@ func extractFormat(argv []string) (format string, specified bool, rest []string)
 		}
 	}
 	return format, specified, rest
-}
-
-// rowVerbs is the set of verbs whose default format is "compact". They
-// return many rows and key-per-row overhead dominates token cost.
-var rowVerbs = map[string]bool{
-	"metrics": true,
-	"report":  true,
-	"find":    true,
-	"grep":    true,
-	"stat":    true,
-	"git":     true,
-	"test":    true,
 }
 
 // verbPositionals lists, in order, the arg keys that may be supplied as
