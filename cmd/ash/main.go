@@ -190,10 +190,14 @@ func main() {
 		out := prettyResponse(verb, req, rsp)
 		fmt.Println(out)
 		if rsp.Metrics != nil {
+			tokMethod := rsp.Metrics.TokensMethod
+			if tokMethod == "" {
+				tokMethod = "real:cl100k_base"
+			}
 			fmt.Fprintf(os.Stderr,
 				"\n[ash metrics: bytes_in=%d bytes_out=%d tokens_in=%d tokens_out=%d (%s) latency_us=%d/%d",
 				rsp.Metrics.BytesIn, rsp.Metrics.BytesOut,
-				rsp.Metrics.TokensIn, rsp.Metrics.TokensOut, rsp.Metrics.TokensMethod,
+				rsp.Metrics.TokensIn, rsp.Metrics.TokensOut, tokMethod,
 				rsp.Metrics.LatencyParseUs, rsp.Metrics.LatencyExecUs,
 			)
 			if p := rsp.Metrics.Phases; p != nil {

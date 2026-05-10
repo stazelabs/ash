@@ -163,6 +163,35 @@ func TestResponseRoundTrip_NoLedgerErrorByDefault(t *testing.T) {
 	}
 }
 
+func TestMetricsOmitempty(t *testing.T) {
+	// Zero-value numeric fields and empty TokensMethod must be absent from
+	// the wire — the daemon omits TokensMethod when using the default tokenizer.
+	want := &Response{
+		V:       ProtocolVersion,
+		ID:      2,
+		OK:      true,
+		Metrics: &Metrics{TokensOut: 42},
+	}
+	encoded, err := EncodeResponse(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, absent := range []string{"tokens_method", "tokens_in", "bytes_in", "bytes_out",
+		"latency_parse_us", "latency_serialize_us"} {
+		if bytes.Contains(encoded, []byte(absent)) {
+			t.Errorf("field %q should be omitted when zero/empty; encoded: %x", absent, encoded)
+		}
+	}
+	// Non-zero field must survive round-trip.
+	got, err := DecodeResponse(encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Metrics == nil || got.Metrics.TokensOut != 42 {
+		t.Errorf("tokens_out not preserved: %+v", got.Metrics)
+	}
+}
+
 func TestResponseRoundTrip_Err(t *testing.T) {
 	want := &Response{
 		V:   ProtocolVersion,

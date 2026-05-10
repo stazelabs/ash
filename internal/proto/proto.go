@@ -59,15 +59,15 @@ type Error struct {
 }
 
 type Metrics struct {
-	LatencyParseUs     int64  `msgpack:"latency_parse_us"                json:"latency_parse_us"`
-	LatencyExecUs      int64  `msgpack:"latency_exec_us"                 json:"latency_exec_us"`
-	LatencySerializeUs int64  `msgpack:"latency_serialize_us"            json:"latency_serialize_us"`
-	LatencyDispatchUs  int64  `msgpack:"latency_dispatch_us,omitempty"   json:"latency_dispatch_us,omitempty"`
-	TokensIn           int    `msgpack:"tokens_in"            json:"tokens_in"`
-	TokensOut          int    `msgpack:"tokens_out"           json:"tokens_out"`
-	TokensMethod       string `msgpack:"tokens_method"        json:"tokens_method"`
-	BytesIn            int    `msgpack:"bytes_in"             json:"bytes_in"`
-	BytesOut           int    `msgpack:"bytes_out"            json:"bytes_out"`
+	LatencyParseUs     int64  `msgpack:"latency_parse_us,omitempty"     json:"latency_parse_us,omitempty"`
+	LatencyExecUs      int64  `msgpack:"latency_exec_us,omitempty"      json:"latency_exec_us,omitempty"`
+	LatencySerializeUs int64  `msgpack:"latency_serialize_us,omitempty" json:"latency_serialize_us,omitempty"`
+	LatencyDispatchUs  int64  `msgpack:"latency_dispatch_us,omitempty"  json:"latency_dispatch_us,omitempty"`
+	TokensIn           int    `msgpack:"tokens_in,omitempty"            json:"tokens_in,omitempty"`
+	TokensOut          int    `msgpack:"tokens_out,omitempty"           json:"tokens_out,omitempty"`
+	TokensMethod       string `msgpack:"tokens_method,omitempty"        json:"tokens_method,omitempty"`
+	BytesIn            int    `msgpack:"bytes_in,omitempty"             json:"bytes_in,omitempty"`
+	BytesOut           int    `msgpack:"bytes_out,omitempty"            json:"bytes_out,omitempty"`
 	Truncated          bool   `msgpack:"truncated,omitempty"  json:"truncated,omitempty"`
 	// LedgerError is set by the daemon when persisting the call to the
 	// instrumentation ledger failed. The verb itself may have succeeded; the

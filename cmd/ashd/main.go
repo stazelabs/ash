@@ -274,16 +274,13 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 		// encode is done. The record-before-encode ordering is preserved so a
 		// ledger failure is still visible in rsp.Metrics.LedgerError.
 		metrics := &proto.Metrics{
-			LatencyParseUs:     parseUs,
-			LatencyExecUs:      execUs,
-			LatencySerializeUs: 0,
-			LatencyDispatchUs:  dispatchUs,
-			TokensIn:           tokensIn,
-			TokensOut:          tokensOut,
-			TokensMethod:       ledger.TokensMethod,
-			BytesIn:            len(reqBuf),
-			BytesOut:           0,
-			Truncated:          truncatedFromTyped(rsp, runners[req.Verb], typedData),
+			LatencyParseUs:    parseUs,
+			LatencyExecUs:     execUs,
+			LatencyDispatchUs: dispatchUs,
+			TokensIn:          tokensIn,
+			TokensOut:         tokensOut,
+			BytesIn:           len(reqBuf),
+			Truncated:         truncatedFromTyped(rsp, runners[req.Verb], typedData),
 		}
 		// Phases is attached only when the verb actually instrumented
 		// something. Verbs that don't (help, metrics) leave it nil so the
