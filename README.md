@@ -218,11 +218,41 @@ Instrumentation was wired in from the first verb, not retrofitted. A tool that c
 
 **Querying.** `ash metrics` for raw rows; `ash report` for synthesis (n, ok%, p50/p95 latency, p50/p95 tokens_out, truncation rate, top error histograms, top truncation hotspots). Both work cross-repo via `--root <p>` (read a foreign repo's ledger directly) or `--all_roots true` (aggregate across every repo `ash init` has touched).
 
-**Comparative evaluation.** `ash bench` runs canonical cases against ash and the bash equivalent the agent would otherwise have used, tokenizes both with the same encoder, and reports per-case Δtokens / Δlatency, plus per-verb and overall summaries. See [docs/bench.md](docs/bench.md).
+**Comparative evaluation.** `ash bench` compares ash against the bash equivalent on tokens and latency for every measurable verb. See the [Benchmarks](#benchmarks) section.
 
 **Privacy.** The ledger is local-only. Export is opt-in and explicit; nothing leaves the machine without an action that says so.
 
+## Benchmarks
+
+`ash bench` runs 19 canonical cases covering every measurable verb — `read`, `write`, `edit`, `diff`, `find`, `grep`, `git`, `stat` — and compares ash against the bash equivalent the agent would otherwise have used. Both sides tokenize with the same `cl100k_base` encoder. Every run persists to `.ash/ledger.db`, so regressions show up in the diff, not the incident report.
+
+**Current baseline (2026-05-10):** **−54.8% tokens** overall (31,196 ash vs 69,013 bash across 19 cases). Per-case breakdown: [bench/baseline.md](bench/baseline.md).
+
+### Running
+
+```sh
+ash bench                        # one-shot, all 19 cases
+make bench                       # repeat=5, warmup=2, writes bench/latest.json (gitignored)
+make bench-baseline              # stable run + update bench/baseline.json + bench/baseline.md
+```
+
+### Tracking trends
+
+```sh
+ash bench --list                              # recent runs with Δtok% summary
+ash bench --compare <uuid-prefix>,latest      # diff two specific runs
+ash bench --baseline 7d                       # rolling 7-day median; flag regressions
+ash bench --baseline 7d --regress-tokens 0.05 # tighter 5% threshold
+```
+
+### Regression contract
+
+`bench/baseline.json` is the checked-in token budget for all 19 cases. `--compare baseline,latest` diffs your working state against it — zero regressions on a no-op change is the bar. Latency is informational only (machine-dependent) and lives separately in `bench/latency-snapshot.json`.
+
+Design rationale: [docs/bench.md](docs/bench.md). Implementation: [docs/bench-2.md](docs/bench-2.md).
+
 ## Example: a typical agent loop
+
 
 **In bash today:**
 
