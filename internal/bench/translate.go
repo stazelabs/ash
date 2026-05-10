@@ -64,10 +64,10 @@ func bashEdit(a map[string]any) ([]string, error) {
 	if !ok || path == "" {
 		return nil, fmt.Errorf("bench: edit case missing path")
 	}
-	old, _ := a["old_string"].(string)
-	new, _ := a["new_string"].(string)
+	old, _ := a["old"].(string)
+	new, _ := a["new"].(string)
 	if old == "" {
-		return nil, fmt.Errorf("bench: edit case missing old_string (only string-replace mode supported)")
+		return nil, fmt.Errorf("bench: edit case missing old (only string-replace mode supported)")
 	}
 	// Use | as the sed delimiter to avoid escape collisions with /
 	// in path-shaped strings; old/new must not contain |.
@@ -95,7 +95,7 @@ func bashFind(a map[string]any) ([]string, error) {
 	path := strArg(a, "path", ".")
 	glob := strArg(a, "glob", "")
 	typ := strArg(a, "type", "")
-	maxDepth := strArg(a, "max_depth", "")
+	maxDepth := strArg(a, "depth", "")
 
 	argv := []string{"find", path}
 	if maxDepth != "" {
@@ -129,8 +129,8 @@ func bashGrep(a map[string]any) ([]string, error) {
 		return nil, fmt.Errorf("bench: grep case missing pattern")
 	}
 	path := strArg(a, "path", ".")
-	filesOnly := boolArg(a, "files_only", false)
-	fixed := boolArg(a, "fixed_string", false)
+	filesOnly := boolArg(a, "fo", false)
+	fixed := boolArg(a, "lit", false)
 
 	flags := "-rn"
 	if filesOnly {
@@ -148,7 +148,7 @@ func bashRead(a map[string]any) ([]string, error) {
 		return nil, fmt.Errorf("bench: read case missing path")
 	}
 	rng := strArg(a, "range", "")
-	kind := strArg(a, "range_kind", "lines")
+	kind := strArg(a, "unit", "lines")
 	if rng == "" {
 		return []string{"cat", path}, nil
 	}

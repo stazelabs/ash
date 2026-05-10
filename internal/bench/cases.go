@@ -38,7 +38,7 @@ var Cases = []Case{
 	{
 		Name:    "find_shallow",
 		Verb:    "find",
-		AshArgs: map[string]any{"path": ".", "max_depth": "1"},
+		AshArgs: map[string]any{"path": ".", "depth": "1"},
 		Why:     "shallow walk, small result — tests JSON envelope overhead vs raw bash",
 	},
 	{
@@ -70,7 +70,7 @@ var Cases = []Case{
 	{
 		Name:    "grep_files_only",
 		Verb:    "grep",
-		AshArgs: map[string]any{"pattern": "Run", "path": ".", "files_only": "true"},
+		AshArgs: map[string]any{"pattern": "Run", "path": ".", "fo": "true"},
 		Why:     "files-only output should be tight on both sides",
 	},
 	{
@@ -96,13 +96,13 @@ var Cases = []Case{
 	{
 		Name:    "read_range",
 		Verb:    "read",
-		AshArgs: map[string]any{"path": "README.md", "range": "1:50", "range_kind": "lines"},
+		AshArgs: map[string]any{"path": "README.md", "range": "1:50", "unit": "lines"},
 		Why:     "line range; bash equivalent is sed -n '1,50p'",
 	},
 	{
 		Name:    "read_tiny_range",
 		Verb:    "read",
-		AshArgs: map[string]any{"path": "go.mod", "range": "1:5", "range_kind": "lines"},
+		AshArgs: map[string]any{"path": "go.mod", "range": "1:5", "unit": "lines"},
 		Why:     "small range read where the lean header dominates relative cost — exercises the --with_meta opt-out path",
 	},
 
@@ -147,7 +147,7 @@ var Cases = []Case{
 	{
 		Name:    "edit_string_replace",
 		Verb:    "edit",
-		AshArgs: map[string]any{"path": BenchTmpDir + "/edit_target.txt", "old_string": "FOO", "new_string": "BAR"},
+		AshArgs: map[string]any{"path": BenchTmpDir + "/edit_target.txt", "old": "FOO", "new": "BAR"},
 		Setup:   func() error { return writeFixture("edit_target.txt", "FOO bar baz\n") },
 		Why:     "string-replacement mode; bash equivalent is sed -i — exercises ambiguity-detection vs sed silent-replace",
 	},
@@ -222,4 +222,3 @@ func writeFixture(rel, content string) error {
 func CleanupBenchTmpDir() error {
 	return os.RemoveAll(BenchTmpDir)
 }
-

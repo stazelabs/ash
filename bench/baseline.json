@@ -1,23 +1,23 @@
 {
   "schema": "ash-bench-baseline-v1",
-  "ts": "2026-05-10T14:57:01Z",
+  "ts": "2026-05-10T22:09:38Z",
   "ash_version": "0.1.0",
-  "ash_commit_sha": "924dcba269c68ff2bc40064ad5fb6df66a60e853",
-  "case_set_version": "cs-c3a63e2b5fce05fa",
-  "repo_sha": "924dcba269c68ff2bc40064ad5fb6df66a60e853",
+  "ash_commit_sha": "1ded64de9586ff57aa1bb94bbf5459921a45f6d1",
+  "case_set_version": "cs-913b838c885bf357",
+  "repo_sha": "1ded64de9586ff57aa1bb94bbf5459921a45f6d1",
   "repo_dirty": true,
   "cases": [
     {
       "name": "diff_stat_only",
       "verb": "diff",
       "ash_tokens": 17,
-      "bash_tokens": 10330
+      "bash_tokens": 9599
     },
     {
       "name": "diff_two_files",
       "verb": "diff",
-      "ash_tokens": 9907,
-      "bash_tokens": 10330
+      "ash_tokens": 9184,
+      "bash_tokens": 9599
     },
     {
       "name": "edit_string_replace",
@@ -28,8 +28,8 @@
     {
       "name": "find_go_files",
       "verb": "find",
-      "ash_tokens": 795,
-      "bash_tokens": 874
+      "ash_tokens": 809,
+      "bash_tokens": 890
     },
     {
       "name": "find_md_in_docs",
@@ -40,50 +40,50 @@
     {
       "name": "find_shallow",
       "verb": "find",
-      "ash_tokens": 46,
-      "bash_tokens": 62
+      "ash_tokens": 48,
+      "bash_tokens": 72
     },
     {
       "name": "git_log_20",
       "verb": "git",
       "ash_tokens": 766,
-      "bash_tokens": 6425
+      "bash_tokens": 4719
     },
     {
       "name": "git_status",
       "verb": "git",
-      "ash_tokens": 226,
-      "bash_tokens": 312
+      "ash_tokens": 48,
+      "bash_tokens": 96
     },
     {
       "name": "grep_files_only",
       "verb": "grep",
-      "ash_tokens": 677,
-      "bash_tokens": 778
+      "ash_tokens": 685,
+      "bash_tokens": 794
     },
     {
       "name": "grep_heavy_func_internal",
       "verb": "grep",
-      "ash_tokens": 5126,
-      "bash_tokens": 24866
+      "ash_tokens": 5121,
+      "bash_tokens": 25161
     },
     {
       "name": "grep_parseargs_internal",
       "verb": "grep",
-      "ash_tokens": 5175,
-      "bash_tokens": 6073
+      "ash_tokens": 5156,
+      "bash_tokens": 6054
     },
     {
       "name": "grep_rare_pattern",
       "verb": "grep",
       "ash_tokens": 82,
-      "bash_tokens": 263
+      "bash_tokens": 276
     },
     {
       "name": "grep_todo_repo",
       "verb": "grep",
       "ash_tokens": 1183,
-      "bash_tokens": 1303
+      "bash_tokens": 1316
     },
     {
       "name": "read_range",
@@ -94,8 +94,8 @@
     {
       "name": "read_small",
       "verb": "read",
-      "ash_tokens": 5549,
-      "bash_tokens": 5535
+      "ash_tokens": 5912,
+      "bash_tokens": 5898
     },
     {
       "name": "read_tiny_range",
@@ -107,13 +107,13 @@
       "name": "stat_bulk",
       "verb": "stat",
       "ash_tokens": 33,
-      "bash_tokens": 276
+      "bash_tokens": 273
     },
     {
       "name": "stat_single",
       "verb": "stat",
       "ash_tokens": 17,
-      "bash_tokens": 90
+      "bash_tokens": 87
     },
     {
       "name": "write_small",
@@ -124,8 +124,8 @@
   ],
   "summary": {
     "n_cases": 19,
-    "ash_tokens_total": 31196,
-    "bash_tokens_total": 69013,
-    "delta_tok_pct": -54.79692231898338
+    "ash_tokens_total": 30658,
+    "bash_tokens_total": 66330,
+    "delta_tok_pct": -53.77958691391527
   }
 }
