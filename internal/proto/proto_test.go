@@ -176,8 +176,7 @@ func TestMetricsOmitempty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, absent := range []string{"tokens_method", "tokens_in", "bytes_in", "bytes_out",
-		"latency_parse_us", "latency_serialize_us"} {
+	for _, absent := range []string{"tm", "ti", "bi", "bo", "lp", "ls"} {
 		if bytes.Contains(encoded, []byte(absent)) {
 			t.Errorf("field %q should be omitted when zero/empty; encoded: %x", absent, encoded)
 		}

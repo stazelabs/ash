@@ -69,16 +69,16 @@ type TruncInfo struct {
 }
 
 type Metrics struct {
-	LatencyParseUs     int64  `msgpack:"latency_parse_us,omitempty"     json:"latency_parse_us,omitempty"`
-	LatencyExecUs      int64  `msgpack:"latency_exec_us,omitempty"      json:"latency_exec_us,omitempty"`
-	LatencySerializeUs int64  `msgpack:"latency_serialize_us,omitempty" json:"latency_serialize_us,omitempty"`
-	LatencyDispatchUs  int64  `msgpack:"latency_dispatch_us,omitempty"  json:"latency_dispatch_us,omitempty"`
-	TokensIn           int    `msgpack:"tokens_in,omitempty"            json:"tokens_in,omitempty"`
-	TokensOut          int    `msgpack:"tokens_out,omitempty"           json:"tokens_out,omitempty"`
-	TokensMethod       string `msgpack:"tokens_method,omitempty"        json:"tokens_method,omitempty"`
-	BytesIn            int    `msgpack:"bytes_in,omitempty"             json:"bytes_in,omitempty"`
-	BytesOut           int    `msgpack:"bytes_out,omitempty"            json:"bytes_out,omitempty"`
-	Truncated          bool   `msgpack:"truncated,omitempty"  json:"truncated,omitempty"`
+	LatencyParseUs     int64  `msgpack:"lp,omitempty" json:"lp,omitempty"`
+	LatencyExecUs      int64  `msgpack:"le,omitempty" json:"le,omitempty"`
+	LatencySerializeUs int64  `msgpack:"ls,omitempty" json:"ls,omitempty"`
+	LatencyDispatchUs  int64  `msgpack:"ld,omitempty" json:"ld,omitempty"`
+	TokensIn           int    `msgpack:"ti,omitempty" json:"ti,omitempty"`
+	TokensOut          int    `msgpack:"to,omitempty" json:"to,omitempty"`
+	TokensMethod       string `msgpack:"tm,omitempty" json:"tm,omitempty"`
+	BytesIn            int    `msgpack:"bi,omitempty" json:"bi,omitempty"`
+	BytesOut           int    `msgpack:"bo,omitempty" json:"bo,omitempty"`
+	Truncated          bool   `msgpack:"tr,omitempty" json:"tr,omitempty"`
 	// LedgerError is set by the daemon when persisting the call to the
 	// instrumentation ledger failed. The verb itself may have succeeded; the
 	// ledger row did not. Empty in the normal case (omitempty drops it from
@@ -88,7 +88,7 @@ type Metrics struct {
 	// Phases is the sub-execution latency breakdown reported by the verb's
 	// Tracer. Optional; a verb that doesn't instrument anything leaves it
 	// nil and the field omits from the wire entirely.
-	Phases *Phases `msgpack:"phases,omitempty" json:"phases,omitempty"`
+	Phases *Phases `msgpack:"ph,omitempty" json:"ph,omitempty"`
 }
 
 // Phases breaks LatencyExecUs into named subsystems. Fields are
@@ -98,10 +98,10 @@ type Metrics struct {
 // the agent "of the exec time, here's how much was each subsystem" not
 // to provide a strict tree decomposition.
 type Phases struct {
-	WalkUs         int64 `msgpack:"walk_us,omitempty"          json:"walk_us,omitempty"`
-	IOUs           int64 `msgpack:"io_us,omitempty"            json:"io_us,omitempty"`
-	RegexUs        int64 `msgpack:"regex_us,omitempty"         json:"regex_us,omitempty"`
-	RegexCompileUs int64 `msgpack:"regex_compile_us,omitempty" json:"regex_compile_us,omitempty"`
+	WalkUs         int64 `msgpack:"w,omitempty"  json:"w,omitempty"`
+	IOUs           int64 `msgpack:"io,omitempty" json:"io,omitempty"`
+	RegexUs        int64 `msgpack:"r,omitempty"  json:"r,omitempty"`
+	RegexCompileUs int64 `msgpack:"rc,omitempty" json:"rc,omitempty"`
 }
 
 // IsZero reports whether all phases are zero — used by the daemon to
