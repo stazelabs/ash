@@ -93,7 +93,7 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	}
 	d, err := time.ParseDuration(timeoutStr)
 	if err != nil {
-		return nil, &proto.Error{Code: "args", Msg: "timeout must be a Go duration (e.g. '60s', '10m'): " + err.Error()}
+		return nil, &proto.Error{Code: "args", Msg: "timeout: invalid Go duration", Hint: "e.g. '60s', '10m'; got: " + err.Error()}
 	}
 	if d <= 0 {
 		return nil, &proto.Error{Code: "args", Msg: "timeout must be positive"}

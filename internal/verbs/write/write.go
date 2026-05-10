@@ -76,7 +76,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		var err error
 		data, err = base64.StdEncoding.DecodeString(a.Content)
 		if err != nil {
-			return nil, &proto.Error{Code: "args", Msg: "content is not valid base64: " + err.Error()}
+			return nil, &proto.Error{Code: "args", Msg: "content: invalid base64", Hint: err.Error()}
 		}
 	} else {
 		data = []byte(a.Content)
@@ -91,7 +91,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	created := true
 	if _, err := os.Stat(a.Path); err == nil {
 		if a.CreateOnly {
-			return nil, &proto.Error{Code: "exists", Msg: a.Path + " already exists (no-clobber=true)"}
+			return nil, &proto.Error{Code: "exists", Msg: a.Path + ": already exists", Hint: "pass --no-clobber false to overwrite"}
 		}
 		created = false
 	}
@@ -101,13 +101,13 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	if a.Mkdir {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			if errors.Is(err, os.ErrPermission) {
-				return nil, &proto.Error{Code: "permission", Msg: "cannot create parent dir: " + err.Error()}
+				return nil, &proto.Error{Code: "permission", Msg: "mkdir: permission denied", Hint: err.Error()}
 			}
 			return nil, &proto.Error{Code: "mkdir", Msg: err.Error()}
 		}
 	} else {
 		if _, err := os.Stat(dir); err != nil {
-			return nil, &proto.Error{Code: "no_parent", Msg: "parent directory does not exist: " + dir + " (pass --mkdir true to create it)"}
+			return nil, &proto.Error{Code: "no_parent", Msg: "parent directory does not exist: " + dir, Hint: "pass --mkdir true to create it"}
 		}
 	}
 

@@ -125,7 +125,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		return nil, &proto.Error{Code: "stat", Msg: err.Error()}
 	}
 	if !info.IsDir() {
-		return nil, &proto.Error{Code: "not_dir", Msg: a.Path + " is not a directory; use `read` for files"}
+		return nil, &proto.Error{Code: "not_dir", Msg: a.Path + ": not a directory", Hint: "use 'ash read' for files"}
 	}
 
 	res := &Result{Records: make([]Record, 0, 32)}

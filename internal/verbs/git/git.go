@@ -171,7 +171,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		}
 		return &Result{Op: "show", Show: s}, nil
 	default:
-		return nil, &proto.Error{Code: "unknown_op", Msg: "unknown op: " + a.Op + " (live ops: status, log, diff, show)"}
+		return nil, &proto.Error{Code: "unknown_op", Msg: "unknown op: " + a.Op, Hint: "live ops: status, log, diff, show"}
 	}
 }
 

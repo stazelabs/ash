@@ -106,7 +106,7 @@ func ParseArgs(_ map[string]any) (*Args, *proto.Error) { return &Args{}, nil }
 // Run is the daemon-side runner. stop is a client-only verb; the daemon
 // returns client_only so the parity check and token-counting invariants hold.
 func Run(_ *Args, _ *proto.Tracer) (*Result, *proto.Error) {
-	return nil, &proto.Error{Code: "client_only", Msg: "ash stop runs client-side only; it cannot be dispatched to the daemon"}
+	return nil, &proto.Error{Code: "client_only", Msg: "verb is client-side only", Hint: "'ash stop' runs in the client; the daemon cannot receive it"}
 }
 
 // PrettyResponse renders a human-readable stop result. The rsp.Data field

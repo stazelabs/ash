@@ -88,7 +88,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		return nil, &proto.Error{Code: "stat", Msg: err.Error()}
 	}
 	if info.IsDir() {
-		return nil, &proto.Error{Code: "is_dir", Msg: a.Path + " is a directory; use `find` to list, then `read` a file"}
+		return nil, &proto.Error{Code: "is_dir", Msg: a.Path + ": is a directory", Hint: "use 'ash find' to list contents, then 'ash read' a file"}
 	}
 
 	ioStart := time.Now()

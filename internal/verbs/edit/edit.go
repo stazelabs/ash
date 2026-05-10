@@ -440,7 +440,8 @@ func applyStringReplace(content, oldStr, newStr string, replaceAll bool) (string
 	if n > 1 && !replaceAll {
 		return "", 0, &proto.Error{
 			Code: "ambiguous",
-			Msg:  fmt.Sprintf("old_string found %d times; pass --replace_all true to replace all, or use a more specific string", n),
+			Msg:  fmt.Sprintf("old_string matched %d times", n),
+			Hint: "pass --all true to replace all, or use a more specific old string",
 		}
 	}
 	if replaceAll {

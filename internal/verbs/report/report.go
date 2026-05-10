@@ -290,7 +290,7 @@ func runAllRoots(a *Args) (*Result, *proto.Error) {
 		return nil, &proto.Error{Code: "registry", Msg: err.Error()}
 	}
 	if len(roots) == 0 {
-		return nil, &proto.Error{Code: "no_roots", Msg: "registry is empty (run `ash init` in target repos)"}
+		return nil, &proto.Error{Code: "no_roots", Msg: "registry is empty", Hint: "run 'ash init' in each target repo first"}
 	}
 
 	scope := buildScope(a)

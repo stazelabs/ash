@@ -59,6 +59,9 @@ func PrettyResponseHeader(rsp *Response) string {
 		if rsp.Err == nil {
 			return "err"
 		}
+		if rsp.Err.Hint != "" {
+			return fmt.Sprintf("err %s\n%s\n%s", rsp.Err.Code, rsp.Err.Msg, rsp.Err.Hint)
+		}
 		return fmt.Sprintf("err %s\n%s", rsp.Err.Code, rsp.Err.Msg)
 	}
 	return "ok"

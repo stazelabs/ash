@@ -182,7 +182,7 @@ func runExportMd(d Deps, _ *Args) (*ExportMdResult, *proto.Error) {
 		return nil, &proto.Error{Code: "ledger", Msg: err.Error()}
 	}
 	if len(runs) == 0 {
-		return nil, &proto.Error{Code: "no_runs", Msg: "no bench runs persisted; run `ash bench` first"}
+		return nil, &proto.Error{Code: "no_runs", Msg: "no bench runs persisted", Hint: "run 'ash bench' first"}
 	}
 	run, cases, err := d.Ledger.QueryBenchRun(runs[0].RunUUID)
 	if err != nil {

@@ -54,8 +54,9 @@ type Response struct {
 }
 
 type Error struct {
-	Code string `msgpack:"code" json:"code"`
-	Msg  string `msgpack:"msg"  json:"msg"`
+	Code string `msgpack:"code"           json:"code"`
+	Msg  string `msgpack:"msg"            json:"msg"`
+	Hint string `msgpack:"hint,omitempty" json:"-"`
 }
 
 // TruncInfo carries structured truncation metadata in place of the prose
