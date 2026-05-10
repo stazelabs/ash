@@ -203,6 +203,15 @@ var verbPositionals = map[string][]string{
 	"uninit": {"path"},
 }
 
+// verbListFlags names per-verb flags that semantically accept a
+// comma-separated list. Repeating one of these flags accumulates values
+// (joined with commas) rather than erroring; repeating any other flag is
+// rejected so we never silently drop the earlier value.
+var verbListFlags = map[string]map[string]bool{
+	"test": {"packages": true},
+	"stat": {"paths": true},
+}
+
 // parseFlags converts agent-friendly long flags and per-verb positional
 // arguments into an args map. Both --key value and --key=value are
 // accepted. Bare values (no -- prefix) are matched against the verb's
@@ -240,6 +249,21 @@ func parseFlags(verb string, argv []string) (map[string]any, error) {
 		}
 		if key == "" {
 			return nil, errors.New("empty flag name")
+		}
+		if existing, dup := out[key]; dup {
+			if verbListFlags[verb][key] {
+				prev, _ := existing.(string)
+				switch {
+				case prev == "":
+					out[key] = val
+				case val == "":
+					// keep prev
+				default:
+					out[key] = prev + "," + val
+				}
+				continue
+			}
+			return nil, fmt.Errorf("--%s set more than once (each flag accepts a single value; for list-typed flags use the comma-separated form, e.g. --%s a,b)", key, key)
 		}
 		out[key] = val
 	}
