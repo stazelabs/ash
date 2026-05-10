@@ -20,7 +20,7 @@ func TestApplyRange_Lines(t *testing.T) {
 		{"first line", "1:1", "alpha\n", "1:1"},
 		{"middle range", "2:3", "beta\ngamma\n", "2:3"},
 		{"last line", "5:5", "epsilon\n", "5:5"},
-		{"clamp end", "3:100", "gamma\ndelta\nepsilon\n", "3:100"},
+		{"clamp end", "3:100", "gamma\ndelta\nepsilon\n", "3:5"},
 		{"all lines", "1:5", "alpha\nbeta\ngamma\ndelta\nepsilon\n", "1:5"},
 	}
 	for _, c := range cases {
@@ -268,11 +268,10 @@ func TestPrettyResponse_VerbatimRangeSuppressesNLAndRange(t *testing.T) {
 	}
 }
 
-// Short file in lines mode: applyRange returns fewer lines than asked
-// for, but does not clamp the canonical range string. r.Lines therefore
-// diverges from end-start+1 and is emitted as the "you got less than
-// you asked for" signal. r.RangeReturned still matches request and stays
-// suppressed.
+// Short file in lines mode: applyRange clamps the canonical range string
+// to the actual last line returned, so both r.RangeReturned and r.Lines
+// diverge from the request. range= and NL are both emitted so the agent
+// knows it got less than it asked for.
 func TestPrettyResponse_ShortFileEmitsNL(t *testing.T) {
 	rsp := &proto.Response{
 		OK: true,
@@ -281,7 +280,7 @@ func TestPrettyResponse_ShortFileEmitsNL(t *testing.T) {
 			Size:          6,
 			Lines:         3,
 			Encoding:      "utf-8",
-			RangeReturned: "1:10",
+			RangeReturned: "1:3",
 			Content:       "a\nb\nc\n",
 		}),
 	}
@@ -289,6 +288,9 @@ func TestPrettyResponse_ShortFileEmitsNL(t *testing.T) {
 	got := PrettyResponse(req, rsp)
 	if !strings.Contains(got, ", 3L") {
 		t.Errorf("NL=3 must be emitted on short-file divergence: %q", got)
+	}
+	if !strings.Contains(got, "range=1:3") {
+		t.Errorf("range=1:3 must be emitted when RangeReturned diverges from request: %q", got)
 	}
 }
 

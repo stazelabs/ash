@@ -196,7 +196,8 @@ func applyRange(body []byte, spec, kind string) ([]byte, string, *proto.Error) {
 		return nil, "", &proto.Error{Code: "range_out_of_bounds",
 			Msg: fmt.Sprintf("start line %d is past end of file", start)}
 	}
-	return body[lineStart:lineEnd], fmt.Sprintf("%d:%d", start, end), nil
+	slice := body[lineStart:lineEnd]
+	return slice, fmt.Sprintf("%d:%d", start, start-1+countLines(slice)), nil
 }
 
 // reqRangeBounds parses a "start:end" range request string the same way
