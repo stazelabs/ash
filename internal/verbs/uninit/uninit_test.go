@@ -133,3 +133,85 @@ func TestUninit_PreservesOtherHooks(t *testing.T) {
 		t.Fatal("PostToolUse should be untouched")
 	}
 }
+
+// TestUninit_StripsGuidanceSection: round-trip through init+uninit removes
+// the bracketed section but preserves any user content outside the markers.
+func TestUninit_StripsGuidanceSection(t *testing.T) {
+	withTempXDG(t)
+	root := t.TempDir()
+	original := "# My project\n\nSome existing notes.\n"
+	if err := os.WriteFile(filepath.Join(root, "CLAUDE.md"), []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runInit(t, root)
+	res := runUninit(t, root)
+	if !res.GuidanceUpdated {
+		t.Fatalf("expected guidance_updated=true after uninit: %+v", res)
+	}
+	if filepath.Base(res.GuidancePath) != "CLAUDE.md" {
+		t.Fatalf("expected guidance_path basename CLAUDE.md, got %q", res.GuidancePath)
+	}
+
+	body, err := os.ReadFile(filepath.Join(root, "CLAUDE.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(body)
+	if strings.Contains(s, initverb.GuidanceBeginMarker) || strings.Contains(s, initverb.GuidanceEndMarker) {
+		t.Fatalf("markers still present after uninit:\n%s", s)
+	}
+	if !strings.Contains(s, "Some existing notes.") {
+		t.Fatalf("user content lost during uninit:\n%s", s)
+	}
+}
+
+// TestUninit_GuidanceSection_NotInstalled: uninit on a CLAUDE.md without
+// the markers leaves the file alone.
+func TestUninit_GuidanceSection_NotInstalled(t *testing.T) {
+	withTempXDG(t)
+	root := t.TempDir()
+	original := "# Hand-written CLAUDE.md\n\nNo ash markers here.\n"
+	if err := os.WriteFile(filepath.Join(root, "CLAUDE.md"), []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	res := runUninit(t, root)
+	if res.GuidanceUpdated {
+		t.Fatal("uninit should not touch a CLAUDE.md without ash markers")
+	}
+	body, _ := os.ReadFile(filepath.Join(root, "CLAUDE.md"))
+	if string(body) != original {
+		t.Fatalf("CLAUDE.md was modified:\n%s", body)
+	}
+}
+
+// TestUninit_AgentsMd_RoundTrip: when init wrote into AGENTS.md, uninit
+// strips the section from AGENTS.md and CLAUDE.md is untouched.
+func TestUninit_AgentsMd_RoundTrip(t *testing.T) {
+	withTempXDG(t)
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte("# Agents\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runInit(t, root)
+	if _, err := os.Stat(filepath.Join(root, "CLAUDE.md")); !os.IsNotExist(err) {
+		t.Fatalf("init should not have created CLAUDE.md: err=%v", err)
+	}
+
+	res := runUninit(t, root)
+	if !res.GuidanceUpdated {
+		t.Fatalf("expected guidance_updated=true: %+v", res)
+	}
+	if filepath.Base(res.GuidancePath) != "AGENTS.md" {
+		t.Fatalf("expected AGENTS.md target, got %q", res.GuidancePath)
+	}
+	body, _ := os.ReadFile(filepath.Join(root, "AGENTS.md"))
+	if strings.Contains(string(body), initverb.GuidanceBeginMarker) {
+		t.Fatalf("section still present in AGENTS.md:\n%s", body)
+	}
+	if !strings.Contains(string(body), "# Agents") {
+		t.Fatalf("user content lost from AGENTS.md:\n%s", body)
+	}
+}

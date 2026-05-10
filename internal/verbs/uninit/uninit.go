@@ -41,6 +41,8 @@ type Result struct {
 	Path             string   `msgpack:"path"`
 	SettingsWritten  bool     `msgpack:"settings_written"`
 	GitignoreUpdated bool     `msgpack:"gitignore_updated"`
+	GuidanceUpdated  bool     `msgpack:"guidance_updated,omitempty"`
+	GuidancePath     string   `msgpack:"guidance_path,omitempty"`
 	RegistryUpdated  bool     `msgpack:"registry_updated"`
 	NotInstalled     bool     `msgpack:"not_installed,omitempty"`
 	Warnings         []string `msgpack:"warnings,omitempty"`
@@ -92,6 +94,13 @@ func Run(a *Args, _ *proto.Tracer) (*Result, *proto.Error) {
 	}
 	res.GitignoreUpdated = gitChanged
 
+	guidanceChanged, guidancePath, perr := initverb.StripGuidance(abs)
+	if perr != nil {
+		return nil, perr
+	}
+	res.GuidanceUpdated = guidanceChanged
+	res.GuidancePath = guidancePath
+
 	if !a.NoRegistry {
 		regChanged, err := registry.Remove(abs)
 		if err != nil {
@@ -101,7 +110,7 @@ func Run(a *Args, _ *proto.Tracer) (*Result, *proto.Error) {
 		}
 	}
 
-	if !res.SettingsWritten && !res.GitignoreUpdated && !res.RegistryUpdated {
+	if !res.SettingsWritten && !res.GitignoreUpdated && !res.GuidanceUpdated && !res.RegistryUpdated {
 		res.NotInstalled = true
 	}
 	return res, nil
@@ -241,6 +250,11 @@ func PrettyResponse(_ *proto.Request, rsp *proto.Response) string {
 	b.WriteByte('\n')
 	fmt.Fprintf(&b, "settings:  %s\n", yesNo(r.SettingsWritten))
 	fmt.Fprintf(&b, "gitignore: %s\n", yesNo(r.GitignoreUpdated))
+	if r.GuidancePath != "" {
+		fmt.Fprintf(&b, "guidance:  %s (%s)\n", yesNo(r.GuidanceUpdated), filepath.Base(r.GuidancePath))
+	} else {
+		fmt.Fprintf(&b, "guidance:  %s\n", yesNo(r.GuidanceUpdated))
+	}
 	fmt.Fprintf(&b, "registry:  %s\n", yesNo(r.RegistryUpdated))
 	for _, w := range r.Warnings {
 		fmt.Fprintf(&b, "warning: %s\n", w)

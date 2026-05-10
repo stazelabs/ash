@@ -3,7 +3,7 @@
 // Args:
 //
 //	path        string (optional) - target repo root; default "."
-//	force       bool   (optional) - overwrite an existing different ash hook entry
+//	force       bool   (optional) - overwrite an existing different ash hook entry or guidance section
 //	no_registry bool   (optional) - skip writing to the global installed-repos registry
 //
 // `ash init` bootstraps a target repo for use with ash:
@@ -12,13 +12,19 @@
 //      runs `ash hook` (PATH form, so a single `make install` covers
 //      every target repo at once).
 //   2. Appends `.ash/` to <root>/.gitignore if a .gitignore exists.
-//   3. Records the absolute root in the global installed-repos registry
+//   3. Writes (or merges into) <root>/CLAUDE.md the embedded
+//      agent-guidance section, bracketed by <!-- ash:begin --> /
+//      <!-- ash:end --> markers so future updates are atomic. If the
+//      target repo already uses AGENTS.md and lacks a CLAUDE.md, the
+//      section is written there instead.
+//   4. Records the absolute root in the global installed-repos registry
 //      so `ash report --all-roots` can find it.
 //
 // Idempotent: re-running on an already-installed repo is a no-op and
-// reports already_installed=true. A pre-existing entry that uses a
-// different ash hook command (e.g. the per-repo `$CLAUDE_PROJECT_DIR/bin/ash`
-// form) is left in place with a warning unless --force is set.
+// reports already_installed=true. A pre-existing settings.json entry
+// that uses a different ash hook command, or a pre-existing guidance
+// section whose content differs from the current template, is left in
+// place with a warning unless --force is set.
 package initverb
 
 import (
@@ -57,11 +63,12 @@ type Result struct {
 	Path             string   `msgpack:"path"`
 	SettingsWritten  bool     `msgpack:"settings_written"`
 	GitignoreUpdated bool     `msgpack:"gitignore_updated"`
+	GuidanceWritten  bool     `msgpack:"guidance_written,omitempty"`
+	GuidancePath     string   `msgpack:"guidance_path,omitempty"`
 	RegistryUpdated  bool     `msgpack:"registry_updated"`
 	AlreadyInstalled bool     `msgpack:"already_installed,omitempty"`
 	Warnings         []string `msgpack:"warnings,omitempty"`
 }
-
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	a := &Args{}
 	var perr *proto.Error
@@ -117,6 +124,16 @@ func Run(a *Args, _ *proto.Tracer) (*Result, *proto.Error) {
 		return nil, perr
 	}
 	res.GitignoreUpdated = gitChanged
+
+	guidanceChanged, _, guidancePath, guidanceWarning, perr := updateGuidance(abs, a.Force)
+	if perr != nil {
+		return nil, perr
+	}
+	res.GuidanceWritten = guidanceChanged
+	res.GuidancePath = guidancePath
+	if guidanceWarning != "" {
+		res.Warnings = append(res.Warnings, guidanceWarning)
+	}
 
 	if !a.NoRegistry {
 		regChanged, err := registry.Add(abs)
@@ -306,6 +323,11 @@ func PrettyResponse(_ *proto.Request, rsp *proto.Response) string {
 	}
 	fmt.Fprintf(&b, "settings:  %s\n", yesNo(r.SettingsWritten))
 	fmt.Fprintf(&b, "gitignore: %s\n", yesNo(r.GitignoreUpdated))
+	if r.GuidancePath != "" {
+		fmt.Fprintf(&b, "guidance:  %s (%s)\n", yesNo(r.GuidanceWritten), filepath.Base(r.GuidancePath))
+	} else {
+		fmt.Fprintf(&b, "guidance:  %s\n", yesNo(r.GuidanceWritten))
+	}
 	fmt.Fprintf(&b, "registry:  %s\n", yesNo(r.RegistryUpdated))
 	for _, w := range r.Warnings {
 		fmt.Fprintf(&b, "warning: %s\n", w)

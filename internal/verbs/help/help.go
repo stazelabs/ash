@@ -226,16 +226,16 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "init",
-		Description: "Bootstrap a target repo for ash: write the PreToolUse hook into .claude/settings.json, append .ash/ to .gitignore, and record the absolute root in the global installed-repos registry. Idempotent: re-running on an installed repo is a no-op.",
+		Description: "Bootstrap a target repo for ash: write the PreToolUse hook into .claude/settings.json, append .ash/ to .gitignore, write or merge the agent-guidance section into CLAUDE.md (or AGENTS.md if the target repo already uses it) between <!-- ash:begin --> / <!-- ash:end --> markers, and record the absolute root in the global installed-repos registry. Idempotent: re-running on an installed repo is a no-op.",
 		Args: []ArgSchema{
 			{Name: "path", Type: "string", Default: ".", Description: "Target repo root (absolute or relative). Default . uses the daemons project root."},
-			{Name: "force", Type: "bool", Default: "false", Description: "Replace an existing PreToolUse entry that invokes ash with a different command (e.g. the per-repo $CLAUDE_PROJECT_DIR/bin/ash form). Without --force a conflict produces a warning and no change."},
+			{Name: "force", Type: "bool", Default: "false", Description: "Replace an existing PreToolUse entry that invokes ash with a different command, or replace an existing CLAUDE.md/AGENTS.md ash-managed section whose content differs from the current template. Without --force a conflict produces a warning and no change."},
 			{Name: "no_registry", Type: "bool", Default: "false", Description: "Skip writing the installed-repos registry. Useful for ephemeral test repos."},
 		},
 	},
 	{
 		Verb:        "uninit",
-		Description: "Reverse `ash init`: remove the ash PreToolUse entry from .claude/settings.json, drop the .ash/ line from .gitignore, and remove the registry entry. The .ash/ledger.db is left in place.",
+		Description: "Reverse `ash init`: remove the ash PreToolUse entry from .claude/settings.json, drop the .ash/ line from .gitignore, strip the ash-managed section from CLAUDE.md (or AGENTS.md), and remove the registry entry. The .ash/ledger.db and any user content outside the markers are left in place.",
 		Args: []ArgSchema{
 			{Name: "path", Type: "string", Default: ".", Description: "Target repo root."},
 			{Name: "no_registry", Type: "bool", Default: "false", Description: "Skip the registry removal."},
