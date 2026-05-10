@@ -121,12 +121,28 @@ func main() {
 
 	switch format {
 	case "json":
+		jrsp := jsonResponse{
+			V:       rsp.V,
+			ID:      rsp.ID,
+			OK:      rsp.OK,
+			Err:     rsp.Err,
+			Metrics: rsp.Metrics,
+		}
+		if len(rsp.Data) > 0 {
+			var decoded any
+			if err := proto.UnmarshalData(rsp, &decoded); err == nil {
+				jrsp.Data = decoded
+			} else {
+				jrsp.Data = rsp.Data // fallback: base64-encoded bytes
+			}
+		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		if err := enc.Encode(rsp); err != nil {
+		if err := enc.Encode(jrsp); err != nil {
 			fmt.Fprintln(os.Stderr, "ash: json encode:", err)
 			os.Exit(1)
 		}
+
 	case "msgpack":
 		if _, err := os.Stdout.Write(respBuf); err != nil {
 			fmt.Fprintln(os.Stderr, "ash: write msgpack:", err)
@@ -465,9 +481,21 @@ func newID() uint64 {
 	return binary.BigEndian.Uint64(b[:])
 }
 
+// jsonResponse mirrors proto.Response but uses `any` for Data so the
+// msgpack payload is emitted as decoded JSON rather than base64 bytes.
+type jsonResponse struct {
+	V       int            `json:"v"`
+	ID      uint64         `json:"id"`
+	OK      bool           `json:"ok"`
+	Data    any            `json:"data,omitempty"`
+	Err     *proto.Error   `json:"err,omitempty"`
+	Metrics *proto.Metrics `json:"metrics,omitempty"`
+}
+
 // prettyHandlers is built once at process start; renderers are pure and
 // don't need rebuilding per call.
 var prettyHandlers = verbs.PrettyHandlers()
+
 
 func prettyResponse(verb string, req *proto.Request, rsp *proto.Response) string {
 	if p, ok := prettyHandlers[verb]; ok {
