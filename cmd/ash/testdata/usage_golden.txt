@@ -30,7 +30,7 @@ verbs (phase 2):
           [--regress_latency N] [--record_baseline true|false] [--export_md true|false]
   test    [--packages <pkgs>] [--run <run>] [--count N] [--race true|false] [--short true|false]
           [--timeout <dur>] [--verbose true|false]
-  help    [--verb <verb>]
+  help    [--verb <verb>] [--verbose true|false]
   hook    [--tool <tool>] [--command <command>] [--pattern <re>] [--path <p>] [--glob <pattern>]
           [--file <file>] [--old <text>] [--new <text>] [--content <text|->]
   init    [--path <p>] [--force true|false] [--no-registry true|false]
