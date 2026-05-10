@@ -34,6 +34,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
@@ -61,6 +62,15 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	var perr *proto.Error
 	if a.Packages, perr = argutil.OptionalNonEmptyString(in, "packages", defaultPackages); perr != nil {
 		return nil, perr
+	}
+	for _, pkg := range strings.Split(a.Packages, ",") {
+		pkg = strings.TrimSpace(pkg)
+		if !isFilesystemPackagePath(pkg) {
+			continue
+		}
+		if perr := jail.CheckPaths(map[string]string{"packages": pkg}); perr != nil {
+			return nil, perr
+		}
 	}
 	if a.Run, perr = argutil.OptionalString(in, "run", ""); perr != nil {
 		return nil, perr
@@ -479,6 +489,13 @@ func aggregate(events []testEvent, verbose bool) *Result {
 		return res.Packages[i].Path < res.Packages[j].Path
 	})
 	return res
+}
+
+// isFilesystemPackagePath reports whether p is a filesystem reference that
+// must be validated against the jail policy. Go import paths (e.g.
+// "github.com/foo/bar") have no path prefix and are left unchecked.
+func isFilesystemPackagePath(p string) bool {
+	return strings.HasPrefix(p, "/") || strings.HasPrefix(p, "./") || strings.HasPrefix(p, "../")
 }
 
 // normalizePackagePattern auto-prefixes bare directory patterns with "./".

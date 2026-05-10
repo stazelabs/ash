@@ -23,6 +23,7 @@ import (
 	"github.com/stazelabs/ash/internal/verbs/initverb"
 	"github.com/stazelabs/ash/internal/verbs/read"
 	"github.com/stazelabs/ash/internal/verbs/stat"
+	testverb "github.com/stazelabs/ash/internal/verbs/test"
 	"github.com/stazelabs/ash/internal/verbs/uninit"
 	"github.com/stazelabs/ash/internal/verbs/write"
 )
@@ -82,6 +83,10 @@ func TestJailEnforcement_AllVerbs(t *testing.T) {
 		}},
 		{"uninit", func() *protoErrorShim {
 			_, perr := uninit.ParseArgs(map[string]any{"path": outsidePath})
+			return shim(perr)
+		}},
+		{"test", func() *protoErrorShim {
+			_, perr := testverb.ParseArgs(map[string]any{"packages": outsidePath})
 			return shim(perr)
 		}},
 	}

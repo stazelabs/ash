@@ -1,10 +1,12 @@
 package test
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/proto"
 )
 
@@ -68,6 +70,57 @@ func TestParseArgs_NegativeTimeout(t *testing.T) {
 	_, perr := ParseArgs(map[string]any{"timeout": "-1s"})
 	if perr == nil || perr.Code != "args" {
 		t.Fatalf("expected args error, got %v", perr)
+	}
+}
+
+func TestParseArgs_JailCheck_AbsolutePathDenied(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	jail.SetPolicy(jail.FromConfig(true, root, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	_, perr := ParseArgs(map[string]any{"packages": filepath.Join(outside, "foo")})
+	if perr == nil || perr.Code != "path_denied" {
+		t.Fatalf("expected path_denied, got %v", perr)
+	}
+}
+
+func TestParseArgs_JailCheck_InsideRootAllowed(t *testing.T) {
+	root := t.TempDir()
+	jail.SetPolicy(jail.FromConfig(true, root, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	// Absolute path inside root — filesystem path that passes jail.
+	insidePath := filepath.Join(root, "internal", "foo") + "/..."
+	_, perr := ParseArgs(map[string]any{"packages": insidePath})
+	if perr != nil {
+		t.Fatalf("inside-root path should be allowed: %v", perr)
+	}
+}
+
+func TestParseArgs_JailCheck_ImportPathAllowed(t *testing.T) {
+	root := t.TempDir()
+	jail.SetPolicy(jail.FromConfig(true, root, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	// Go import path — no filesystem prefix, not checked against jail.
+	_, perr := ParseArgs(map[string]any{"packages": "github.com/foo/bar"})
+	if perr != nil {
+		t.Fatalf("Go import path should not be jail-checked: %v", perr)
+	}
+}
+
+func TestParseArgs_JailCheck_MixedListDenied(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	jail.SetPolicy(jail.FromConfig(true, root, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	// Import path + absolute outside path — the outside path should be denied.
+	packages := "github.com/foo/bar," + filepath.Join(outside, "foo")
+	_, perr := ParseArgs(map[string]any{"packages": packages})
+	if perr == nil || perr.Code != "path_denied" {
+		t.Fatalf("expected path_denied for mixed list with outside path, got %v", perr)
 	}
 }
 
