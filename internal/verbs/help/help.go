@@ -66,7 +66,7 @@ var registry = []VerbSchema{
 			{Name: "limit", Type: "int", Default: "256", Description: "Maximum number of results. Hard cap is 4096."},
 			{Name: "exclude", Type: "string", Default: "", Description: "Doublestar pattern; matching entries are skipped entirely. Matched against path relative to --path (same as --glob)."},
 			{Name: "include_hidden", Type: "bool", Default: "false", Description: "When false, directories starting with '.' are skipped. Leaf dotfiles remain findable."},
-			{Name: "respect_gitignore", Type: "bool", Default: "true", Description: "When true, .gitignore at the walk root (--path) is loaded and applied. Pass false for a raw walk."},
+			{Name: "respect_gitignore", Type: "bool", Default: "true", Description: "When true, .gitignore at the walk root (--path) is loaded and applied."},
 			{Name: "with_meta", Type: "bool", Default: "false", Description: "When true, each pretty-form row shows '<F|D|L> <size> <yyyy-mm-dd> <path>'. Default is path-only (with trailing '/' for dirs); use 'ash stat' for size/mtime."},
 		},
 	},
@@ -98,7 +98,7 @@ var registry = []VerbSchema{
 		Args: []ArgSchema{
 			{Name: "op", Type: "string", Required: true, Values: []string{"status", "log", "diff", "show"}, Description: "Subcommand to run."},
 			{Name: "path", Type: "string", Default: ".", Description: "Repository path (any path inside a git work tree). Note: returned file paths are always repo-root-relative regardless of how --path was passed. This departs from find/grep where paths mirror the --path form."},
-			{Name: "untracked", Type: "bool", Default: "true", Ops: []string{"status"}, Description: "[status] include untracked files. Pass false to suppress."},
+			{Name: "untracked", Type: "bool", Default: "true", Ops: []string{"status"}, Description: "[status] include untracked files."},
 			{Name: "ignored", Type: "bool", Default: "false", Ops: []string{"status"}, Description: "[status] include gitignored files."},
 			{Name: "limit", Type: "int", Default: "20", Ops: []string{"log"}, Description: "[log] maximum commits to return. Hard cap is 200."},
 			{Name: "staged", Type: "bool", Default: "false", Ops: []string{"diff"}, Description: "[diff] diff index vs HEAD (--cached). Default diffs worktree vs index."},
@@ -120,7 +120,7 @@ var registry = []VerbSchema{
 			{Name: "path", Type: "string", Required: true, Description: "File path to write. Absolute or relative to the daemon's project root."},
 			{Name: "content", Type: "string", Required: true, Description: "File content. UTF-8 text by default; base64-encoded bytes when encoding=base64. Pass '-' to read from stdin."},
 			{Name: "encoding", Type: "string", Default: "utf-8", Values: []string{"utf-8", "base64"}, Description: "Content encoding. Use base64 for binary files."},
-			{Name: "mkdir", Type: "bool", Default: "true", Description: "Create missing parent directories. Pass false to require the parent to already exist."},
+			{Name: "mkdir", Type: "bool", Default: "true", Description: "Create missing parent directories."},
 			{Name: "create_only", Type: "bool", Default: "false", Description: "Fail with 'exists' error if the file already exists. Useful as a safety guard against accidental overwrites."},
 		},
 	},
@@ -315,21 +315,17 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 func writeArg(b *strings.Builder, a ArgSchema) {
-	req := "optional"
+	sig := "--" + a.Name + ":" + a.Type
 	if a.Required {
-		req = "required"
+		sig += "!"
+	} else if a.Default != "" {
+		sig += "=" + a.Default
 	}
-	fmt.Fprintf(b, "  --%-20s %-8s %-8s", a.Name, a.Type, req)
-	if a.Default != "" {
-		fmt.Fprintf(b, " default=%-10s", a.Default)
-	} else {
-		fmt.Fprintf(b, " %-17s", "")
-	}
-	b.WriteString(a.Description)
+	desc := a.Description
 	if len(a.Values) > 0 {
-		fmt.Fprintf(b, " [%s]", strings.Join(a.Values, "|"))
+		desc += " [" + strings.Join(a.Values, "|") + "]"
 	}
-	b.WriteByte('\n')
+	fmt.Fprintf(b, "  %s — %s\n", sig, desc)
 }
 
 // verbDisplayOrder defines display order in usage output.
