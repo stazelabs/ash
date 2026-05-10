@@ -169,3 +169,26 @@ func scopeFromArgs(req *proto.Request) string {
 	}
 	return strings.Join(parts, ", ")
 }
+
+func CompactResponse(rsp *proto.Response) (any, error) {
+	if !rsp.OK {
+		return nil, nil
+	}
+	var r Result
+	if err := proto.UnmarshalData(rsp, &r); err != nil {
+		return nil, err
+	}
+	cd := proto.CompactData{
+		K: []string{"ts", "verb", "ok", "err", "ti", "to", "ex_us", "bi", "bo", "trunc", "walk", "io", "re", "recp", "disp"},
+		R: make([][]any, len(r.Rows)),
+	}
+	for i, row := range r.Rows {
+		cd.R[i] = []any{
+			row.Timestamp, row.Verb, row.OK, row.ErrCode,
+			row.TokensIn, row.TokensOut, row.LatencyExecUs,
+			row.BytesIn, row.BytesOut, row.Truncated,
+			row.WalkUs, row.IOUs, row.RegexUs, row.RegexCompileUs, row.LatencyDispatchUs,
+		}
+	}
+	return cd, nil
+}

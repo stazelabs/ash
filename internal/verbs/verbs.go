@@ -36,6 +36,11 @@ import (
 // verb so daemon and client share one map.
 type Pretty = func(req *proto.Request, rsp *proto.Response) string
 
+// Compact renders a compact (array-of-arrays) response for row-shaped verbs.
+// Returns nil, nil for ops that are not row-shaped (e.g. git status); the
+// caller falls back to json-decoded output in that case.
+type Compact = func(rsp *proto.Response) (any, error)
+
 // Runner is a verb's daemon-side execution. Run takes the loosely-typed
 // args from the wire, parses them, and executes; the tracer accumulates
 // sub-phase latency the verb chooses to instrument (nil-safe). Truncated
@@ -69,6 +74,21 @@ func PrettyHandlers() map[string]Pretty {
 		"init":    initverb.PrettyResponse,
 		"uninit":  uninit.PrettyResponse,
 		"stop":    stop.PrettyResponse,
+	}
+}
+
+// CompactHandlers returns the compact (array-of-arrays) renderer for the 7
+// row-shaped verbs. Verbs not in this map have no compact form; callers
+// fall back to json-decoded output for those verbs.
+func CompactHandlers() map[string]Compact {
+	return map[string]Compact{
+		"metrics": metrics.CompactResponse,
+		"report":  report.CompactResponse,
+		"find":    find.CompactResponse,
+		"grep":    grep.CompactResponse,
+		"stat":    stat.CompactResponse,
+		"git":     git.CompactResponse,
+		"test":    test.CompactResponse,
 	}
 }
 

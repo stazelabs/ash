@@ -846,3 +846,41 @@ func toFloat64(v any) (float64, bool) {
 	}
 	return 0, false
 }
+
+func CompactResponse(rsp *proto.Response) (any, error) {
+	if !rsp.OK {
+		return nil, nil
+	}
+	// Decode twice: once typed (for by_verb rows), once as map[string]any via
+	// msgpack round-trip so metadata fields use msgpack tag names (lowercase),
+	// not Go field names.
+	var r Result
+	if err := proto.UnmarshalData(rsp, &r); err != nil {
+		return nil, err
+	}
+	dec := msgpack.NewDecoder(bytes.NewReader([]byte(rsp.Data)))
+	dec.UseLooseInterfaceDecoding(true)
+	var raw map[string]any
+	if err := dec.Decode(&raw); err != nil {
+		return nil, err
+	}
+	cd := proto.CompactData{
+		K: []string{"verb", "n", "ok_n", "ok_pct", "p50", "p95", "p50t", "p95t", "trunc_n", "trunc_pct"},
+		R: make([][]any, len(r.ByVerb)),
+	}
+	for i, vs := range r.ByVerb {
+		cd.R[i] = []any{
+			vs.Verb, vs.N, vs.OKCount, vs.OKPct,
+			vs.P50ExecUs, vs.P95ExecUs,
+			vs.P50TokensOut, vs.P95TokensOut,
+			vs.TruncatedN, vs.TruncatedPct,
+		}
+	}
+	return map[string]any{
+		"scope":          raw["scope"],
+		"totals":         raw["totals"],
+		"by_verb":        cd,
+		"err_histogram":  raw["err_histogram"],
+		"trunc_hotspots": raw["trunc_hotspots"],
+	}, nil
+}

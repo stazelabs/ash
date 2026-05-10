@@ -643,3 +643,26 @@ func Truncated(d any) bool {
 	}
 	return false
 }
+
+func CompactResponse(rsp *proto.Response) (any, error) {
+	if !rsp.OK {
+		return nil, nil
+	}
+	var r Result
+	if err := proto.UnmarshalData(rsp, &r); err != nil {
+		return nil, err
+	}
+	cd := proto.CompactData{
+		K: []string{"path", "status", "elapsed", "pass", "fail", "skip", "build_out"},
+		R: make([][]any, len(r.Packages)),
+	}
+	for i, p := range r.Packages {
+		cd.R[i] = []any{p.Path, p.Status, p.Elapsed, p.Counts.Pass, p.Counts.Fail, p.Counts.Skip, p.BuildOutput}
+	}
+	return map[string]any{
+		"ok":       r.OK,
+		"total":    r.Total,
+		"elapsed":  r.Elapsed,
+		"packages": cd,
+	}, nil
+}

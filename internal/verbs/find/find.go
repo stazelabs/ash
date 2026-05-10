@@ -316,3 +316,21 @@ func scopeFromArgs(req *proto.Request) string {
 	}
 	return strings.Join(parts, ", ")
 }
+
+func CompactResponse(rsp *proto.Response) (any, error) {
+	if !rsp.OK {
+		return nil, nil
+	}
+	var r Result
+	if err := proto.UnmarshalData(rsp, &r); err != nil {
+		return nil, err
+	}
+	cd := proto.CompactData{
+		K: []string{"path", "type", "size", "mtime"},
+		R: make([][]any, len(r.Records)),
+	}
+	for i, rec := range r.Records {
+		cd.R[i] = []any{rec.Path, rec.Type, rec.Size, rec.Mtime}
+	}
+	return cd, nil
+}

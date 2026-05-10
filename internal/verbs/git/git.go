@@ -198,3 +198,67 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		return "ok\n<unknown git op: " + r.Op + ">"
 	}
 }
+
+// CompactResponse returns an array-of-arrays for row-shaped git ops (log, diff,
+// show). Status is not row-shaped so it falls back to the json-decoded object.
+func CompactResponse(rsp *proto.Response) (any, error) {
+	if !rsp.OK {
+		return nil, nil
+	}
+	var r Result
+	if err := proto.UnmarshalData(rsp, &r); err != nil {
+		return nil, err
+	}
+	switch r.Op {
+	case "log":
+		if r.Log == nil {
+			return nil, nil
+		}
+		cd := proto.CompactData{
+			K: []string{"sha", "short", "aname", "aemail", "atime", "cname", "cemail", "ctime", "subj", "body", "parents"},
+			R: make([][]any, len(r.Log.Commits)),
+		}
+		for i, c := range r.Log.Commits {
+			cd.R[i] = []any{
+				c.SHA, c.ShortSHA,
+				c.AuthorName, c.AuthorEmail, c.AuthorTime,
+				c.CommitterName, c.CommitterEmail, c.CommitterTime,
+				c.Subject, c.Body, c.Parents,
+			}
+		}
+		return map[string]any{"op": "log", "k": cd.K, "r": cd.R}, nil
+	case "diff":
+		if r.Diff == nil {
+			return nil, nil
+		}
+		return compactDiffResult("diff", r.Diff), nil
+	case "show":
+		if r.Show == nil {
+			return nil, nil
+		}
+		m := compactDiffResult("show", &r.Show.Diff).(map[string]any)
+		m["commit"] = r.Show.Commit
+		return m, nil
+	default:
+		// status and unknown ops: fall back to json-decoded object
+		return nil, nil
+	}
+}
+
+func compactDiffResult(op string, d *DiffResult) any {
+	cd := proto.CompactData{
+		K: []string{"path", "old", "status", "bin", "add", "del", "patch"},
+		R: make([][]any, len(d.Files)),
+	}
+	for i, f := range d.Files {
+		cd.R[i] = []any{f.Path, f.OldPath, f.Status, f.Binary, f.Additions, f.Deletions, f.Patch}
+	}
+	return map[string]any{
+		"op":               op,
+		"k":                cd.K,
+		"r":                cd.R,
+		"total_additions":  d.TotalAdditions,
+		"total_deletions":  d.TotalDeletions,
+		"stat_only":        d.StatOnly,
+	}
+}

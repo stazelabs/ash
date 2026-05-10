@@ -232,3 +232,21 @@ func writeEntry(b *strings.Builder, e Entry, withMeta bool) {
 		fmt.Fprintf(b, "%s %s %s\n", typeChar, sizeStr, e.Path)
 	}
 }
+
+func CompactResponse(rsp *proto.Response) (any, error) {
+	if !rsp.OK {
+		return nil, nil
+	}
+	var r Result
+	if err := proto.UnmarshalData(rsp, &r); err != nil {
+		return nil, err
+	}
+	cd := proto.CompactData{
+		K: []string{"path", "type", "size", "mtime", "mode", "link", "err"},
+		R: make([][]any, len(r.Entries)),
+	}
+	for i, e := range r.Entries {
+		cd.R[i] = []any{e.Path, e.Type, e.Size, e.Mtime, e.Mode, e.LinkTarget, e.Error}
+	}
+	return cd, nil
+}

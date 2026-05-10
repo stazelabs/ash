@@ -44,7 +44,10 @@ func main() {
 		return
 	}
 
-	format, remaining := extractFormat(os.Args[2:])
+	format, fmtSpecified, remaining := extractFormat(os.Args[2:])
+	if !fmtSpecified && rowVerbs[verb] {
+		format = "compact"
+	}
 	args, err := parseFlags(verb, remaining)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "ash:", err)
@@ -143,6 +146,41 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "compact":
+		jrsp := jsonResponse{
+			V:       rsp.V,
+			ID:      rsp.ID,
+			OK:      rsp.OK,
+			Err:     rsp.Err,
+			Metrics: rsp.Metrics,
+		}
+		if len(rsp.Data) > 0 {
+			if c, ok := compactHandlers[verb]; ok && rsp.OK {
+				if cd, err := c(rsp); err == nil && cd != nil {
+					jrsp.Data = cd
+				} else {
+					// op not row-shaped (e.g. git status): fall back to json
+					var decoded any
+					if err2 := proto.UnmarshalData(rsp, &decoded); err2 == nil {
+						jrsp.Data = decoded
+					}
+				}
+			} else {
+				var decoded any
+				if err := proto.UnmarshalData(rsp, &decoded); err == nil {
+					jrsp.Data = decoded
+				} else {
+					jrsp.Data = rsp.Data
+				}
+			}
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(jrsp); err != nil {
+			fmt.Fprintln(os.Stderr, "ash: compact encode:", err)
+			os.Exit(1)
+		}
+
 	case "msgpack":
 		if _, err := os.Stdout.Write(respBuf); err != nil {
 			fmt.Fprintln(os.Stderr, "ash: write msgpack:", err)
@@ -185,21 +223,37 @@ func printUsage() {
 	fmt.Fprint(os.Stderr, help.RenderUsage(0))
 }
 // extractFormat pulls --format out of argv before verb flag parsing so it
-// doesn't get forwarded to the daemon as an unknown arg.
-func extractFormat(argv []string) (format string, rest []string) {
+// doesn't get forwarded to the daemon as an unknown arg. specified is true
+// when the caller explicitly passed --format; false means it defaulted to
+// "pretty" and the caller may promote row-shaped verbs to "compact".
+func extractFormat(argv []string) (format string, specified bool, rest []string) {
 	format = "pretty"
 	for i := 0; i < len(argv); i++ {
 		a := argv[i]
 		if strings.HasPrefix(a, "--format=") {
 			format = a[len("--format="):]
+			specified = true
 		} else if a == "--format" && i+1 < len(argv) {
 			i++
 			format = argv[i]
+			specified = true
 		} else {
 			rest = append(rest, a)
 		}
 	}
-	return format, rest
+	return format, specified, rest
+}
+
+// rowVerbs is the set of verbs whose default format is "compact". They
+// return many rows and key-per-row overhead dominates token cost.
+var rowVerbs = map[string]bool{
+	"metrics": true,
+	"report":  true,
+	"find":    true,
+	"grep":    true,
+	"stat":    true,
+	"git":     true,
+	"test":    true,
 }
 
 // verbPositionals lists, in order, the arg keys that may be supplied as
@@ -496,6 +550,8 @@ type jsonResponse struct {
 // don't need rebuilding per call.
 var prettyHandlers = verbs.PrettyHandlers()
 
+// compactHandlers is built once at process start; maps verb → compact renderer.
+var compactHandlers = verbs.CompactHandlers()
 
 func prettyResponse(verb string, req *proto.Request, rsp *proto.Response) string {
 	if p, ok := prettyHandlers[verb]; ok {
