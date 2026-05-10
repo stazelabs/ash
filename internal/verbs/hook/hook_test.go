@@ -197,6 +197,18 @@ func TestDecide_bash(t *testing.T) {
 		{name: "heredoc inside cmd subst still allows (existing behavior preserved)",
 			command: "git commit -m \"$(cat <<'EOF'\nfoo; grep bar\nEOF\n)\"",
 			want: "allow"},
+		{name: "space before single-quoted delimiter allows (ASH-68)",
+			command: "tee /tmp/out << 'EOF'\ngrep pattern .\nEOF",
+			want: "allow"},
+		{name: "space before double-quoted delimiter allows (ASH-68)",
+			command: "ash write --path /tmp/x --content - << \"EOF\"\n| find | x |\nEOF",
+			want: "allow"},
+		{name: "space before unquoted delimiter allows (ASH-68)",
+			command: "ash write --path /tmp/x --content - << EOF\ngrep foo .\nEOF",
+			want: "allow"},
+		{name: "space before strip-tabs delimiter allows (ASH-68)",
+			command: "ash write --path /tmp/x --content - <<- 'EOF'\n\tgrep foo .\n\tEOF",
+			want: "allow"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -615,7 +615,8 @@ func segments(command string) []string {
 //   - ok: false if "<<" is not at start, or if the delimiter word is
 //     empty. Caller should fall back to literal handling in that case.
 //
-// Recognises <<W, <<-W (strip-tabs), <<'W', <<"W", and <<\W (escaped).
+// Recognises <<W, <<-W (strip-tabs), <<'W', <<"W", <<\W (escaped), and the
+// space-before-delimiter forms (<< 'W', << "W", << W — valid bash per POSIX).
 // Unterminated heredocs (no matching delimiter line before EOF) report
 // ok=true with bodyEnd=len(s) so the caller cleanly stops scanning.
 //
@@ -633,6 +634,9 @@ func scanHeredoc(s string, start int) (delimEnd, bodyEnd int, ok bool) {
 	stripTabs := false
 	if j < n && s[j] == '-' {
 		stripTabs = true
+		j++
+	}
+	for j < n && (s[j] == ' ' || s[j] == '\t') {
 		j++
 	}
 	quote := byte(0)
