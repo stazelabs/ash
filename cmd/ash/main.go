@@ -190,30 +190,36 @@ func main() {
 		out := prettyResponse(verb, req, rsp)
 		fmt.Println(out)
 		if rsp.Metrics != nil {
-			tokMethod := rsp.Metrics.TokensMethod
-			if tokMethod == "" {
-				tokMethod = "real:cl100k_base"
-			}
-			fmt.Fprintf(os.Stderr,
-				"\n[ash metrics: bytes_in=%d bytes_out=%d tokens_in=%d tokens_out=%d (%s) latency_us=%d/%d",
-				rsp.Metrics.BytesIn, rsp.Metrics.BytesOut,
-				rsp.Metrics.TokensIn, rsp.Metrics.TokensOut, tokMethod,
-				rsp.Metrics.LatencyParseUs, rsp.Metrics.LatencyExecUs,
+			m := rsp.Metrics
+			line := fmt.Sprintf("\n[ash bi=%d bo=%d ti=%d to=%d us=%d/%d",
+				m.BytesIn, m.BytesOut, m.TokensIn, m.TokensOut,
+				m.LatencyParseUs, m.LatencyExecUs,
 			)
-			if p := rsp.Metrics.Phases; p != nil {
-				fmt.Fprintf(os.Stderr, " phases=walk:%d/io:%d/regex:%d", p.WalkUs, p.IOUs, p.RegexUs)
+			if tok := m.TokensMethod; tok != "" && tok != "real:cl100k_base" {
+				line += fmt.Sprintf(" tok=%s", tok)
+			}
+			if p := m.Phases; p != nil {
+				if p.WalkUs > 0 {
+					line += fmt.Sprintf(" w=%d", p.WalkUs)
+				}
+				if p.IOUs > 0 {
+					line += fmt.Sprintf(" io=%d", p.IOUs)
+				}
+				if p.RegexUs > 0 {
+					line += fmt.Sprintf(" r=%d", p.RegexUs)
+				}
 				if p.RegexCompileUs > 0 {
-					fmt.Fprintf(os.Stderr, "/regex_compile:%d", p.RegexCompileUs)
+					line += fmt.Sprintf(" rc=%d", p.RegexCompileUs)
 				}
 			}
-			if rsp.Metrics.LatencyDispatchUs > 0 {
-				fmt.Fprintf(os.Stderr, " dispatch_us=%d", rsp.Metrics.LatencyDispatchUs)
+			if m.LatencyDispatchUs > 0 {
+				line += fmt.Sprintf(" d=%d", m.LatencyDispatchUs)
 			}
-			fmt.Fprintln(os.Stderr, "]")
-			if rsp.Metrics.LedgerError != "" {
+			fmt.Fprintln(os.Stderr, line+"]")
+			if m.LedgerError != "" {
 				fmt.Fprintf(os.Stderr,
 					"[ash WARNING: ledger record FAILED: %s -- this call's metrics did not persist]\n",
-					rsp.Metrics.LedgerError,
+					m.LedgerError,
 				)
 			}
 		}
