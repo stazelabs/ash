@@ -1,0 +1,162 @@
+{
+  "schema": "ash-bench-latency-snapshot-v1",
+  "ts": "2026-05-10T14:57:01Z",
+  "hostname": "Mac.attlocal.net",
+  "cpu_count": 11,
+  "repeat_n": 1,
+  "warmup_n": 0,
+  "cases": [
+    {
+      "name": "diff_stat_only",
+      "verb": "diff",
+      "ash_us_p50": 137,
+      "ash_us_min": 137,
+      "bash_us_p50": 2653,
+      "bash_us_min": 2653
+    },
+    {
+      "name": "diff_two_files",
+      "verb": "diff",
+      "ash_us_p50": 256,
+      "ash_us_min": 256,
+      "bash_us_p50": 3271,
+      "bash_us_min": 3271
+    },
+    {
+      "name": "edit_string_replace",
+      "verb": "edit",
+      "ash_us_p50": 251,
+      "ash_us_min": 251,
+      "bash_us_p50": 2427,
+      "bash_us_min": 2427
+    },
+    {
+      "name": "find_go_files",
+      "verb": "find",
+      "ash_us_p50": 2850,
+      "ash_us_min": 2850,
+      "bash_us_p50": 31736,
+      "bash_us_min": 31736
+    },
+    {
+      "name": "find_md_in_docs",
+      "verb": "find",
+      "ash_us_p50": 204,
+      "ash_us_min": 204,
+      "bash_us_p50": 2007,
+      "bash_us_min": 2007
+    },
+    {
+      "name": "find_shallow",
+      "verb": "find",
+      "ash_us_p50": 587,
+      "ash_us_min": 587,
+      "bash_us_p50": 2773,
+      "bash_us_min": 2773
+    },
+    {
+      "name": "git_log_20",
+      "verb": "git",
+      "ash_us_p50": 1252,
+      "ash_us_min": 1252,
+      "bash_us_p50": 29687,
+      "bash_us_min": 29687
+    },
+    {
+      "name": "git_status",
+      "verb": "git",
+      "ash_us_p50": 6187,
+      "ash_us_min": 6187,
+      "bash_us_p50": 36429,
+      "bash_us_min": 36429
+    },
+    {
+      "name": "grep_files_only",
+      "verb": "grep",
+      "ash_us_p50": 3658,
+      "ash_us_min": 3658,
+      "bash_us_p50": 94823,
+      "bash_us_min": 94823
+    },
+    {
+      "name": "grep_heavy_func_internal",
+      "verb": "grep",
+      "ash_us_p50": 3124,
+      "ash_us_min": 3124,
+      "bash_us_p50": 9394,
+      "bash_us_min": 9394
+    },
+    {
+      "name": "grep_parseargs_internal",
+      "verb": "grep",
+      "ash_us_p50": 3745,
+      "ash_us_min": 3745,
+      "bash_us_p50": 7329,
+      "bash_us_min": 7329
+    },
+    {
+      "name": "grep_rare_pattern",
+      "verb": "grep",
+      "ash_us_p50": 17025,
+      "ash_us_min": 17025,
+      "bash_us_p50": 811054,
+      "bash_us_min": 811054
+    },
+    {
+      "name": "grep_todo_repo",
+      "verb": "grep",
+      "ash_us_p50": 22151,
+      "ash_us_min": 22151,
+      "bash_us_p50": 943634,
+      "bash_us_min": 943634
+    },
+    {
+      "name": "read_range",
+      "verb": "read",
+      "ash_us_p50": 27,
+      "ash_us_min": 27,
+      "bash_us_p50": 1948,
+      "bash_us_min": 1948
+    },
+    {
+      "name": "read_small",
+      "verb": "read",
+      "ash_us_p50": 73,
+      "ash_us_min": 73,
+      "bash_us_p50": 2466,
+      "bash_us_min": 2466
+    },
+    {
+      "name": "read_tiny_range",
+      "verb": "read",
+      "ash_us_p50": 30,
+      "ash_us_min": 30,
+      "bash_us_p50": 1542,
+      "bash_us_min": 1542
+    },
+    {
+      "name": "stat_bulk",
+      "verb": "stat",
+      "ash_us_p50": 17,
+      "ash_us_min": 17,
+      "bash_us_p50": 5970,
+      "bash_us_min": 5970
+    },
+    {
+      "name": "stat_single",
+      "verb": "stat",
+      "ash_us_p50": 13,
+      "ash_us_min": 13,
+      "bash_us_p50": 5133,
+      "bash_us_min": 5133
+    },
+    {
+      "name": "write_small",
+      "verb": "write",
+      "ash_us_p50": 177,
+      "ash_us_min": 177,
+      "bash_us_p50": 5677,
+      "bash_us_min": 5677
+    }
+  ]
+}

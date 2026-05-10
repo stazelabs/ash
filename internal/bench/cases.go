@@ -10,6 +10,11 @@
 // reads where the JSON envelope can exceed the raw bash output).
 package bench
 
+import (
+	"os"
+	"path/filepath"
+)
+
 // Case is one bench scenario. Verb + AshArgs are dispatched in-process
 // against the live runner registry; BashArgv is constructed by translate
 // and run in a sandboxed subprocess.
@@ -18,6 +23,11 @@ type Case struct {
 	Verb    string         // ash verb to dispatch
 	AshArgs map[string]any // wire-shape args for the verb
 	Why     string         // hypothesis this case tests; surfaces in pretty output
+	// Setup is optional. When non-nil, it runs before each iteration
+	// (warmup or measured, both sides) to reset whatever state the case
+	// mutates. Used by write/edit cases to guarantee a known starting
+	// content. Errors are logged but not fatal.
+	Setup func() error
 }
 
 // Cases is the canonical case list. Add cases sparingly — each one is
@@ -123,7 +133,40 @@ var Cases = []Case{
 		AshArgs: map[string]any{"paths": "README.md,CLAUDE.md,go.mod"},
 		Why:     "bulk paths in one call; the kind of pre-read sizing ash stat is for",
 	},
+
+	// --- write ---
+	{
+		Name:    "write_small",
+		Verb:    "write",
+		AshArgs: map[string]any{"path": BenchTmpDir + "/write_small.txt", "content": "hello\nworld\n"},
+		Setup:   ensureBenchTmpDir,
+		Why:     "small file write; bash equivalent is sh -c 'cat > F << EOF…' — atomic-write overhead vs naive redirect",
+	},
+
+	// --- edit ---
+	{
+		Name:    "edit_string_replace",
+		Verb:    "edit",
+		AshArgs: map[string]any{"path": BenchTmpDir + "/edit_target.txt", "old_string": "FOO", "new_string": "BAR"},
+		Setup:   func() error { return writeFixture("edit_target.txt", "FOO bar baz\n") },
+		Why:     "string-replacement mode; bash equivalent is sed -i — exercises ambiguity-detection vs sed silent-replace",
+	},
+
+	// --- diff ---
+	{
+		Name:    "diff_two_files",
+		Verb:    "diff",
+		AshArgs: map[string]any{"path": "README.md", "other": "CLAUDE.md"},
+		Why:     "two checked-in files; bash equivalent is `diff README.md CLAUDE.md`",
+	},
+	{
+		Name:    "diff_stat_only",
+		Verb:    "diff",
+		AshArgs: map[string]any{"path": "README.md", "other": "CLAUDE.md", "stat": "true"},
+		Why:     "stat-only diff; ash should be a clear win when the caller only wants counts",
+	},
 }
+
 
 // FindCase returns the case with the given name, or nil if not found.
 func FindCase(name string) *Case {
@@ -134,3 +177,49 @@ func FindCase(name string) *Case {
 	}
 	return nil
 }
+
+// MeasuredVerbs are the bench-meaningful verbs: each must have at least
+// one entry in Cases. The coverage test in
+// internal/verbs/bench/coverage_test.go enforces this. Update both this
+// list and Cases when a new bench-meaningful verb ships.
+var MeasuredVerbs = []string{
+	"read", "write", "edit", "diff", "find", "grep", "git", "stat",
+}
+
+// ExemptVerbs are verbs the harness deliberately does not measure.
+// Each entry has a one-line justification that survives in code review.
+var ExemptVerbs = map[string]string{
+	"metrics": "reads ledger; size depends on session, no honest bash equivalent",
+	"report":  "reads ledger; size depends on session",
+	"help":    "static schema render; trivially small",
+	"init":    "one-shot setup; mutates files",
+	"uninit":  "one-shot teardown; mutates files",
+	"stop":    "kills daemon",
+	"hook":    "the redirector under test; circular",
+	"bench":   "recursive",
+	"test":    "no honest bash equivalent at the verb level",
+}
+
+// BenchTmpDir is the working directory cases use for write/edit
+// fixtures. Lives under .ash/ which is gitignored. Created by
+// ensureBenchTmpDir before each iteration; deleted by
+// CleanupBenchTmpDir after a bench run.
+const BenchTmpDir = ".ash/bench-tmp"
+
+func ensureBenchTmpDir() error {
+	return os.MkdirAll(BenchTmpDir, 0o755)
+}
+
+func writeFixture(rel, content string) error {
+	full := filepath.Join(BenchTmpDir, rel)
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(full, []byte(content), 0o644)
+}
+
+// CleanupBenchTmpDir removes BenchTmpDir and its contents. Best-effort.
+func CleanupBenchTmpDir() error {
+	return os.RemoveAll(BenchTmpDir)
+}
+

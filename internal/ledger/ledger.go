@@ -57,6 +57,47 @@ CREATE TABLE IF NOT EXISTS calls (
 CREATE INDEX IF NOT EXISTS idx_calls_session ON calls(session_id);
 CREATE INDEX IF NOT EXISTS idx_calls_verb ON calls(verb);
 CREATE INDEX IF NOT EXISTS idx_calls_ts ON calls(ts);
+
+CREATE TABLE IF NOT EXISTS bench_runs (
+	id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+	run_uuid            TEXT NOT NULL UNIQUE,
+	ts                  INTEGER NOT NULL,
+	ash_version         TEXT NOT NULL,
+	ash_commit_sha      TEXT,
+	case_set_version    TEXT NOT NULL,
+	repo_sha            TEXT,
+	repo_dirty          INTEGER NOT NULL DEFAULT 0,
+	hostname            TEXT,
+	cpu_count           INTEGER NOT NULL DEFAULT 0,
+	daemon_uptime_us    INTEGER NOT NULL DEFAULT 0,
+	repeat_n            INTEGER NOT NULL DEFAULT 1,
+	warmup_n            INTEGER NOT NULL DEFAULT 0,
+	notes               TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_bench_runs_ts ON bench_runs(ts);
+
+CREATE TABLE IF NOT EXISTS bench_case_results (
+	id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+	run_id                   INTEGER NOT NULL REFERENCES bench_runs(id) ON DELETE CASCADE,
+	case_name                TEXT NOT NULL,
+	verb                     TEXT NOT NULL,
+	ash_tokens               INTEGER NOT NULL,
+	bash_tokens              INTEGER NOT NULL,
+	ash_bytes                INTEGER NOT NULL,
+	bash_bytes               INTEGER NOT NULL,
+	ash_latency_us_p50       INTEGER NOT NULL,
+	ash_latency_us_min       INTEGER NOT NULL,
+	bash_latency_us_p50      INTEGER NOT NULL,
+	bash_latency_us_min      INTEGER NOT NULL,
+	ash_ok                   INTEGER NOT NULL,
+	ash_err                  TEXT,
+	bash_exit                INTEGER NOT NULL DEFAULT 0,
+	bash_run_err             TEXT,
+	ash_truncated            INTEGER NOT NULL DEFAULT 0,
+	bash_truncated           INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_bench_case_results_run  ON bench_case_results(run_id);
+CREATE INDEX IF NOT EXISTS idx_bench_case_results_case ON bench_case_results(case_name);
 `
 
 type Ledger struct {

@@ -1,4 +1,4 @@
-.PHONY: all clean restart install uninstall
+.PHONY: all clean restart install uninstall bench bench-baseline
 
 PREFIX ?= $(HOME)/.local/bin
 
@@ -28,3 +28,20 @@ uninstall:
 
 clean:
 	rm -f bin/ash bin/ashd
+
+# bench: run the canonical case list with repeat=5/warmup=2 and dump the
+# raw JSON to bench/latest.json. The file is gitignored — it is a
+# transient artifact, not the baseline contract. Use this when you want
+# numbers without touching the checked-in baseline.
+bench: bin/ash
+	@mkdir -p bench
+	./bin/ash bench --repeat 5 --warmup 2 --format json > bench/latest.json
+	@echo "wrote bench/latest.json"
+
+# bench-baseline: regenerate the canonical bench/baseline.json,
+# bench/baseline.md, and bench/latency-snapshot.json. These ARE checked
+# in — review the diff before committing. The fresh run is also
+# persisted to .ash/ledger.db.
+bench-baseline: bin/ash
+	./bin/ash bench --repeat 5 --warmup 2 --record_baseline true
+	@echo "review the diff: git diff bench/"

@@ -32,7 +32,7 @@ func TestIntegration_AllVerbs(t *testing.T) {
 	}
 	defer led.Close()
 
-	runners := verbs.Runners(led, nil)
+	runners := verbs.Runners(led, nil, time.Time{}, "")
 	pretty := verbs.PrettyHandlers()
 
 	sockPath := filepath.Join(tmp, "ash-test.sock")

@@ -13,6 +13,11 @@ dist/
 coverage.out
 coverage.html
 
+# Bench transient output. baseline.json / baseline.md / latency-snapshot.json
+# under bench/ ARE checked in (the regression contract); latest.json is the
+# transient artifact from `make bench`.
+/bench/latest.json
+
 # Vendored deps
 vendor/
 

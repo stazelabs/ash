@@ -29,7 +29,7 @@ func TestHandle_ReadDeadlineExpires(t *testing.T) {
 		t.Fatalf("ledger.Open: %v", err)
 	}
 	defer led.Close()
-	runners := verbs.Runners(led, nil)
+	runners := verbs.Runners(led, nil, time.Time{}, "")
 	pretty := verbs.PrettyHandlers()
 
 	srv, cli := net.Pipe()

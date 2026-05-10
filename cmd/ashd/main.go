@@ -26,6 +26,7 @@ import (
 )
 
 func main() {
+	daemonStart := time.Now()
 	var rootFlag, sockFlag, logFlag string
 	flag.StringVar(&rootFlag, "root", "", "project root (required)")
 	flag.StringVar(&sockFlag, "socket", "", "unix socket path (required)")
@@ -79,7 +80,7 @@ func main() {
 		log.Printf("ashd: ledger cleanup: deleted %d calls, %d sessions", cr.DeletedCalls, cr.DeletedSessions)
 	}
 
-	runners := verbs.Runners(led, cfg)
+	runners := verbs.Runners(led, cfg, daemonStart, rootFlag)
 	pretty := verbs.PrettyHandlers()
 
 	_ = os.Remove(sockFlag)

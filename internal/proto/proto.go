@@ -18,6 +18,10 @@ import (
 const (
 	ProtocolVersion = 1
 	MaxFrameSize    = 64 << 20 // 64 MiB hard cap on a single message
+
+	// AshVersion is bumped manually per ship. Persisted into bench_runs
+	// so historical bench rows can be attributed to a known surface.
+	AshVersion = "0.1.0"
 )
 
 type Request struct {

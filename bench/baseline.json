@@ -1,0 +1,131 @@
+{
+  "schema": "ash-bench-baseline-v1",
+  "ts": "2026-05-10T14:57:01Z",
+  "ash_version": "0.1.0",
+  "ash_commit_sha": "924dcba269c68ff2bc40064ad5fb6df66a60e853",
+  "case_set_version": "cs-c3a63e2b5fce05fa",
+  "repo_sha": "924dcba269c68ff2bc40064ad5fb6df66a60e853",
+  "repo_dirty": true,
+  "cases": [
+    {
+      "name": "diff_stat_only",
+      "verb": "diff",
+      "ash_tokens": 17,
+      "bash_tokens": 10330
+    },
+    {
+      "name": "diff_two_files",
+      "verb": "diff",
+      "ash_tokens": 9907,
+      "bash_tokens": 10330
+    },
+    {
+      "name": "edit_string_replace",
+      "verb": "edit",
+      "ash_tokens": 22,
+      "bash_tokens": 0
+    },
+    {
+      "name": "find_go_files",
+      "verb": "find",
+      "ash_tokens": 795,
+      "bash_tokens": 874
+    },
+    {
+      "name": "find_md_in_docs",
+      "verb": "find",
+      "ash_tokens": 773,
+      "bash_tokens": 754
+    },
+    {
+      "name": "find_shallow",
+      "verb": "find",
+      "ash_tokens": 46,
+      "bash_tokens": 62
+    },
+    {
+      "name": "git_log_20",
+      "verb": "git",
+      "ash_tokens": 766,
+      "bash_tokens": 6425
+    },
+    {
+      "name": "git_status",
+      "verb": "git",
+      "ash_tokens": 226,
+      "bash_tokens": 312
+    },
+    {
+      "name": "grep_files_only",
+      "verb": "grep",
+      "ash_tokens": 677,
+      "bash_tokens": 778
+    },
+    {
+      "name": "grep_heavy_func_internal",
+      "verb": "grep",
+      "ash_tokens": 5126,
+      "bash_tokens": 24866
+    },
+    {
+      "name": "grep_parseargs_internal",
+      "verb": "grep",
+      "ash_tokens": 5175,
+      "bash_tokens": 6073
+    },
+    {
+      "name": "grep_rare_pattern",
+      "verb": "grep",
+      "ash_tokens": 82,
+      "bash_tokens": 263
+    },
+    {
+      "name": "grep_todo_repo",
+      "verb": "grep",
+      "ash_tokens": 1183,
+      "bash_tokens": 1303
+    },
+    {
+      "name": "read_range",
+      "verb": "read",
+      "ash_tokens": 745,
+      "bash_tokens": 725
+    },
+    {
+      "name": "read_small",
+      "verb": "read",
+      "ash_tokens": 5549,
+      "bash_tokens": 5535
+    },
+    {
+      "name": "read_tiny_range",
+      "verb": "read",
+      "ash_tokens": 37,
+      "bash_tokens": 17
+    },
+    {
+      "name": "stat_bulk",
+      "verb": "stat",
+      "ash_tokens": 33,
+      "bash_tokens": 276
+    },
+    {
+      "name": "stat_single",
+      "verb": "stat",
+      "ash_tokens": 17,
+      "bash_tokens": 90
+    },
+    {
+      "name": "write_small",
+      "verb": "write",
+      "ash_tokens": 20,
+      "bash_tokens": 0
+    }
+  ],
+  "summary": {
+    "n_cases": 19,
+    "ash_tokens_total": 31196,
+    "bash_tokens_total": 69013,
+    "delta_tok_pct": -54.79692231898338
+  }
+}

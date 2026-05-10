@@ -27,9 +27,68 @@ func BashFor(c Case) ([]string, error) {
 		return bashGit(c.AshArgs)
 	case "stat":
 		return bashStat(c.AshArgs)
+	case "write":
+		return bashWrite(c.AshArgs)
+	case "edit":
+		return bashEdit(c.AshArgs)
+	case "diff":
+		return bashDiff(c.AshArgs)
 	default:
 		return nil, fmt.Errorf("bench: no bash translation for verb %q", c.Verb)
 	}
+}
+
+// bashWrite returns the sh -c form an agent would write: a heredoc
+// piped to redirected stdout. The bash side writes to a sibling path
+// so ash and bash don't race on the same file across iterations.
+func bashWrite(a map[string]any) ([]string, error) {
+	path, ok := a["path"].(string)
+	if !ok || path == "" {
+		return nil, fmt.Errorf("bench: write case missing path")
+	}
+	content, _ := a["content"].(string)
+	bashPath := path + ".bash"
+	script := fmt.Sprintf("cat > %s <<'BENCH_EOF'\n%sBENCH_EOF\n", bashPath, content)
+	if !strings.HasSuffix(content, "\n") {
+		script = fmt.Sprintf("cat > %s <<'BENCH_EOF'\n%s\nBENCH_EOF\n", bashPath, content)
+	}
+	return []string{"sh", "-c", script}, nil
+}
+
+// bashEdit maps to sed -i. macOS BSD sed needs a backup-suffix arg, so
+// we use sed -i.bak; agents on linux + macos both encounter this. The
+// .bak side-effect file is created in the same directory and is part
+// of the bench/.ash/bench-tmp/ tree (cleaned up after the run).
+func bashEdit(a map[string]any) ([]string, error) {
+	path, ok := a["path"].(string)
+	if !ok || path == "" {
+		return nil, fmt.Errorf("bench: edit case missing path")
+	}
+	old, _ := a["old_string"].(string)
+	new, _ := a["new_string"].(string)
+	if old == "" {
+		return nil, fmt.Errorf("bench: edit case missing old_string (only string-replace mode supported)")
+	}
+	// Use | as the sed delimiter to avoid escape collisions with /
+	// in path-shaped strings; old/new must not contain |.
+	expr := fmt.Sprintf("s|%s|%s|g", old, new)
+	return []string{"sed", "-i.bak", expr, path}, nil
+}
+
+// bashDiff is `diff A B`. The --stat ash variant has no clean bash
+// equivalent (diff -q gives \"differ\"/\"identical\", not counts), so
+// we keep the same unified diff form — ash's win there is structural,
+// and a misleading bash form would muddy the comparison.
+func bashDiff(a map[string]any) ([]string, error) {
+	path, ok := a["path"].(string)
+	if !ok || path == "" {
+		return nil, fmt.Errorf("bench: diff case missing path")
+	}
+	other, _ := a["other"].(string)
+	if other == "" {
+		return nil, fmt.Errorf("bench: diff case missing other (no honest bash translation for content-string diff)")
+	}
+	return []string{"diff", path, other}, nil
 }
 
 func bashFind(a map[string]any) ([]string, error) {

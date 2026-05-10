@@ -8,6 +8,8 @@
 package verbs
 
 import (
+	"time"
+
 	"github.com/stazelabs/ash/internal/config"
 	"github.com/stazelabs/ash/internal/ledger"
 	"github.com/stazelabs/ash/internal/proto"
@@ -79,7 +81,7 @@ func PrettyHandlers() map[string]Pretty {
 // response. The closure binds the maps by reference; by the time bench
 // fires the maps are fully populated, so self-dispatch (`ash bench` →
 // `ash bench`) works too — though it's a degenerate case.
-func Runners(led *ledger.Ledger, cfg *config.Config) map[string]Runner {
+func Runners(led *ledger.Ledger, cfg *config.Config, daemonStart time.Time, projectRoot string) map[string]Runner {
 	if cfg == nil {
 		cfg = config.Defaults()
 	}
@@ -127,6 +129,9 @@ func Runners(led *ledger.Ledger, cfg *config.Config) map[string]Runner {
 					}
 					return proto.PrettyResponseHeader(rsp)
 				},
+				Ledger:      led,
+				DaemonStart: daemonStart,
+				ProjectRoot: projectRoot,
 			}
 			return bench.RunWithDeps(deps, a)
 		},

@@ -31,7 +31,7 @@ func TestHandle_LedgerErrorOnWire(t *testing.T) {
 		t.Fatalf("ledger.Close: %v", err)
 	}
 
-	runners := verbs.Runners(led, nil)
+	runners := verbs.Runners(led, nil, time.Time{}, "")
 	pretty := verbs.PrettyHandlers()
 
 	srv, cli := net.Pipe()
@@ -107,7 +107,7 @@ func TestHandle_NoLedgerErrorOnHealthyDB(t *testing.T) {
 	}
 	defer led.Close()
 
-	runners := verbs.Runners(led, nil)
+	runners := verbs.Runners(led, nil, time.Time{}, "")
 	pretty := verbs.PrettyHandlers()
 
 	srv, cli := net.Pipe()
