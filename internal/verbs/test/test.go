@@ -11,6 +11,9 @@
 //	                                  go test -timeout (with a 1s grace deducted) so go itself
 //	                                  aborts cleanly before the outer ctx fires.
 //	verbose    bool      (optional) - render hint: include passing tests per package
+//	bench      string    (optional) - go test -bench pattern; implies -run=^$ when --run is unset
+//	benchmem   bool      (optional) - go test -benchmem; default false
+//	benchtime  string    (optional) - go test -benchtime duration (e.g. "1s", "100x")
 //
 // Result.OK mirrors `git diff` semantics: Metrics.OK=true means the verb ran;
 // Result.OK=false means tests failed. A "tests failed" run is not a verb error.
@@ -48,13 +51,16 @@ const (
 )
 
 type Args struct {
-	Packages string
-	Run      string
-	Count    int
-	Race     bool
-	Short    bool
-	Timeout  time.Duration
-	Verbose  bool
+	Packages  string
+	Run       string
+	Count     int
+	Race      bool
+	Short     bool
+	Timeout   time.Duration
+	Verbose   bool
+	Bench     string
+	BenchMem  bool
+	BenchTime string
 }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
@@ -102,6 +108,15 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Verbose, perr = argutil.OptionalBool(in, "verbose", false); perr != nil {
 		return nil, perr
 	}
+	if a.Bench, perr = argutil.OptionalString(in, "bench", ""); perr != nil {
+		return nil, perr
+	}
+	if a.BenchMem, perr = argutil.OptionalBool(in, "benchmem", false); perr != nil {
+		return nil, perr
+	}
+	if a.BenchTime, perr = argutil.OptionalString(in, "benchtime", ""); perr != nil {
+		return nil, perr
+	}
 	return a, nil
 }
 
@@ -124,12 +139,13 @@ type Result struct {
 //   - "no_tests":     `[no test files]` — counts as pass for OK aggregation
 //   - "timeout":      go test wall hit the user's --timeout
 type Package struct {
-	Path        string  `msgpack:"path"`
-	Status      string  `msgpack:"status"`
-	Elapsed     float64 `msgpack:"elapsed,omitempty"`
-	Counts      Counts  `msgpack:"counts"`
-	Tests       []Test  `msgpack:"tests,omitempty"`
-	BuildOutput string  `msgpack:"build_output,omitempty"`
+	Path        string   `msgpack:"path"`
+	Status      string   `msgpack:"status"`
+	Elapsed     float64  `msgpack:"elapsed,omitempty"`
+	Counts      Counts   `msgpack:"counts"`
+	Tests       []Test   `msgpack:"tests,omitempty"`
+	BuildOutput string   `msgpack:"build_output,omitempty"`
+	BenchOutput []string `msgpack:"bench_output,omitempty"`
 }
 
 type Test struct {
@@ -190,7 +206,21 @@ func (goDriver) run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	if a.Short {
 		args = append(args, "-short")
 	}
-	if a.Run != "" {
+	if a.Bench != "" {
+		args = append(args, "-bench="+a.Bench)
+		// Imply -run=^$ to skip non-bench tests unless the caller overrides.
+		run := a.Run
+		if run == "" {
+			run = "^$"
+		}
+		args = append(args, "-run", run)
+		if a.BenchMem {
+			args = append(args, "-benchmem")
+		}
+		if a.BenchTime != "" {
+			args = append(args, "-benchtime="+a.BenchTime)
+		}
+	} else if a.Run != "" {
 		args = append(args, "-run", a.Run)
 	}
 	for _, p := range strings.Split(a.Packages, ",") {
@@ -324,6 +354,20 @@ func extractFileLine(output string) (string, int) {
 	return m[1], line
 }
 
+// extractBenchLines returns lines from output that look like benchmark result
+// rows: start with "Benchmark" and contain tab-separated numeric metrics.
+// Preamble lines (bare benchmark names without metrics) are excluded.
+func extractBenchLines(output string) []string {
+	var lines []string
+	for _, line := range strings.Split(output, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "Benchmark") && strings.ContainsRune(trimmed, '\t') {
+			lines = append(lines, trimmed)
+		}
+	}
+	return lines
+}
+
 // aggregate folds the event stream into a Result. Per Go test docs:
 //   - "run" starts a test (or re-enters a paused one)
 //   - "output" carries one line of output, attributed to the package and
@@ -444,6 +488,16 @@ func aggregate(events []testEvent, verbose bool) *Result {
 			out := p.outBuf.String()
 			if strings.Contains(out, "[no test files]") {
 				pkg.Status = "no_tests"
+			}
+		}
+		// Capture benchmark result lines from package and test output.
+		// Benchmark results come through as test-attributed output events
+		// (each b.Run subtest gets its own "Test" field in the JSON stream),
+		// so we scan both the package-level buffer and each test's buffer.
+		pkg.BenchOutput = extractBenchLines(p.outBuf.String())
+		for _, tname := range p.order {
+			if lines := extractBenchLines(p.tests[tname].outBuf.String()); len(lines) > 0 {
+				pkg.BenchOutput = append(pkg.BenchOutput, lines...)
 			}
 		}
 		// Roll up per-test results.
@@ -616,10 +670,22 @@ func prettyResult(r *Result) string {
 					}
 				}
 			}
+			for _, line := range p.BenchOutput {
+				b.WriteString("  ")
+				b.WriteString(line)
+				b.WriteByte('\n')
+			}
 		case "timeout":
 			fmt.Fprintf(&b, "TIMEOUT  %s\n", p.Path)
 		default:
-			if verbose {
+			if len(p.BenchOutput) > 0 {
+				fmt.Fprintf(&b, "BENCH  %s  (%.2fs)\n", p.Path, p.Elapsed)
+				for _, line := range p.BenchOutput {
+					b.WriteString("  ")
+					b.WriteString(line)
+					b.WriteByte('\n')
+				}
+			} else if verbose {
 				fmt.Fprintf(&b, "%s  %s  (%d / %d / %d, %.2fs)\n",
 					strings.ToUpper(p.Status), p.Path, p.Counts.Pass, p.Counts.Fail, p.Counts.Skip, p.Elapsed)
 				for _, t := range p.Tests {

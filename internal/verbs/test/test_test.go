@@ -389,3 +389,78 @@ func TestRun_NilTracerSafe(t *testing.T) {
 	}
 	_ = (*proto.Tracer)(nil)
 }
+
+func TestParseArgs_BenchFlags(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{
+		"bench":     "BenchmarkFoo",
+		"benchmem":  "true",
+		"benchtime": "100x",
+	})
+	if perr != nil {
+		t.Fatalf("unexpected: %v", perr)
+	}
+	if a.Bench != "BenchmarkFoo" {
+		t.Errorf("bench: got %q", a.Bench)
+	}
+	if !a.BenchMem {
+		t.Errorf("benchmem: expected true")
+	}
+	if a.BenchTime != "100x" {
+		t.Errorf("benchtime: got %q", a.BenchTime)
+	}
+}
+
+func TestParseArgs_BenchDefaults(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{})
+	if perr != nil {
+		t.Fatalf("unexpected: %v", perr)
+	}
+	if a.Bench != "" || a.BenchMem || a.BenchTime != "" {
+		t.Errorf("bench defaults wrong: bench=%q benchmem=%v benchtime=%q", a.Bench, a.BenchMem, a.BenchTime)
+	}
+}
+
+func TestRun_BenchIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("integration test — shells out to go test -bench")
+	}
+	a, perr := ParseArgs(map[string]any{
+		"packages":  "github.com/stazelabs/ash/cmd/ash",
+		"bench":     "BenchmarkHookDecide",
+		"benchtime": "1x",
+	})
+	if perr != nil {
+		t.Fatalf("ParseArgs: %v", perr)
+	}
+	res, werr := Run(a, nil)
+	if werr != nil {
+		t.Fatalf("Run: %v", werr)
+	}
+	var found bool
+	for _, pkg := range res.Packages {
+		for _, line := range pkg.BenchOutput {
+			if strings.Contains(line, "BenchmarkHookDecide") {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Errorf("BenchmarkHookDecide line not found in bench output; packages: %+v", res.Packages)
+	}
+}
+
+func TestExtractBenchLines(t *testing.T) {
+	// Result rows have tab-separated metrics; preamble rows do not.
+	input := "goos: darwin\ngoarch: arm64\nBenchmarkFoo\nBenchmarkFoo-8\t1000000\t1234 ns/op\nBenchmarkBar/sub\nBenchmarkBar/sub-8\t500000\t2000 ns/op\t0 B/op\t0 allocs/op\nok  \tfoo\t1.234s\n"
+	lines := extractBenchLines(input)
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 bench lines (not preambles), got %d: %v", len(lines), lines)
+	}
+	if !strings.Contains(lines[0], "BenchmarkFoo-8") {
+		t.Errorf("lines[0]: %q", lines[0])
+	}
+	if !strings.Contains(lines[1], "BenchmarkBar/sub-8") {
+		t.Errorf("lines[1]: %q", lines[1])
+	}
+}
+
