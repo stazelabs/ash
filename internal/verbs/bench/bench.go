@@ -382,6 +382,11 @@ func runCase(d Deps, c bench.Case, repeat, warmup int) (CaseResult, bool, string
 		repeat = 1
 	}
 
+	// Expand {root} placeholders so absolute-path cases work without
+	// baking a host-specific path into cases.go. Both the ash dispatch
+	// and the bash translation see the same expanded args.
+	c.AshArgs = bench.ExpandArgs(c.AshArgs, d.ProjectRoot)
+
 	argv, terr := bench.BashFor(c)
 	if terr != nil {
 		return row, true, terr.Error()

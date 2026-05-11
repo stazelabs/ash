@@ -1,10 +1,10 @@
 {
   "schema": "ash-bench-baseline-v1",
-  "ts": "2026-05-10T22:16:35Z",
+  "ts": "2026-05-11T01:46:23Z",
   "ash_version": "0.1.0",
-  "ash_commit_sha": "4828ebad61e9f481dcbdc9efee829f714790f4d6",
-  "case_set_version": "cs-913b838c885bf357",
-  "repo_sha": "4828ebad61e9f481dcbdc9efee829f714790f4d6",
+  "ash_commit_sha": "a2510969f3064d3e31109b0426222f2d99f6c915",
+  "case_set_version": "cs-37ed1eba686fb647",
+  "repo_sha": "a2510969f3064d3e31109b0426222f2d99f6c915",
   "repo_dirty": true,
   "cases": [
     {
@@ -28,50 +28,62 @@
     {
       "name": "find_go_files",
       "verb": "find",
-      "ash_tokens": 809,
-      "bash_tokens": 890
+      "ash_tokens": 834,
+      "bash_tokens": 929
+    },
+    {
+      "name": "find_go_files_absolute",
+      "verb": "find",
+      "ash_tokens": 834,
+      "bash_tokens": 1959
     },
     {
       "name": "find_md_in_docs",
       "verb": "find",
-      "ash_tokens": 773,
-      "bash_tokens": 754
+      "ash_tokens": 808,
+      "bash_tokens": 800
     },
     {
       "name": "find_shallow",
       "verb": "find",
-      "ash_tokens": 48,
+      "ash_tokens": 44,
       "bash_tokens": 72
     },
     {
       "name": "git_log_20",
       "verb": "git",
-      "ash_tokens": 754,
-      "bash_tokens": 4585
+      "ash_tokens": 734,
+      "bash_tokens": 6785
     },
     {
       "name": "git_status",
       "verb": "git",
-      "ash_tokens": 100,
-      "bash_tokens": 158
+      "ash_tokens": 87,
+      "bash_tokens": 141
     },
     {
       "name": "grep_files_only",
       "verb": "grep",
-      "ash_tokens": 685,
-      "bash_tokens": 803
+      "ash_tokens": 732,
+      "bash_tokens": 856
     },
     {
       "name": "grep_heavy_func_internal",
       "verb": "grep",
-      "ash_tokens": 5121,
-      "bash_tokens": 25161
+      "ash_tokens": 4993,
+      "bash_tokens": 27985
+    },
+    {
+      "name": "grep_parseargs_absolute",
+      "verb": "grep",
+      "ash_tokens": 5882,
+      "bash_tokens": 9759
     },
     {
       "name": "grep_parseargs_internal",
       "verb": "grep",
-      "ash_tokens": 5156,
-      "bash_tokens": 6054
+      "ash_tokens": 5882,
+      "bash_tokens": 6976
     },
     {
       "name": "grep_rare_pattern",
@@ -83,12 +95,12 @@
       "name": "grep_todo_repo",
       "verb": "grep",
       "ash_tokens": 1183,
-      "bash_tokens": 1316
+      "bash_tokens": 1326
     },
     {
       "name": "read_range",
       "verb": "read",
-      "ash_tokens": 745,
+      "ash_tokens": 735,
       "bash_tokens": 725
     },
     {
@@ -100,7 +112,7 @@
     {
       "name": "read_tiny_range",
       "verb": "read",
-      "ash_tokens": 37,
+      "ash_tokens": 27,
       "bash_tokens": 17
     },
     {
@@ -123,9 +135,9 @@
     }
   ],
   "summary": {
-    "n_cases": 19,
-    "ash_tokens_total": 30698,
-    "bash_tokens_total": 66267,
-    "delta_tok_pct": -53.675283323524525
+    "n_cases": 21,
+    "ash_tokens_total": 38062,
+    "bash_tokens_total": 84062,
+    "delta_tok_pct": -54.721515072208604
   }
 }

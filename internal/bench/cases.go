@@ -13,6 +13,7 @@ package bench
 import (
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Case is one bench scenario. Verb + AshArgs are dispatched in-process
@@ -53,6 +54,12 @@ var Cases = []Case{
 		AshArgs: map[string]any{"path": "docs", "glob": "**/*.md"},
 		Why:     "narrow scope, small known result — control case",
 	},
+	{
+		Name:    "find_go_files_absolute",
+		Verb:    "find",
+		AshArgs: map[string]any{"path": "{root}", "glob": "**/*.go"},
+		Why:     "absolute --path exercises ASH-71 repo-root strip on each Record.Path; ash_tokens match the relative sibling but bash balloons, widening Δtok%",
+	},
 
 	// --- grep ---
 	{
@@ -66,6 +73,12 @@ var Cases = []Case{
 		Verb:    "grep",
 		AshArgs: map[string]any{"pattern": "ParseArgs", "path": "internal"},
 		Why:     "moderate match count, narrow scope",
+	},
+	{
+		Name:    "grep_parseargs_absolute",
+		Verb:    "grep",
+		AshArgs: map[string]any{"pattern": "ParseArgs", "path": "{root}/internal"},
+		Why:     "absolute --path exercises ASH-71 repo-root strip on Match.Path; ash_tokens match the relative sibling but bash balloons, widening Δtok%",
 	},
 	{
 		Name:    "grep_files_only",
@@ -167,6 +180,24 @@ var Cases = []Case{
 	},
 }
 
+
+// ExpandArgs returns a copy of args with the literal placeholder
+// "{root}" replaced by root in every string-valued entry. Used by the
+// bench runner to express absolute-path cases without baking a
+// host-specific path into the static case list. The case-set hash
+// reads the raw (pre-expansion) values, so a placeholder-using case
+// is stable across machines.
+func ExpandArgs(args map[string]any, root string) map[string]any {
+	out := make(map[string]any, len(args))
+	for k, v := range args {
+		if s, ok := v.(string); ok {
+			out[k] = strings.ReplaceAll(s, "{root}", root)
+		} else {
+			out[k] = v
+		}
+	}
+	return out
+}
 
 // FindCase returns the case with the given name, or nil if not found.
 func FindCase(name string) *Case {
