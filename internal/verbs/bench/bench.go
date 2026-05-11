@@ -76,6 +76,14 @@ type Args struct {
 	// Publishable artifact flags.
 	RecordBaseline bool // --record-baseline: run fresh bench, write bench/baseline.json + bench/latency-snapshot.json
 	ExportMd       bool // --export-md: render the latest persisted run as Markdown
+
+	// Micro benchmark flags.
+	Micro          bool   // --micro: run Go Benchmark* functions for curated hot-path packages
+	RecordMicro    bool   // --record-micro: run micro + write bench/microbench.json + bench/microbench.md
+	DiffMicro      bool   // --diff-micro: run micro + compare against bench/microbench.json
+	MicroBenchTime string // --micro-benchtime (default "1s")
+	MicroCount     int    // --micro-count (default 1)
+	MicroPackages  string // --micro-packages: comma-separated; default = curated list
 }
 
 // CaseResult is one row of the bench output. Latency is reported as
@@ -191,6 +199,27 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.ExportMd, perr = argutil.OptionalBool(in, "export_md", false); perr != nil {
 		return nil, perr
 	}
+	if a.Micro, perr = argutil.OptionalBool(in, "micro", false); perr != nil {
+		return nil, perr
+	}
+	if a.RecordMicro, perr = argutil.OptionalBool(in, "record_micro", false); perr != nil {
+		return nil, perr
+	}
+	if a.DiffMicro, perr = argutil.OptionalBool(in, "diff_micro", false); perr != nil {
+		return nil, perr
+	}
+	if a.MicroBenchTime, perr = argutil.OptionalString(in, "micro_benchtime", ""); perr != nil {
+		return nil, perr
+	}
+	if a.MicroCount, perr = argutil.OptionalNonNegInt(in, "micro_count", 1, 100); perr != nil {
+		return nil, perr
+	}
+	if a.MicroCount == 0 {
+		a.MicroCount = 1
+	}
+	if a.MicroPackages, perr = argutil.OptionalString(in, "micro_packages", ""); perr != nil {
+		return nil, perr
+	}
 	return a, nil
 }
 
@@ -211,6 +240,12 @@ func RunWithDeps(d Deps, a *Args) (any, *proto.Error) {
 		return runRecordBaseline(d, a)
 	case a.ExportMd:
 		return runExportMd(d, a)
+	case a.RecordMicro:
+		return runRecordMicro(d, a)
+	case a.DiffMicro:
+		return runDiffMicro(d, a)
+	case a.Micro:
+		return runMicro(d, a)
 	}
 	return runStandard(d, a)
 }
@@ -507,6 +542,24 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 			return "ok\n<unrecognized bench --export-md result>"
 		}
 		return r.Body
+	case kindMicro:
+		var r MicroResult
+		if err := proto.UnmarshalData(rsp, &r); err != nil {
+			return "ok\n<unrecognized bench --micro result>"
+		}
+		return prettyMicro(&r)
+	case kindRecordMicro:
+		var r RecordMicroResult
+		if err := proto.UnmarshalData(rsp, &r); err != nil {
+			return "ok\n<unrecognized bench --record-micro result>"
+		}
+		return prettyRecordMicro(&r)
+	case kindDiffMicro:
+		var r DiffMicroResult
+		if err := proto.UnmarshalData(rsp, &r); err != nil {
+			return "ok\n<unrecognized bench --diff-micro result>"
+		}
+		return prettyDiffMicro(&r)
 	}
 	var r Result
 	if err := proto.UnmarshalData(rsp, &r); err != nil {
