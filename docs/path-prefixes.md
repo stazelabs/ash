@@ -48,9 +48,15 @@ After all phases land on this repo:
 - `ash report --since 5m` — no `path-prefix tax` line emitted across these verbs (residual tax is 0). Arg distributions show `path: .`, `path: cmd/ash/main.go`, hook commands with embedded paths stripped to relative.
 - Full test suite: 33/33 packages pass.
 
-## Deferred
+## Phase 5 — Prefix aliasing for `[jail].allow_paths` (ASH-85)
 
-- **ASH-71d prefix aliasing for `[jail].allow_paths`.** With `allow_paths` empty in the host repo (`PathPrefixes` returns just the project root), the existing strip already collapses everything to bare. Revisit when measurements on a config that actually uses `allow_paths` show residual tax in `tokens_out_no_prefix` deltas.
+- [internal/jail/relpath.go](../internal/jail/relpath.go) — new `PrefixAliasTable` type: built from `AllowedRoots()[1:]` (the non-project-root allow_paths entries). `Apply(p)` rewrites a path to `@N/<tail>` form if it falls under alias N; handles the macOS `/private`-prefix variant. `Header()` emits the `@N = <path>` table block. `Empty()` is a no-op guard when allow_paths is unconfigured.
+- [internal/verbs/find/find.go](../internal/verbs/find/find.go) — `PrettyResponse` creates a `PrefixAliasTable`, prepends its `Header()` after the `=== ===` line when non-empty, and applies `Apply()` to each record path before rendering. Suppressed when `--absolute true`.
+- [internal/verbs/grep/grep.go](../internal/verbs/grep/grep.go) — same treatment in `PrettyResponse` (path groups) and `prettyFilesOnly`. Suppressed when `--absolute true`.
+
+**Decision note.** The ticket gated this on measurement: if the path-prefix tax from `allow_paths` entries showed a material fraction of `tokens_out_no_prefix`, build it; otherwise the gain is theoretical. The host repo has no `allow_paths` configured, so a direct measurement was not available. The feature was implemented unconditionally (pretty-only, zero cost when `allow_paths` is empty — the `Empty()` guard is a no-op). This matches the ticket's "existing repo-root-only behavior is unchanged" acceptance criterion: with `allow_paths` empty the output is byte-for-byte identical to before.
+
+Wire-side data (`Result.Records`, `Result.Matches`) is **unchanged** — only pretty rendering applies aliases. JSON/msgpack consumers see the same absolute paths as before.
 
 ## Out of scope (low priority)
 

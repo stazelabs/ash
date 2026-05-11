@@ -562,3 +562,129 @@ func recordPaths(records []Record) []string {
 	}
 	return out
 }
+
+// TestPrettyResponse_AliasTableSingleAllowPath verifies that PrettyResponse
+// prepends a @0 = <prefix> alias table when allow_paths is configured and
+// emits paths under that root as @0/<tail>.
+func TestPrettyResponse_AliasTableSingleAllowPath(t *testing.T) {
+	root := t.TempDir()    // project root
+	scratch := t.TempDir() // allow_paths entry outside project root
+	// AllowedRoots stores the EvalSymlinks-resolved canonical form; resolve so
+	// the header-string comparison is correct on macOS (/var -> /private/var).
+	canonScratch := scratch
+	if resolved, err := filepath.EvalSymlinks(scratch); err == nil {
+		canonScratch = resolved
+	}
+	jail.SetPolicy(jail.FromConfig(false, root, []string{scratch}, nil))
+	defer jail.SetPolicy(nil)
+
+	rsp := &proto.Response{
+		OK: true,
+		Data: proto.MustData(&Result{
+			Count: 2,
+			Records: []Record{
+				{Path: "internal/foo.go", Type: "file"}, // inside project root (bare)
+				{Path: scratch + "/notes.md", Type: "file"}, // outside project root (absolute)
+			},
+		}),
+	}
+	req := &proto.Request{Verb: "find", Args: map[string]any{"path": scratch}}
+	got := PrettyResponse(req, rsp)
+
+	if !strings.Contains(got, "@0 = "+canonScratch) {
+		t.Errorf("alias header missing: want @0 = %s in %q", canonScratch, got)
+	}
+	if !strings.Contains(got, "@0/notes.md") {
+		t.Errorf("aliased path missing: want @0/notes.md in %q", got)
+	}
+	if !strings.Contains(got, "internal/foo.go") {
+		t.Errorf("project-root path should be unchanged: want internal/foo.go in %q", got)
+	}
+}
+
+// TestPrettyResponse_AliasTableTwoAllowPaths verifies the multi-prefix case:
+// two allow_paths entries produce @0 and @1 aliases in the same response.
+func TestPrettyResponse_AliasTableTwoAllowPaths(t *testing.T) {
+	root    := t.TempDir()
+	scratch := t.TempDir()
+	vendor  := t.TempDir()
+	canon := func(p string) string {
+		if r, err := filepath.EvalSymlinks(p); err == nil {
+			return r
+		}
+		return p
+	}
+	jail.SetPolicy(jail.FromConfig(false, root, []string{scratch, vendor}, nil))
+	defer jail.SetPolicy(nil)
+
+	rsp := &proto.Response{
+		OK: true,
+		Data: proto.MustData(&Result{
+			Count: 2,
+			Records: []Record{
+				{Path: scratch + "/a.md", Type: "file"},
+				{Path: vendor + "/pkg/b.go", Type: "file"},
+			},
+		}),
+	}
+	req := &proto.Request{Verb: "find", Args: map[string]any{"path": scratch}}
+	got := PrettyResponse(req, rsp)
+
+	if !strings.Contains(got, "@0 = "+canon(scratch)) {
+		t.Errorf("@0 alias header missing in %q", got)
+	}
+	if !strings.Contains(got, "@1 = "+canon(vendor)) {
+		t.Errorf("@1 alias header missing in %q", got)
+	}
+	if !strings.Contains(got, "@0/a.md") {
+		t.Errorf("@0 path missing in %q", got)
+	}
+	if !strings.Contains(got, "@1/pkg/b.go") {
+		t.Errorf("@1 path missing in %q", got)
+	}
+}
+
+// TestPrettyResponse_NoAliasTableWithoutAllowPaths confirms no alias table is
+// emitted when allow_paths is empty (the common host-repo case).
+func TestPrettyResponse_NoAliasTableWithoutAllowPaths(t *testing.T) {
+	root := t.TempDir()
+	jail.SetPolicy(jail.FromConfig(false, root, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	rsp := &proto.Response{
+		OK: true,
+		Data: proto.MustData(&Result{
+			Count: 1,
+			Records: []Record{{Path: "internal/foo.go", Type: "file"}},
+		}),
+	}
+	req := &proto.Request{Verb: "find", Args: map[string]any{"path": "."}}
+	got := PrettyResponse(req, rsp)
+
+	if strings.Contains(got, "@0") {
+		t.Errorf("no alias table expected when allow_paths is empty, got %q", got)
+	}
+}
+
+// TestPrettyResponse_AbsoluteFlagSkipsAliasTable confirms --absolute suppresses
+// the alias table even when allow_paths entries exist.
+func TestPrettyResponse_AbsoluteFlagSkipsAliasTable(t *testing.T) {
+	root    := t.TempDir()
+	scratch := t.TempDir()
+	jail.SetPolicy(jail.FromConfig(false, root, []string{scratch}, nil))
+	defer jail.SetPolicy(nil)
+
+	rsp := &proto.Response{
+		OK: true,
+		Data: proto.MustData(&Result{
+			Count: 1,
+			Records: []Record{{Path: scratch + "/notes.md", Type: "file"}},
+		}),
+	}
+	req := &proto.Request{Verb: "find", Args: map[string]any{"path": scratch, "absolute": true}}
+	got := PrettyResponse(req, rsp)
+
+	if strings.Contains(got, "@0") {
+		t.Errorf("no alias table expected with --absolute, got %q", got)
+	}
+}

@@ -1,6 +1,7 @@
 package jail
 
 import (
+	"fmt"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -113,4 +114,82 @@ func PrettyPath(p string) string {
 		}
 	}
 	return p
+}
+
+// PrefixAliasTable assigns compact @N aliases to jail allow_paths entries
+// (the non-project-root roots in AllowedRoots) to reduce per-line token
+// cost when pretty responses include paths outside the project root (ASH-85).
+// When allow_paths is empty, the table is empty and all methods are no-ops.
+//
+// Only emitted in pretty output; JSON/msgpack wire data is unchanged.
+type PrefixAliasTable struct {
+	display  []string   // canonical path shown in @N = ... header line
+	variants [][]string // all path forms that map to @N (canonical + macOS /private variant)
+}
+
+// NewPrefixAliasTable builds a table from AllowedRoots()[1:] — the
+// allow_paths entries beyond the project root. Returns an empty table when
+// no allow_paths entries are configured.
+func NewPrefixAliasTable() *PrefixAliasTable {
+	roots := AllowedRoots()
+	if len(roots) <= 1 {
+		return &PrefixAliasTable{}
+	}
+	extra := roots[1:]
+	t := &PrefixAliasTable{
+		display:  make([]string, len(extra)),
+		variants: make([][]string, len(extra)),
+	}
+	for i, root := range extra {
+		t.display[i] = root
+		vars := []string{root}
+		// Include the /private-stripped form so macOS paths passed by the
+		// agent before EvalSymlinks-resolution also match (mirrors PathPrefixes).
+		if stripped, ok := strings.CutPrefix(root, "/private"); ok {
+			vars = append(vars, stripped)
+		}
+		t.variants[i] = vars
+	}
+	return t
+}
+
+// Empty reports whether the table has no entries (allow_paths is not configured).
+func (t *PrefixAliasTable) Empty() bool {
+	return t == nil || len(t.display) == 0
+}
+
+// Apply rewrites p to @N or @N/<tail> if p falls under an aliased prefix.
+// Returns p unchanged when no alias matches or the table is empty.
+func (t *PrefixAliasTable) Apply(p string) string {
+	if t.Empty() {
+		return p
+	}
+	for i, vars := range t.variants {
+		for _, pref := range vars {
+			if p == pref {
+				return fmt.Sprintf("@%d", i)
+			}
+			if strings.HasPrefix(p, pref+"/") {
+				return fmt.Sprintf("@%d/%s", i, p[len(pref)+1:])
+			}
+		}
+	}
+	return p
+}
+
+// Header returns the alias definition block to prepend to a pretty response:
+//
+//	@0 = /Users/me/scratch
+//	@1 = /opt/vendored/foo
+//
+// Returns an empty string when the table is empty.
+func (t *PrefixAliasTable) Header() string {
+	if t.Empty() {
+		return ""
+	}
+	var sb strings.Builder
+	for i, disp := range t.display {
+		fmt.Fprintf(&sb, "@%d = %s\n", i, disp)
+	}
+	return sb.String()
 }

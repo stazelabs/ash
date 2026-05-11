@@ -562,6 +562,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	var b strings.Builder
 
 	noText := false
+	absolute := false
 	if req != nil {
 		// Files-only header
 		if v, ok := req.Args["fo"]; ok {
@@ -572,6 +573,16 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		if v, ok := req.Args["no-text"]; ok {
 			noText, _ = argutil.ToBool(v)
 		}
+		if v, ok := req.Args["absolute"]; ok {
+			if got, ok := argutil.ToBool(v); ok {
+				absolute = got
+			}
+		}
+	}
+
+	aliases := jail.NewPrefixAliasTable()
+	if absolute {
+		aliases = nil
 	}
 
 	fmt.Fprintf(&b, "=== ash grep: %s in %s", plural(r.MatchCount, "match", "matches"), plural(r.FileCount, "file", "files"))
@@ -582,6 +593,9 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		b.WriteString(" TRUNCATED")
 	}
 	b.WriteString(" ===\n")
+	if !aliases.Empty() {
+		b.WriteString(aliases.Header())
+	}
 	writeSkippedSummary(&b, &r)
 
 	// Group records by path, preserving insertion order.
@@ -592,7 +606,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 			return
 		}
 		group := r.Matches[curStart:end]
-		writeFileGroup(&b, curPath, group, noText)
+		writeFileGroup(&b, aliases.Apply(curPath), group, noText)
 	}
 	for i, rec := range r.Matches {
 		if rec.Path != curPath {
@@ -613,6 +627,20 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 
 func prettyFilesOnly(req *proto.Request, r *Result) string {
 	var b strings.Builder
+
+	absolute := false
+	if req != nil {
+		if v, ok := req.Args["absolute"]; ok {
+			if got, ok := argutil.ToBool(v); ok {
+				absolute = got
+			}
+		}
+	}
+	aliases := jail.NewPrefixAliasTable()
+	if absolute {
+		aliases = nil
+	}
+
 	fmt.Fprintf(&b, "=== ash grep: %s", plural(r.Count, "file", "files"))
 	if scope := scopeFromArgs(req); scope != "" {
 		fmt.Fprintf(&b, " [%s]", scope)
@@ -621,9 +649,12 @@ func prettyFilesOnly(req *proto.Request, r *Result) string {
 		b.WriteString(" TRUNCATED")
 	}
 	b.WriteString(" ===\n")
+	if !aliases.Empty() {
+		b.WriteString(aliases.Header())
+	}
 	writeSkippedSummary(&b, r)
 	for _, f := range r.Files {
-		b.WriteString(f)
+		b.WriteString(aliases.Apply(f))
 		b.WriteByte('\n')
 	}
 	if r.Truncated && r.TruncInfo != nil {

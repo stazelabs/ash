@@ -947,3 +947,141 @@ func TestParseArgs_AbsoluteFlag(t *testing.T) {
 		t.Error("Absolute default: want false")
 	}
 }
+
+// TestPrettyResponse_AliasTableSingleAllowPath verifies that PrettyResponse
+// prepends a @0 alias table when allow_paths is configured and rewrites paths
+// under that root as @0/<tail>.
+func TestPrettyResponse_AliasTableSingleAllowPath(t *testing.T) {
+	root    := t.TempDir()
+	scratch := t.TempDir()
+	canon := func(p string) string {
+		if r, err := filepath.EvalSymlinks(p); err == nil {
+			return r
+		}
+		return p
+	}
+	jail.SetPolicy(jail.FromConfig(false, root, []string{scratch}, nil))
+	defer jail.SetPolicy(nil)
+
+	rsp := &proto.Response{
+		OK: true,
+		Data: proto.MustData(&Result{
+			Matches: []Match{
+				{Path: scratch + "/notes.md", Line: 1, Text: "hello", Col: 1},
+			},
+			Count:      1,
+			MatchCount: 1,
+			FileCount:  1,
+		}),
+	}
+	req := &proto.Request{Verb: "grep", Args: map[string]any{"pattern": "hello", "path": scratch}}
+	got := PrettyResponse(req, rsp)
+
+	if !strings.Contains(got, "@0 = "+canon(scratch)) {
+		t.Errorf("alias header missing: want @0 = %s in %q", canon(scratch), got)
+	}
+	if !strings.Contains(got, "@0/notes.md") {
+		t.Errorf("aliased path missing: want @0/notes.md in %q", got)
+	}
+}
+
+// TestPrettyResponse_AliasTableTwoAllowPaths verifies the multi-root case:
+// two allow_paths entries produce @0 and @1 aliases in a single response.
+func TestPrettyResponse_AliasTableTwoAllowPaths(t *testing.T) {
+	root    := t.TempDir()
+	scratch := t.TempDir()
+	vendor  := t.TempDir()
+	canon := func(p string) string {
+		if r, err := filepath.EvalSymlinks(p); err == nil {
+			return r
+		}
+		return p
+	}
+	jail.SetPolicy(jail.FromConfig(false, root, []string{scratch, vendor}, nil))
+	defer jail.SetPolicy(nil)
+
+	rsp := &proto.Response{
+		OK: true,
+		Data: proto.MustData(&Result{
+			Matches: []Match{
+				{Path: scratch + "/a.md", Line: 1, Text: "x", Col: 1},
+				{Path: vendor + "/pkg/b.go", Line: 3, Text: "x", Col: 2},
+			},
+			Count:      2,
+			MatchCount: 2,
+			FileCount:  2,
+		}),
+	}
+	req := &proto.Request{Verb: "grep", Args: map[string]any{"pattern": "x", "path": scratch}}
+	got := PrettyResponse(req, rsp)
+
+	if !strings.Contains(got, "@0 = "+canon(scratch)) {
+		t.Errorf("@0 alias header missing in %q", got)
+	}
+	if !strings.Contains(got, "@1 = "+canon(vendor)) {
+		t.Errorf("@1 alias header missing in %q", got)
+	}
+	if !strings.Contains(got, "@0/a.md") {
+		t.Errorf("@0 path missing in %q", got)
+	}
+	if !strings.Contains(got, "@1/pkg/b.go") {
+		t.Errorf("@1 path missing in %q", got)
+	}
+}
+
+// TestPrettyResponse_FilesOnlyAliasTable verifies alias table works in files_only mode.
+func TestPrettyResponse_FilesOnlyAliasTable(t *testing.T) {
+	root    := t.TempDir()
+	scratch := t.TempDir()
+	canon := func(p string) string {
+		if r, err := filepath.EvalSymlinks(p); err == nil {
+			return r
+		}
+		return p
+	}
+	jail.SetPolicy(jail.FromConfig(false, root, []string{scratch}, nil))
+	defer jail.SetPolicy(nil)
+
+	rsp := &proto.Response{
+		OK: true,
+		Data: proto.MustData(&Result{
+			Files:      []string{scratch + "/notes.md"},
+			Count:      1,
+			MatchCount: 1,
+			FileCount:  1,
+		}),
+	}
+	req := &proto.Request{Verb: "grep", Args: map[string]any{"pattern": "x", "path": scratch, "fo": true}}
+	got := PrettyResponse(req, rsp)
+
+	if !strings.Contains(got, "@0 = "+canon(scratch)) {
+		t.Errorf("alias header missing in files_only output: %q", got)
+	}
+	if !strings.Contains(got, "@0/notes.md") {
+		t.Errorf("aliased file path missing in files_only output: %q", got)
+	}
+}
+
+// TestPrettyResponse_NoAliasWithoutAllowPaths confirms no alias table is emitted
+// when allow_paths is empty.
+func TestPrettyResponse_NoAliasWithoutAllowPaths(t *testing.T) {
+	root := t.TempDir()
+	jail.SetPolicy(jail.FromConfig(false, root, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	rsp := &proto.Response{
+		OK: true,
+		Data: proto.MustData(&Result{
+			Matches:    []Match{{Path: "internal/foo.go", Line: 1, Text: "x", Col: 1}},
+			Count:      1,
+			MatchCount: 1,
+			FileCount:  1,
+		}),
+	}
+	req := &proto.Request{Verb: "grep", Args: map[string]any{"pattern": "x", "path": "."}}
+	got := PrettyResponse(req, rsp)
+
+	if strings.Contains(got, "@0") {
+		t.Errorf("no alias expected when allow_paths empty, got %q", got)
+	}
+}

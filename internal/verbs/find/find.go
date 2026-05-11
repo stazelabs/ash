@@ -225,11 +225,12 @@ func typeMatches(want, got string) bool {
 // metadata is omitted by default — agents that want it pass
 // `--with_meta true` (or follow up with `ash stat` for selected paths).
 //
-// Rationale: in the find_md_in_docs / find_go_files bench cases the
-// default-on metadata cost ~10 tokens per record (date alone is ~5
-// because tiktoken splits yyyy-mm-dd), pushing ash find above bash
-// `find` on every measured case. The wire data still carries size +
-// mtime + type — only the pretty rendering changes.
+// When jail.allow_paths entries are configured and --absolute is not set,
+// a compact alias table is prepended (ASH-85):
+//
+//	@0 = /Users/me/scratch
+//	internal/foo.go
+//	@0/notes.md
 func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)
@@ -239,13 +240,25 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		return "ok\n<unrecognized find result>"
 	}
 	withMeta := false
+	absolute := false
 	if req != nil {
 		if v, ok := req.Args["meta"]; ok {
 			if b, ok := argutil.ToBool(v); ok {
 				withMeta = b
 			}
 		}
+		if v, ok := req.Args["absolute"]; ok {
+			if b, ok := argutil.ToBool(v); ok {
+				absolute = b
+			}
+		}
 	}
+
+	aliases := jail.NewPrefixAliasTable()
+	if absolute {
+		aliases = nil
+	}
+
 	var b strings.Builder
 	fmt.Fprintf(&b, "=== ash find: %d results", r.Count)
 	// Note: the request args are deliberately not echoed in the header
@@ -256,7 +269,11 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		b.WriteString(" TRUNCATED")
 	}
 	b.WriteString(" ===\n")
+	if !aliases.Empty() {
+		b.WriteString(aliases.Header())
+	}
 	for _, rec := range r.Records {
+		rec.Path = aliases.Apply(rec.Path)
 		if withMeta {
 			writeRecordFull(&b, rec)
 		} else {
