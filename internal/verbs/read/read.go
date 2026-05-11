@@ -85,7 +85,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	info, err := os.Stat(a.Path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, &proto.Error{Code: "not_found", Msg: a.Path + ": no such file"}
+			return nil, &proto.Error{Code: "not_found", Msg: jail.PrettyPath(a.Path) + ": no such file"}
 		}
 		if errors.Is(err, os.ErrPermission) {
 			return nil, &proto.Error{Code: "permission", Msg: err.Error()}
@@ -93,7 +93,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		return nil, &proto.Error{Code: "stat", Msg: err.Error()}
 	}
 	if info.IsDir() {
-		return nil, &proto.Error{Code: "is_dir", Msg: a.Path + ": is a directory", Hint: "use 'ash find' to list contents, then 'ash read' a file"}
+		return nil, &proto.Error{Code: "is_dir", Msg: jail.PrettyPath(a.Path) + ": is a directory", Hint: "use 'ash find' to list contents, then 'ash read' a file"}
 	}
 
 	ioStart := time.Now()

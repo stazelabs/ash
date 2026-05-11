@@ -42,7 +42,7 @@ func gitRunError(path string, stderr []byte) *proto.Error {
 		msg = "git exited non-zero"
 	}
 	if strings.Contains(strings.ToLower(msg), "not a git repository") {
-		return &proto.Error{Code: "not_a_repo", Msg: path + " is not inside a git repository"}
+		return &proto.Error{Code: "not_a_repo", Msg: jail.PrettyPath(path) + " is not inside a git repository"}
 	}
 	return &proto.Error{Code: "git_failed", Msg: msg}
 }

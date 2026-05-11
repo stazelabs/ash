@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/proto"
 )
 
@@ -27,7 +28,7 @@ func openRepo(path string) (*git.Repository, *proto.Error) {
 // not_a_repo is the most common case the agent needs to distinguish.
 func repoOpenError(path string, err error) *proto.Error {
 	if errors.Is(err, git.ErrRepositoryNotExists) {
-		return &proto.Error{Code: "not_a_repo", Msg: path + " is not inside a git repository"}
+		return &proto.Error{Code: "not_a_repo", Msg: jail.PrettyPath(path) + " is not inside a git repository"}
 	}
 	return &proto.Error{Code: "git_failed", Msg: err.Error()}
 }

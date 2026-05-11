@@ -125,7 +125,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	info, err := os.Stat(a.Path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, &proto.Error{Code: "not_found", Msg: a.Path + ": no such path"}
+			return nil, &proto.Error{Code: "not_found", Msg: jail.PrettyPath(a.Path) + ": no such path"}
 		}
 		if errors.Is(err, fs.ErrPermission) {
 			return nil, &proto.Error{Code: "permission", Msg: err.Error()}
@@ -133,7 +133,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		return nil, &proto.Error{Code: "stat", Msg: err.Error()}
 	}
 	if !info.IsDir() {
-		return nil, &proto.Error{Code: "not_dir", Msg: a.Path + ": not a directory", Hint: "use 'ash read' for files"}
+		return nil, &proto.Error{Code: "not_dir", Msg: jail.PrettyPath(a.Path) + ": not a directory", Hint: "use 'ash read' for files"}
 	}
 
 	res := &Result{Records: make([]Record, 0, 32)}

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/runner"
 )
@@ -101,7 +102,7 @@ func showRunError(path string, stderr []byte, ref string) *proto.Error {
 	msg := strings.TrimSpace(string(stderr))
 	lower := strings.ToLower(msg)
 	if strings.Contains(lower, "not a git repository") {
-		return &proto.Error{Code: "not_a_repo", Msg: path + " is not inside a git repository"}
+		return &proto.Error{Code: "not_a_repo", Msg: jail.PrettyPath(path) + " is not inside a git repository"}
 	}
 	if strings.Contains(lower, "bad revision") ||
 		strings.Contains(lower, "unknown revision") ||

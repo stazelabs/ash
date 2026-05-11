@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/proto"
 )
 
@@ -320,5 +321,27 @@ func TestRunLog_NotARepo(t *testing.T) {
 	}
 	if perr.Code != "not_a_repo" {
 		t.Errorf("code=%q want not_a_repo (msg=%q)", perr.Code, perr.Msg)
+	}
+}
+
+// ASH-88: not_a_repo error must strip the project-root prefix from its path.
+func TestRunLog_NotARepoErrorStripsPrefix(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not on PATH")
+	}
+	root := t.TempDir()
+	jail.SetPolicy(jail.FromConfig(false, root, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	dir := filepath.Join(root, "no-repo")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_, perr := runLog(&Args{Op: "log", Path: dir, Limit: 10}, nil)
+	if perr == nil || perr.Code != "not_a_repo" {
+		t.Fatalf("expected not_a_repo, got %+v", perr)
+	}
+	if strings.Contains(perr.Msg, root) {
+		t.Errorf("error Msg should not contain project root, got %q", perr.Msg)
 	}
 }
