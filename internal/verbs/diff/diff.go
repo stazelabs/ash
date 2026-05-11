@@ -6,6 +6,7 @@
 //	other        string — second file to use as the "after" side
 //	content      string — inline "after" text (alternative to --other)
 //	context      int    (optional, default 3) — context lines per hunk
+//	absolute     bool   (optional) — emit absolute paths instead of repo-root-relative (default false)
 //
 // Exactly one of other or content must be provided.
 // Returns a unified diff, additions count, and deletions count.
@@ -25,11 +26,12 @@ import (
 )
 
 type Args struct {
-	Path    string
-	Other   string
-	Content string
-	Context int
-	Stat    bool
+	Path     string
+	Other    string
+	Content  string
+	Context  int
+	Stat     bool
+	Absolute bool
 }
 
 type Result struct {
@@ -58,6 +60,9 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 		return nil, perr
 	}
 	if a.Stat, perr = argutil.OptionalBool(in, "stat", false); perr != nil {
+		return nil, perr
+	}
+	if a.Absolute, perr = argutil.OptionalBool(in, "absolute", false); perr != nil {
 		return nil, perr
 	}
 
@@ -126,19 +131,26 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	}
 
 	add, del := idiff.Stats(edits)
+	pathAOut, pathBOut := a.Path, pathB
+	if !a.Absolute {
+		relA := jail.NewProjectRelativizer(a.Path)
+		pathAOut = relA.Apply(a.Path)
+		relB := jail.NewProjectRelativizer(pathB)
+		pathBOut = relB.Apply(pathB)
+	}
 	if a.Stat {
 		return &Result{
-			PathA:     a.Path,
-			PathB:     pathB,
+			PathA:     pathAOut,
+			PathB:     pathBOut,
 			Additions: add,
 			Deletions: del,
 			Unchanged: add == 0 && del == 0,
 		}, nil
 	}
-	patch := idiff.Unified(edits, a.Path, pathB, a.Context)
+	patch := idiff.Unified(edits, pathAOut, pathBOut, a.Context)
 	return &Result{
-		PathA:     a.Path,
-		PathB:     pathB,
+		PathA:     pathAOut,
+		PathB:     pathBOut,
 		Additions: add,
 		Deletions: del,
 		Patch:     patch,
@@ -154,9 +166,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if err := proto.UnmarshalData(rsp, &r); err != nil {
 		return "ok\n<unrecognized diff result>"
 	}
-	// ASH-71: header echoes the file paths in repo-relative form when
-	// they sit under the project root.
-	a, c := jail.PrettyPath(r.PathA), jail.PrettyPath(r.PathB)
+	a, c := r.PathA, r.PathB
 	if r.Unchanged {
 		return fmt.Sprintf("=== ash diff: %s vs %s [identical] ===", a, c)
 	}

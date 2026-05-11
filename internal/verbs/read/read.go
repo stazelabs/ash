@@ -6,6 +6,7 @@
 //	range       string (optional) - "start:end", inclusive on both ends
 //	range_kind  string (optional) - "lines" (default) or "bytes"
 //	limit_bytes int    (optional) - cap on returned content, default 262144 (256 KiB)
+//	absolute    bool   (optional) - emit absolute paths instead of repo-root-relative (default false)
 //
 // Result fields are documented on the Result struct.
 package read
@@ -35,6 +36,7 @@ type Args struct {
 	Range      string
 	RangeKind  string
 	LimitBytes int
+	Absolute   bool
 }
 
 type Result struct {
@@ -63,6 +65,9 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 		return nil, perr
 	}
 	if a.LimitBytes, perr = argutil.OptionalPosInt(in, "bytes", DefaultLimitBytes, MaxLimitBytes); perr != nil {
+		return nil, perr
+	}
+	if a.Absolute, perr = argutil.OptionalBool(in, "absolute", false); perr != nil {
 		return nil, perr
 	}
 	if perr := jail.CheckPaths(map[string]string{
@@ -98,8 +103,13 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		return nil, &proto.Error{Code: "read", Msg: err.Error()}
 	}
 
+	resPath := a.Path
+	if !a.Absolute {
+		rel := jail.NewProjectRelativizer(a.Path)
+		resPath = rel.Apply(a.Path)
+	}
 	res := &Result{
-		Path:  a.Path,
+		Path:  resPath,
 		Size:  info.Size(),
 		Mtime: info.ModTime().UnixNano(),
 	}
@@ -256,7 +266,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	reqStart, reqEnd, hasReqRange := reqRangeBounds(reqRange)
 	var b strings.Builder
 	b.WriteString("=== ")
-	b.WriteString(jail.PrettyPath(r.Path))
+	b.WriteString(r.Path)
 	b.WriteString(" [")
 	b.WriteString(strconv.FormatInt(r.Size, 10))
 	b.WriteString("B")

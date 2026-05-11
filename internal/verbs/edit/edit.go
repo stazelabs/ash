@@ -24,6 +24,10 @@
 // The write is atomic (temp-file + rename on the same filesystem).
 // With dry_run=true the replacement is computed but not written; Patch contains
 // a unified diff of what would change.
+//
+// Args (global):
+//
+//	absolute bool (optional) — emit absolute paths instead of repo-root-relative (default false)
 package edit
 
 import (
@@ -50,6 +54,7 @@ type Args struct {
 	Patch      string // unified diff to apply; "-" means caller resolved stdin already
 	ReplaceAll bool
 	DryRun     bool
+	Absolute   bool
 }
 
 type Result struct {
@@ -88,6 +93,9 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 		return nil, perr
 	}
 	if a.DryRun, perr = argutil.OptionalBool(in, "dry", false); perr != nil {
+		return nil, perr
+	}
+	if a.Absolute, perr = argutil.OptionalBool(in, "absolute", false); perr != nil {
 		return nil, perr
 	}
 
@@ -167,10 +175,16 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		}
 	}
 
+	resPath := a.Path
+	if !a.Absolute {
+		rel := jail.NewProjectRelativizer(a.Path)
+		resPath = rel.Apply(a.Path)
+	}
+
 	if a.DryRun {
 		patch := computePatch(content, newContent, a.Path)
 		return &Result{
-			Path:        a.Path,
+			Path:        resPath,
 			LinesTotal:  countLines(newContent),
 			Occurrences: occurrences,
 			DryRun:      true,
@@ -190,7 +204,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	}
 
 	return &Result{
-		Path:         a.Path,
+		Path:         resPath,
 		BytesWritten: len(data),
 		LinesTotal:   countLines(newContent),
 		Occurrences:  occurrences,
@@ -558,7 +572,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 				detail = fmt.Sprintf("%d replacements", r.Occurrences)
 			}
 		}
-		header := fmt.Sprintf("=== ash edit --dry_run: %s [%d lines, %s — not written] ===", jail.PrettyPath(r.Path), r.LinesTotal, detail)
+		header := fmt.Sprintf("=== ash edit --dry_run: %s [%d lines, %s — not written] ===", r.Path, r.LinesTotal, detail)
 		if r.Patch == "" {
 			return header + "\n(no changes)"
 		}
@@ -580,7 +594,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 			detail = fmt.Sprintf("%d replacements", r.Occurrences)
 		}
 	}
-	return fmt.Sprintf("=== ash edit: %s [%dB, %s] ===", jail.PrettyPath(r.Path), r.BytesWritten, detail)
+	return fmt.Sprintf("=== ash edit: %s [%dB, %s] ===", r.Path, r.BytesWritten, detail)
 }
 
 func hunkLabel(n int) string {

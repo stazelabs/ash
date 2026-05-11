@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/proto"
 )
 
@@ -229,6 +230,72 @@ func TestPrettyResponse_Overwritten(t *testing.T) {
 	want := "=== ash write: foo/bar.go [100B, overwritten] ==="
 	if got != want {
 		t.Errorf("pretty=%q want %q", got, want)
+	}
+}
+
+// -- path-relativization tests (ASH-86) ------------------------------------
+
+func TestRun_DefaultStripsRepoRootPrefix_Write(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "out.txt")
+	jail.SetPolicy(jail.FromConfig(false, dir, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	res, perr := Run(&Args{Path: file, Content: "hello", Encoding: "utf-8", Mkdir: true}, nil)
+	if perr != nil {
+		t.Fatalf("unexpected error: %+v", perr)
+	}
+	if filepath.IsAbs(res.Path) {
+		t.Errorf("Result.Path should be repo-relative, got absolute: %q", res.Path)
+	}
+	if res.Path != "out.txt" {
+		t.Errorf("Result.Path: got %q want %q", res.Path, "out.txt")
+	}
+}
+
+func TestRun_AbsoluteFlagPreservesAbsolutePaths_Write(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "out.txt")
+	jail.SetPolicy(jail.FromConfig(false, dir, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	res, perr := Run(&Args{Path: file, Content: "hello", Encoding: "utf-8", Mkdir: true, Absolute: true}, nil)
+	if perr != nil {
+		t.Fatalf("unexpected error: %+v", perr)
+	}
+	if !filepath.IsAbs(res.Path) {
+		t.Errorf("with Absolute=true, Result.Path should be absolute: %q", res.Path)
+	}
+}
+
+func TestRun_NoPolicyLeavesPathsAlone_Write(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "out.txt")
+	jail.SetPolicy(nil)
+
+	res, perr := Run(&Args{Path: file, Content: "hello", Encoding: "utf-8", Mkdir: true}, nil)
+	if perr != nil {
+		t.Fatalf("unexpected error: %+v", perr)
+	}
+	if !filepath.IsAbs(res.Path) {
+		t.Errorf("without jail policy, absolute input should yield absolute path: %q", res.Path)
+	}
+}
+
+func TestParseArgs_AbsoluteFlag_Write(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{"path": "out.txt", "content": "x", "absolute": true})
+	if perr != nil {
+		t.Fatalf("unexpected error: %v", perr)
+	}
+	if !a.Absolute {
+		t.Error("Absolute: want true")
+	}
+	a2, perr := ParseArgs(map[string]any{"path": "out.txt", "content": "x"})
+	if perr != nil {
+		t.Fatalf("unexpected error: %v", perr)
+	}
+	if a2.Absolute {
+		t.Error("Absolute default: want false")
 	}
 }
 

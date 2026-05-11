@@ -7,6 +7,7 @@
 //	encoding     string (optional) — "utf-8" (default) or "base64"
 //	mkdir        bool   (optional) — create missing parent directories (default true)
 //	create_only  bool   (optional) — fail if the file already exists (default false)
+//	absolute     bool   (optional) — emit absolute paths instead of repo-root-relative (default false)
 //
 // The verb writes content atomically via a temp file + rename on the same
 // filesystem so a mid-write crash does not leave a partial file. On
@@ -34,6 +35,7 @@ type Args struct {
 	Encoding   string
 	Mkdir      bool
 	CreateOnly bool
+	Absolute   bool
 }
 
 type Result struct {
@@ -58,6 +60,9 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 		return nil, perr
 	}
 	if a.CreateOnly, perr = argutil.OptionalBool(in, "no-clobber", false); perr != nil {
+		return nil, perr
+	}
+	if a.Absolute, perr = argutil.OptionalBool(in, "absolute", false); perr != nil {
 		return nil, perr
 	}
 	if perr := jail.CheckPaths(map[string]string{
@@ -121,11 +126,16 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		return nil, &proto.Error{Code: "write", Msg: err.Error()}
 	}
 
-	return &Result{
+	res := &Result{
 		Path:         a.Path,
 		BytesWritten: len(data),
 		Created:      created,
-	}, nil
+	}
+	if !a.Absolute {
+		rel := jail.NewProjectRelativizer(a.Path)
+		res.Path = rel.Apply(res.Path)
+	}
+	return res, nil
 }
 
 // PrettyResponse renders the post-write acknowledgement. It is intentionally
@@ -145,5 +155,5 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if r.Created {
 		verb = "created"
 	}
-	return fmt.Sprintf("=== ash write: %s [%dB, %s] ===", jail.PrettyPath(r.Path), r.BytesWritten, verb)
+	return fmt.Sprintf("=== ash write: %s [%dB, %s] ===", r.Path, r.BytesWritten, verb)
 }

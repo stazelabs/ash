@@ -58,8 +58,13 @@ After all phases land on this repo:
 
 Wire-side data (`Result.Records`, `Result.Matches`) is **unchanged** — only pretty rendering applies aliases. JSON/msgpack consumers see the same absolute paths as before.
 
-## Out of scope (low priority)
+## Phase 6 — Wire-side path rewrite for single-path verbs (ASH-86)
 
-- **Wire-side path rewrite for single-path verbs.** `read`/`stat`/`diff`/`write`/`edit` still emit absolute `Result.Path` in JSON even though pretty renders bare. A `--absolute` flag mirroring find/grep would cover JSON callers that want compactness; defer until asked.
+- [internal/verbs/read/read.go](../internal/verbs/read/read.go), [stat/stat.go](../internal/verbs/stat/stat.go), [diff/diff.go](../internal/verbs/diff/diff.go), [write/write.go](../internal/verbs/write/write.go), [edit/edit.go](../internal/verbs/edit/edit.go) — `Args.Absolute` (default false) added to all five verbs. When false, `Run` rewrites `Result.Path` (or `PathA`/`PathB` for diff, each `Entry.Path` for stat) through `jail.NewProjectRelativizer` before returning. Pretty renderers drop the now-redundant `jail.PrettyPath` call; the value already arrives relative from the daemon. Pass `--absolute true` to opt back into the legacy absolute form.
+
+**Migration note:** JSON/msgpack callers that scrape `Result.Path` expecting absolute form will now receive the bare repo-relative form by default. Pass `--absolute true` to restore the prior behavior.
+
+## Out of scope (low priority)
 - **`git` verb headers.** Result data already uses repo-root-relative paths. Pretty headers may still echo input `--path` arg unstripped; not audited.
 - **Path-bearing error messages.** Errors like `not_found: /Users/.../foo: no such path` bypass the cosmetic strip. Low frequency; defer.
+- **Diff patch text paths.** When `--absolute false` (default), `idiff.Unified` is called with the relativized `pathAOut`/`pathBOut`, so `---`/`+++` headers in the patch text also carry the relative form. If callers need the absolute form in the patch text, pass `--absolute true`.

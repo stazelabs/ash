@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/proto"
 )
 
@@ -246,6 +247,105 @@ func TestPrettyResponse_WithPatch(t *testing.T) {
 	}
 	if !strings.Contains(got, "-old") {
 		t.Errorf("expected patch in output: %s", got)
+	}
+}
+
+// -- path-relativization tests (ASH-86) ------------------------------------
+
+func TestRun_DefaultStripsRepoRootPrefix_Diff(t *testing.T) {
+	dir := t.TempDir()
+	fileA := filepath.Join(dir, "a.go")
+	fileB := filepath.Join(dir, "b.go")
+	if err := os.WriteFile(fileA, []byte("package a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fileB, []byte("package b\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	jail.SetPolicy(jail.FromConfig(false, dir, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	res, perr := Run(&Args{Path: fileA, Other: fileB, Context: 3}, nil)
+	if perr != nil {
+		t.Fatalf("unexpected error: %+v", perr)
+	}
+	if filepath.IsAbs(res.PathA) {
+		t.Errorf("PathA should be repo-relative, got absolute: %q", res.PathA)
+	}
+	if filepath.IsAbs(res.PathB) {
+		t.Errorf("PathB should be repo-relative, got absolute: %q", res.PathB)
+	}
+	if res.PathA != "a.go" {
+		t.Errorf("PathA: got %q want %q", res.PathA, "a.go")
+	}
+	if res.PathB != "b.go" {
+		t.Errorf("PathB: got %q want %q", res.PathB, "b.go")
+	}
+}
+
+func TestRun_AbsoluteFlagPreservesAbsolutePaths_Diff(t *testing.T) {
+	dir := t.TempDir()
+	fileA := filepath.Join(dir, "a.go")
+	fileB := filepath.Join(dir, "b.go")
+	if err := os.WriteFile(fileA, []byte("package a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fileB, []byte("package b\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	jail.SetPolicy(jail.FromConfig(false, dir, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	res, perr := Run(&Args{Path: fileA, Other: fileB, Context: 3, Absolute: true}, nil)
+	if perr != nil {
+		t.Fatalf("unexpected error: %+v", perr)
+	}
+	if !filepath.IsAbs(res.PathA) {
+		t.Errorf("with Absolute=true, PathA should be absolute: %q", res.PathA)
+	}
+	if !filepath.IsAbs(res.PathB) {
+		t.Errorf("with Absolute=true, PathB should be absolute: %q", res.PathB)
+	}
+}
+
+func TestRun_NoPolicyLeavesPathsAlone_Diff(t *testing.T) {
+	dir := t.TempDir()
+	fileA := filepath.Join(dir, "a.go")
+	fileB := filepath.Join(dir, "b.go")
+	if err := os.WriteFile(fileA, []byte("package a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fileB, []byte("package b\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	jail.SetPolicy(nil)
+
+	res, perr := Run(&Args{Path: fileA, Other: fileB, Context: 3}, nil)
+	if perr != nil {
+		t.Fatalf("unexpected error: %+v", perr)
+	}
+	if !filepath.IsAbs(res.PathA) {
+		t.Errorf("without jail policy, PathA should stay absolute: %q", res.PathA)
+	}
+	if !filepath.IsAbs(res.PathB) {
+		t.Errorf("without jail policy, PathB should stay absolute: %q", res.PathB)
+	}
+}
+
+func TestParseArgs_AbsoluteFlag_Diff(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{"path": "a.go", "content": "x", "absolute": true})
+	if perr != nil {
+		t.Fatalf("unexpected error: %v", perr)
+	}
+	if !a.Absolute {
+		t.Error("Absolute: want true")
+	}
+	a2, perr := ParseArgs(map[string]any{"path": "a.go", "content": "x"})
+	if perr != nil {
+		t.Fatalf("unexpected error: %v", perr)
+	}
+	if a2.Absolute {
+		t.Error("Absolute default: want false")
 	}
 }
 

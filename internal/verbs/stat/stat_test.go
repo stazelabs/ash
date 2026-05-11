@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/proto"
 )
 
@@ -303,6 +304,90 @@ func TestPrettyResponse_WithMetaIncludesMtimeAndMode(t *testing.T) {
 	out := PrettyResponse(req, rsp)
 	if !strings.Contains(out, "0644") {
 		t.Errorf("with_meta must include mode 0644:\n%s", out)
+	}
+}
+
+// -- path-relativization tests (ASH-86) ------------------------------------
+
+func TestRun_DefaultStripsRepoRootPrefix_Stat(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "hello.go")
+	if err := os.WriteFile(file, []byte("package a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	jail.SetPolicy(jail.FromConfig(false, dir, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	res, perr := Run(&Args{Paths: []string{file}}, nil)
+	if perr != nil {
+		t.Fatalf("unexpected error: %+v", perr)
+	}
+	if len(res.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(res.Entries))
+	}
+	if filepath.IsAbs(res.Entries[0].Path) {
+		t.Errorf("Entry.Path should be repo-relative, got absolute: %q", res.Entries[0].Path)
+	}
+	if res.Entries[0].Path != "hello.go" {
+		t.Errorf("Entry.Path: got %q want %q", res.Entries[0].Path, "hello.go")
+	}
+}
+
+func TestRun_AbsoluteFlagPreservesAbsolutePaths_Stat(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "hello.go")
+	if err := os.WriteFile(file, []byte("package a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	jail.SetPolicy(jail.FromConfig(false, dir, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	res, perr := Run(&Args{Paths: []string{file}, Absolute: true}, nil)
+	if perr != nil {
+		t.Fatalf("unexpected error: %+v", perr)
+	}
+	if len(res.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(res.Entries))
+	}
+	if !filepath.IsAbs(res.Entries[0].Path) {
+		t.Errorf("with Absolute=true, Entry.Path should be absolute: %q", res.Entries[0].Path)
+	}
+}
+
+func TestRun_NoPolicyLeavesPathsAlone_Stat(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "hello.go")
+	if err := os.WriteFile(file, []byte("package a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	jail.SetPolicy(nil)
+
+	res, perr := Run(&Args{Paths: []string{file}}, nil)
+	if perr != nil {
+		t.Fatalf("unexpected error: %+v", perr)
+	}
+	if len(res.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(res.Entries))
+	}
+	if !filepath.IsAbs(res.Entries[0].Path) {
+		t.Errorf("without jail policy, absolute input should yield absolute path: %q", res.Entries[0].Path)
+	}
+}
+
+func TestParseArgs_AbsoluteFlag_Stat(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{"path": ".", "absolute": true})
+	if perr != nil {
+		t.Fatalf("unexpected error: %v", perr)
+	}
+	if !a.Absolute {
+		t.Error("Absolute: want true")
+	}
+	a2, perr := ParseArgs(map[string]any{"path": "."})
+	if perr != nil {
+		t.Fatalf("unexpected error: %v", perr)
+	}
+	if a2.Absolute {
+		t.Error("Absolute default: want false")
 	}
 }
 

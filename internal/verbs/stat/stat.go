@@ -2,8 +2,9 @@
 //
 // Args:
 //
-//	paths   string (required) - comma-separated list of paths to inspect
-//	path    string (alias)    - accepted as an alias for --paths for single-path ergonomics
+//	paths    string (required) - comma-separated list of paths to inspect
+//	path     string (alias)    - accepted as an alias for --paths for single-path ergonomics
+//	absolute bool   (optional) - emit absolute paths instead of repo-root-relative (default false)
 //
 // Returns one Entry per path. Paths that do not exist or are inaccessible
 // produce a non-nil Error field rather than failing the whole call, so a
@@ -29,6 +30,7 @@ import (
 type Args struct {
 	Paths          []string
 	FollowSymlinks bool
+	Absolute       bool
 }
 
 // Entry holds the metadata for one path. Fields are omitted from the wire
@@ -79,6 +81,10 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if perr2 != nil {
 		return nil, perr2
 	}
+	absolute, perr3 := argutil.OptionalBool(in, "absolute", false)
+	if perr3 != nil {
+		return nil, perr3
+	}
 	check := make(map[string]string, len(paths))
 	for i, p := range paths {
 		check[fmt.Sprintf("paths[%d]", i)] = p
@@ -86,7 +92,7 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if perr := jail.CheckPaths(check); perr != nil {
 		return nil, perr
 	}
-	return &Args{Paths: paths, FollowSymlinks: follow}, nil
+	return &Args{Paths: paths, FollowSymlinks: follow, Absolute: absolute}, nil
 }
 
 // Run stats each path in order. The tracer is unused: each stat is a single
@@ -98,6 +104,12 @@ func Run(a *Args, _ *proto.Tracer) (*Result, *proto.Error) {
 		res.Entries = append(res.Entries, e)
 		if e.Error != "" {
 			res.Errors++
+		}
+	}
+	if !a.Absolute {
+		for i := range res.Entries {
+			rel := jail.NewProjectRelativizer(res.Entries[i].Path)
+			res.Entries[i].Path = rel.Apply(res.Entries[i].Path)
 		}
 	}
 	res.Count = len(res.Entries)
@@ -202,10 +214,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 }
 
 func writeEntry(b *strings.Builder, e Entry, withMeta bool) {
-	// ASH-71: render the path repo-relative when possible. The wire
-	// Entry.Path stays as-passed so JSON consumers see the unmodified
-	// input echo.
-	prettyPath := jail.PrettyPath(e.Path)
+	prettyPath := e.Path
 	if e.Error != "" {
 		fmt.Fprintf(b, "? - %s [%s]\n", prettyPath, e.Error)
 		return

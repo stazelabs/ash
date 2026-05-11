@@ -66,6 +66,9 @@ var registry = []VerbSchema{
 			{Name: "meta", Type: "bool", Default: "false",
 				Description: "Include encoding and mtime in the pretty header.",
 				Long:        "When true the pretty header includes encoding + mtime. Default lean header omits both (encoding only surfaces when non-utf-8). Wire data always carries them."},
+			{Name: "absolute", Type: "bool", Default: "false",
+				Description: "Emit absolute paths instead of repo-root-relative.",
+				Long:        "When true, Result.Path is the original absolute path. Default (false) strips the project-root prefix so output is repo-root-relative (ASH-86)."},
 		},
 	},
 	{
@@ -216,6 +219,9 @@ var registry = []VerbSchema{
 			{Name: "no-clobber", Type: "bool", Default: "false",
 				Description: "Fail with 'exists' if the file already exists.",
 				Long:        "Fail with 'exists' error if the file already exists. Useful as a safety guard against accidental overwrites."},
+			{Name: "absolute", Type: "bool", Default: "false",
+				Description: "Emit absolute paths instead of repo-root-relative.",
+				Long:        "When true, Result.Path is the original absolute path. Default (false) strips the project-root prefix (ASH-86)."},
 		},
 	},
 	{
@@ -303,6 +309,9 @@ var registry = []VerbSchema{
 			{Name: "follow", Type: "bool", Default: "false",
 				Description: "Resolve symlinks; broken symlinks produce error=broken_symlink per entry.",
 				Long:        "When true, resolve each symlink with os.Stat and report the target's type/size/mtime/mode. link_target is preserved for traceability. Broken symlinks produce error=broken_symlink rather than failing the call."},
+			{Name: "absolute", Type: "bool", Default: "false",
+				Description: "Emit absolute paths instead of repo-root-relative.",
+				Long:        "When true, each Entry.Path is the original absolute path. Default (false) strips the project-root prefix (ASH-86)."},
 		},
 	},
 	{
@@ -332,6 +341,9 @@ var registry = []VerbSchema{
 			{Name: "dry", Type: "bool", Default: "false",
 				Description: "Compute the replacement without writing; result includes unified diff.",
 				Long:        "Compute the replacement but do not write. Result includes a unified diff in the patch field."},
+			{Name: "absolute", Type: "bool", Default: "false",
+				Description: "Emit absolute paths instead of repo-root-relative.",
+				Long:        "When true, Result.Path is the original absolute path. Default (false) strips the project-root prefix (ASH-86)."},
 		},
 	},
 	{
@@ -351,6 +363,9 @@ var registry = []VerbSchema{
 			{Name: "stat", Type: "bool", Default: "false",
 				Description: "Return add/delete/unchanged counts only; no patch text.",
 				Long:        "Return counts only (additions, deletions, unchanged). Omits patch text. Much cheaper in tokens when you only need to know if or how much changed."},
+			{Name: "absolute", Type: "bool", Default: "false",
+				Description: "Emit absolute paths instead of repo-root-relative.",
+				Long:        "When true, Result.PathA and Result.PathB are the original absolute paths. Default (false) strips the project-root prefix (ASH-86)."},
 		},
 	},
 	{
