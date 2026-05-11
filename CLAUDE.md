@@ -53,7 +53,7 @@ Any `ash` invocation auto-starts the daemon. Use `bin/ash` from the repo root, o
 
 10. **Running Go tests** — use `ash test` instead of `go test`. Canonical: `ash test` (defaults to `./...`, `count=1` to bypass cache, 60s timeout). Add `--packages internal/walker` for one package, `--run TestX` for name filter, `--race true` for race detector, `--short true` for `-short` mode, `--timeout 10m` for big suites. Failures arrive as a structured `Tests []Test` slice with `file:line` extracted; build failures land as `Status=build_failed`. `ash help --verb test` for the full schema.
 
-11. **Bash equivalents to retire** — `find`, `cat`, `head`, `tail`, `ls -R`, `grep`, `rg`, `git status`, `git log`, `git diff`, `go test`, `stat` should be replaced by their `ash` equivalents in this repo. The PreToolUse hook (next subsection) enforces this.
+11. **Bash equivalents to retire** — `find`, `cat`, `head`, `tail`, `ls -R`, `grep`, `rg`, `git status`, `git log`, `git diff`, `go test`, `stat`, `sed` should be replaced by their `ash` equivalents in this repo. The PreToolUse hook (next subsection) enforces this. (`sed` routes to `ash edit` for in-place edits and `ash read --range` for line-range reads; pure pipeline `cmd | sed …` is allowed through.)
 
 12. **Restarting the daemon** (after editing `ash.toml`, or after a rebuild) — use `ash stop`. The next `ash` invocation auto-starts a fresh daemon. Don't reach for `pkill ashd`.
 

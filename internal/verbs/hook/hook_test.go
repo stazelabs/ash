@@ -264,6 +264,57 @@ func TestDecide_bash(t *testing.T) {
 			command: "stat foo.go bar.go 2>/dev/null",
 			want: "deny", wantRule: "Bash:stat",
 			wantSugg: "ash stat --paths foo.go,bar.go"},
+
+		// sed: file-mode forms route to ash edit / ash read; pure pipeline
+		// (no file arg) passes through since stream-transform sed has no
+		// ash equivalent yet.
+		{name: "sed -i substitute routes to ash edit",
+			command: "sed -i 's/foo/bar/' a.go",
+			want: "deny", wantRule: "Bash:sed",
+			wantSugg: "ash edit --path a.go --old foo --new bar"},
+		{name: "sed -i substitute with /g sets --replace_all",
+			command: "sed -i 's|foo|bar|g' a.go",
+			want: "deny", wantRule: "Bash:sed",
+			wantSugg: "--replace_all true"},
+		{name: "sed -i.bak (BSD glued backup) routes to ash edit",
+			command: "sed -i.bak 's/x/y/' a.go",
+			want: "deny", wantRule: "Bash:sed",
+			wantSugg: "ash edit --path a.go --old x --new y"},
+		{name: "sed -i '' (BSD empty backup) routes to ash edit",
+			command: "sed -i '' 's/x/y/' a.go",
+			want: "deny", wantRule: "Bash:sed",
+			wantSugg: "ash edit --path a.go --old x --new y"},
+		{name: "sed -n print range routes to ash read --range",
+			command: "sed -n '10,20p' a.go",
+			want: "deny", wantRule: "Bash:sed",
+			wantSugg: "ash read --path a.go --range 10:20"},
+		{name: "sed -n single-line print routes to ash read --range N:N",
+			command: "sed -n '5p' a.go",
+			want: "deny", wantRule: "Bash:sed",
+			wantSugg: "ash read --path a.go --range 5:5"},
+		{name: "sed -i delete single line routes to ash edit --range",
+			command: "sed -i '5d' a.go",
+			want: "deny", wantRule: "Bash:sed",
+			wantSugg: "ash edit --path a.go --range 5:5 --new ''"},
+		{name: "sed -i delete range routes to ash edit --range A:B",
+			command: "sed -i '5,10d' a.go",
+			want: "deny", wantRule: "Bash:sed",
+			wantSugg: "ash edit --path a.go --range 5:10 --new ''"},
+		{name: "sed with regex address falls back to generic",
+			command: "sed -i '/PATTERN/d' a.go",
+			want: "deny", wantRule: "Bash:sed",
+			wantSugg: "ash edit --path a.go --old <text>"},
+		{name: "sed -e expression form routes to ash edit",
+			command: "sed -e 's/x/y/' a.go",
+			want: "deny", wantRule: "Bash:sed",
+			wantSugg: "ash edit --path a.go --old x --new y"},
+		{name: "sed pure pipeline (no file) allows",
+			command: "echo hi | sed 's/x/y/'",
+			want: "allow"},
+		{name: "sed with stderr redirect still routes via file arg",
+			command: "sed -i 's/x/y/' a.go 2>/dev/null",
+			want: "deny", wantRule: "Bash:sed",
+			wantSugg: "ash edit --path a.go"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -507,6 +558,20 @@ func TestDecide_excludeVerbs(t *testing.T) {
 			args:         &Args{ToolName: "Bash", Command: "go test ./...", ExcludeVerbs: []string{"test"}},
 			wantDecision: "allow",
 			wantRule:     "Bash:go-test:excluded",
+		},
+		// edit excluded: bash sed allowed (sed maps to ash edit)
+		{
+			name:         "Bash:sed excluded via edit verb",
+			args:         &Args{ToolName: "Bash", Command: "sed -i 's/x/y/' a.go", ExcludeVerbs: []string{"edit"}},
+			wantDecision: "allow",
+			wantRule:     "Bash:sed:excluded",
+		},
+		// read excluded: bash sed also allowed (sed -n maps to ash read)
+		{
+			name:         "Bash:sed excluded via read verb",
+			args:         &Args{ToolName: "Bash", Command: "sed -n '5,10p' a.go", ExcludeVerbs: []string{"read"}},
+			wantDecision: "allow",
+			wantRule:     "Bash:sed:excluded",
 		},
 		// empty ExcludeVerbs: normal deny unchanged
 		{

@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/stazelabs/ash/internal/proto"
@@ -406,6 +407,174 @@ func suggestStat(paths []string) string {
 	return "ash stat --paths " + shellquote(strings.Join(paths, ","))
 }
 
+// parseSedCommand walks sed args (after firstToken) and returns the
+// target file plus a tailored ash suggestion. Returns ("", "") for
+// pipeline forms with no file argument — the caller should allow these,
+// since pure stream-transform sed has no ash equivalent today.
+//
+// Recognized forms:
+//   sed -i 's|X|Y|[g]?' FILE       → ash edit --old/--new [--replace_all true]
+//   sed -n 'A,Bp' FILE / 'Np'      → ash read --range A:B
+//   sed -i 'A,Bd' FILE / 'Nd'      → ash edit --range A:B --new ''
+//   anything else with a file arg  → generic ash edit/read/write fallback
+func parseSedCommand(args []string) (file, suggestion string) {
+	args = stripRedirections(args)
+	var exprs []string
+	unknownFlag := false
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "-i" {
+			// BSD sed requires a backup-suffix arg after -i (commonly ''
+			// for no backup, or .bak). Skip it when present.
+			if i+1 < len(args) {
+				next := unquoteToken(args[i+1])
+				if next == "" || looksLikeBSDBackup(next) {
+					i++
+				}
+			}
+			continue
+		}
+		if strings.HasPrefix(a, "-i") {
+			continue
+		}
+		if a == "-n" {
+			continue
+		}
+		if a == "-e" {
+			if i+1 < len(args) {
+				exprs = append(exprs, unquoteToken(args[i+1]))
+				i++
+			}
+			continue
+		}
+		if strings.HasPrefix(a, "-") {
+			// Unknown long/short flag (--posix, -E, -r, -f, --in-place, …).
+			// Mark for generic fallback but keep walking so we still find
+			// the file arg for the suggestion path.
+			unknownFlag = true
+			continue
+		}
+		u := unquoteToken(a)
+		if len(exprs) == 0 {
+			exprs = append(exprs, u)
+		} else if file == "" {
+			file = u
+		}
+	}
+	if file == "" {
+		return "", ""
+	}
+	quoted := shellquote(file)
+	generic := fmt.Sprintf("ash edit --path %s --old <text> --new <replacement> (or `ash read --path %s --range A:B`, or `ash write --path %s --content - << 'EOF'`)",
+		quoted, quoted, quoted)
+	if unknownFlag || len(exprs) != 1 {
+		return file, generic
+	}
+	expr := exprs[0]
+	if old, new_, replaceAll, ok := parseSedSubst(expr); ok {
+		parts := []string{"ash edit",
+			"--path " + quoted,
+			"--old " + shellquote(old),
+			"--new " + shellquote(new_)}
+		if replaceAll {
+			parts = append(parts, "--replace_all true")
+		}
+		return file, strings.Join(parts, " ")
+	}
+	if start, end, ok := parseSedRange(expr, 'p'); ok {
+		return file, fmt.Sprintf("ash read --path %s --range %d:%d", quoted, start, end)
+	}
+	if start, end, ok := parseSedRange(expr, 'd'); ok {
+		return file, fmt.Sprintf("ash edit --path %s --range %d:%d --new ''", quoted, start, end)
+	}
+	return file, generic
+}
+
+// parseSedSubst parses a sed substitute expression `s<delim>X<delim>Y<delim>[flags]`.
+// Returns ok=false for non-substitute exprs, exprs with non-printable
+// delimiters, or flag combinations beyond the bare/`g` cases.
+func parseSedSubst(expr string) (old, new_ string, replaceAll, ok bool) {
+	if len(expr) < 4 || expr[0] != 's' {
+		return
+	}
+	delim := expr[1]
+	// Disallow alphanumerics, whitespace, and backslash as delimiters —
+	// these collide with sed's escape rules and aren't real-world choices.
+	if delim == ' ' || delim == '\t' || delim == '\n' || delim == '\\' {
+		return
+	}
+	if (delim >= 'a' && delim <= 'z') || (delim >= 'A' && delim <= 'Z') || (delim >= '0' && delim <= '9') {
+		return
+	}
+	rest := expr[2:]
+	p1, p2 := -1, -1
+	for i := 0; i < len(rest); i++ {
+		if rest[i] == '\\' {
+			i++
+			continue
+		}
+		if rest[i] == delim {
+			if p1 == -1 {
+				p1 = i
+			} else {
+				p2 = i
+				break
+			}
+		}
+	}
+	if p1 == -1 || p2 == -1 {
+		return
+	}
+	old = rest[:p1]
+	new_ = rest[p1+1 : p2]
+	flags := rest[p2+1:]
+	switch flags {
+	case "":
+		return old, new_, false, true
+	case "g":
+		return old, new_, true, true
+	}
+	return
+}
+
+// parseSedRange parses sed exprs of the form `N<cmd>` or `A,B<cmd>`,
+// where cmd is the trailing command byte ('p' for print, 'd' for delete).
+// Pattern addresses (`/foo/p`) and step addresses (`first~step`) are
+// rejected so the caller falls back to the generic suggestion.
+func parseSedRange(expr string, cmd byte) (start, end int, ok bool) {
+	if len(expr) < 2 || expr[len(expr)-1] != cmd {
+		return
+	}
+	body := expr[:len(expr)-1]
+	if comma := strings.IndexByte(body, ','); comma >= 0 {
+		a, errA := strconv.Atoi(body[:comma])
+		b, errB := strconv.Atoi(body[comma+1:])
+		if errA != nil || errB != nil {
+			return
+		}
+		return a, b, true
+	}
+	n, err := strconv.Atoi(body)
+	if err != nil {
+		return
+	}
+	return n, n, true
+}
+
+// looksLikeBSDBackup returns true when s plausibly is a BSD sed -i
+// backup-suffix argument rather than a sed expression. The empty-string
+// case (BSD's `-i ''` for no-backup) is handled by the caller before
+// this function is consulted.
+func looksLikeBSDBackup(s string) bool {
+	if s == "~" {
+		return true
+	}
+	if strings.HasPrefix(s, ".") {
+		return true
+	}
+	return false
+}
+
 // pickPath returns the first non-empty path candidate. Harness uses
 // "file_path" for Read/Edit/Write but some payloads use "path"; checking
 // both keeps us robust to either shape.
@@ -425,8 +594,8 @@ func pickPath(candidates ...string) string {
 var verbRuleMap = map[string][]string{
 	"grep":  {"Grep", "Bash:grep", "Bash:rg", "Bash:egrep", "Bash:fgrep"},
 	"find":  {"Glob", "Bash:find", "Bash:ls-R"},
-	"read":  {"Read", "Bash:cat", "Bash:head", "Bash:tail"},
-	"edit":  {"Edit"},
+	"read":  {"Read", "Bash:cat", "Bash:head", "Bash:tail", "Bash:sed"},
+	"edit":  {"Edit", "Bash:sed"},
 	"write": {"Write", "Bash:redirect-write"},
 	"stat":  {"Bash:stat"},
 	"git":   {"Bash:git-status", "Bash:git-log", "Bash:git-diff", "Bash:git-show"},
@@ -928,6 +1097,17 @@ func decideBash(command string, excludeVerbs []string) *Result {
 			reason := fmt.Sprintf("Use ash instead: `%s` (bash `go test` is redirected to ash test in this repo).",
 				suggestTest(pos))
 			return deny("Bash", "Bash:go-test", reason)
+		}
+		if prog == "sed" {
+			file, suggestion := parseSedCommand(args)
+			if file == "" {
+				// Pure pipeline form (no file argument) — stream-transform
+				// usage we have no ash equivalent for. Pass through.
+				continue
+			}
+			reason := fmt.Sprintf("Use ash instead: `%s` (bash `sed` is redirected to ash edit/read in this repo).",
+				suggestion)
+			return deny("Bash", "Bash:sed", reason)
 		}
 		// Other programs (gh, mv, rm, …) pass through.
 	}
