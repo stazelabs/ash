@@ -64,7 +64,19 @@ Wire-side data (`Result.Records`, `Result.Matches`) is **unchanged** — only pr
 
 **Migration note:** JSON/msgpack callers that scrape `Result.Path` expecting absolute form will now receive the bare repo-relative form by default. Pass `--absolute true` to restore the prior behavior.
 
+## ASH-87 audit — `git` verb pretty headers
+
+Audited all four ops with an absolute `--path`/`--pathspec`:
+
+```
+ash git --op status   --path     /Users/.../ash           → "=== ash git status: on main -> origin/main ==="
+ash git --op log      --pathspec /Users/.../ash/cmd       → "=== ash git log: 0 commits ==="
+ash git --op diff     --pathspec /Users/.../ash/cmd       → "=== ash git diff: 0 file(s) +0 -0 ==="
+ash git --op show     --ref HEAD --pathspec .../ash/cmd   → "=== ash git show: <hash> — <message> ==="
+```
+
+**Result: nothing to strip.** Headers surface branch name, commit count, diff stats, and commit ref/message — none echo the input `--path` or `--pathspec`. Result data already uses repo-root-relative paths (noted in CLAUDE.md). No code change needed; closed as "nothing to do."
+
 ## Out of scope (low priority)
-- **`git` verb headers.** Result data already uses repo-root-relative paths. Pretty headers may still echo input `--path` arg unstripped; not audited.
 - **Path-bearing error messages.** Errors like `not_found: /Users/.../foo: no such path` bypass the cosmetic strip. Low frequency; defer.
 - **Diff patch text paths.** When `--absolute false` (default), `idiff.Unified` is called with the relativized `pathAOut`/`pathBOut`, so `---`/`+++` headers in the patch text also carry the relative form. If callers need the absolute form in the patch text, pass `--absolute true`.
