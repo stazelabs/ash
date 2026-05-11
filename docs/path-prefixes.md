@@ -77,6 +77,13 @@ ash git --op show     --ref HEAD --pathspec .../ash/cmd   → "=== ash git show:
 
 **Result: nothing to strip.** Headers surface branch name, commit count, diff stats, and commit ref/message — none echo the input `--path` or `--pathspec`. Result data already uses repo-root-relative paths (noted in CLAUDE.md). No code change needed; closed as "nothing to do."
 
+## Phase 7 — Path-bearing error messages (ASH-88)
+
+- [internal/verbs/find/find.go](../internal/verbs/find/find.go), [grep/grep.go](../internal/verbs/grep/grep.go), [read/read.go](../internal/verbs/read/read.go), [diff/diff.go](../internal/verbs/diff/diff.go), [edit/edit.go](../internal/verbs/edit/edit.go), [write/write.go](../internal/verbs/write/write.go) — ergonomic error paths (`not_found`, `not_dir`, `is_dir`, `exists`, `no_parent`) now route through `jail.PrettyPath` before formatting. `path_denied` errors are excluded (keep absolute for security signal).
+- [internal/verbs/git/git.go](../internal/verbs/git/git.go), [gogit_common.go](../internal/verbs/git/gogit_common.go), [show.go](../internal/verbs/git/show.go), [log.go](../internal/verbs/git/log.go) — `not_a_repo` error helpers (`gitRunError`, `repoOpenError`, `showRunError`, `runLogShellout`) apply the same strip.
+- Each touched file has a new test asserting `perr.Msg` does not contain the project-root prefix.
+
+**Decision:** `path_denied` errors (jail enforcement) retain the absolute path — the resolved canonical path is the security signal, telling the agent exactly what was rejected. Everything else is ergonomic and benefits from stripping.
+
 ## Out of scope (low priority)
-- **Path-bearing error messages.** Errors like `not_found: /Users/.../foo: no such path` bypass the cosmetic strip. Low frequency; defer.
 - **Diff patch text paths.** When `--absolute false` (default), `idiff.Unified` is called with the relativized `pathAOut`/`pathBOut`, so `---`/`+++` headers in the patch text also carry the relative form. If callers need the absolute form in the patch text, pass `--absolute true`.

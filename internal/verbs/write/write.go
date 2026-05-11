@@ -89,14 +89,14 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 
 	// Reject paths that point at an existing directory.
 	if info, err := os.Stat(a.Path); err == nil && info.IsDir() {
-		return nil, &proto.Error{Code: "is_dir", Msg: a.Path + " is a directory"}
+		return nil, &proto.Error{Code: "is_dir", Msg: jail.PrettyPath(a.Path) + " is a directory"}
 	}
 
 	// create_only: refuse if the file already exists.
 	created := true
 	if _, err := os.Stat(a.Path); err == nil {
 		if a.CreateOnly {
-			return nil, &proto.Error{Code: "exists", Msg: a.Path + ": already exists", Hint: "pass --no-clobber false to overwrite"}
+			return nil, &proto.Error{Code: "exists", Msg: jail.PrettyPath(a.Path) + ": already exists", Hint: "pass --no-clobber false to overwrite"}
 		}
 		created = false
 	}
@@ -112,7 +112,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		}
 	} else {
 		if _, err := os.Stat(dir); err != nil {
-			return nil, &proto.Error{Code: "no_parent", Msg: "parent directory does not exist: " + dir, Hint: "pass --mkdir true to create it"}
+			return nil, &proto.Error{Code: "no_parent", Msg: "parent directory does not exist: " + jail.PrettyPath(dir), Hint: "pass --mkdir true to create it"}
 		}
 	}
 

@@ -354,3 +354,20 @@ func TestParseArgs_AbsoluteFlag_Diff(t *testing.T) {
 func okResponse(r *Result) *proto.Response {
 	return &proto.Response{OK: true, Data: proto.MustData(r)}
 }
+
+// -- ASH-88: error messages strip project-root prefix ---------------------
+
+func TestRun_NotFoundErrorStripsPrefix_Diff(t *testing.T) {
+	root := t.TempDir()
+	jail.SetPolicy(jail.FromConfig(false, root, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	missing := filepath.Join(root, "no-such-file.go")
+	_, perr := Run(&Args{Path: missing, Content: "x"}, nil)
+	if perr == nil || perr.Code != "not_found" {
+		t.Fatalf("expected not_found, got %+v", perr)
+	}
+	if strings.Contains(perr.Msg, root) {
+		t.Errorf("error Msg should not contain project root, got %q", perr.Msg)
+	}
+}

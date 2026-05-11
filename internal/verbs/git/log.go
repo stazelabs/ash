@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/runner"
 )
@@ -93,7 +94,7 @@ func runLogShellout(a *Args, tr *proto.Tracer) (*LogResult, *proto.Error) {
 		msg := strings.TrimSpace(string(res.Stderr))
 		lower := strings.ToLower(msg)
 		if strings.Contains(lower, "not a git repository") {
-			return nil, &proto.Error{Code: "not_a_repo", Msg: a.Path + " is not inside a git repository"}
+			return nil, &proto.Error{Code: "not_a_repo", Msg: jail.PrettyPath(a.Path) + " is not inside a git repository"}
 		}
 		// Empty repo: git log exits 128 with a message containing
 		// "any commits" (variants: "does not yet have any commits",

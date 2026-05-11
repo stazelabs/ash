@@ -688,3 +688,38 @@ func TestPrettyResponse_AbsoluteFlagSkipsAliasTable(t *testing.T) {
 		t.Errorf("no alias table expected with --absolute, got %q", got)
 	}
 }
+
+// -- ASH-88: error messages strip project-root prefix ---------------------
+
+func TestRun_NotFoundErrorStripsPrefix(t *testing.T) {
+	root := t.TempDir()
+	jail.SetPolicy(jail.FromConfig(false, root, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	missing := filepath.Join(root, "no-such-dir")
+	_, perr := Run(&Args{Path: missing, Glob: DefaultGlob, Type: "any", Limit: 100}, nil)
+	if perr == nil || perr.Code != "not_found" {
+		t.Fatalf("expected not_found, got %+v", perr)
+	}
+	if strings.Contains(perr.Msg, root) {
+		t.Errorf("error Msg should not contain project root, got %q", perr.Msg)
+	}
+}
+
+func TestRun_NotDirErrorStripsPrefix(t *testing.T) {
+	root := t.TempDir()
+	jail.SetPolicy(jail.FromConfig(false, root, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	file := filepath.Join(root, "file.txt")
+	if err := os.WriteFile(file, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, perr := Run(&Args{Path: file, Glob: DefaultGlob, Type: "any", Limit: 100}, nil)
+	if perr == nil || perr.Code != "not_dir" {
+		t.Fatalf("expected not_dir, got %+v", perr)
+	}
+	if strings.Contains(perr.Msg, root) {
+		t.Errorf("error Msg should not contain project root, got %q", perr.Msg)
+	}
+}

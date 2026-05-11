@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stazelabs/ash/internal/jail"
@@ -303,4 +304,38 @@ func TestParseArgs_AbsoluteFlag_Write(t *testing.T) {
 
 func okResponse(r *Result) *proto.Response {
 	return &proto.Response{OK: true, Data: proto.MustData(r)}
+}
+
+// -- ASH-88: error messages strip project-root prefix ---------------------
+
+func TestRun_IsDirErrorStripsPrefix_Write(t *testing.T) {
+	root := t.TempDir()
+	jail.SetPolicy(jail.FromConfig(false, root, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	_, perr := Run(&Args{Path: root, Content: "x", Encoding: "utf-8", Mkdir: true}, nil)
+	if perr == nil || perr.Code != "is_dir" {
+		t.Fatalf("expected is_dir, got %+v", perr)
+	}
+	if strings.Contains(perr.Msg, root) {
+		t.Errorf("error Msg should not contain project root, got %q", perr.Msg)
+	}
+}
+
+func TestRun_ExistsErrorStripsPrefix_Write(t *testing.T) {
+	root := t.TempDir()
+	jail.SetPolicy(jail.FromConfig(false, root, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	file := filepath.Join(root, "existing.txt")
+	if err := os.WriteFile(file, []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, perr := Run(&Args{Path: file, Content: "new", Encoding: "utf-8", Mkdir: true, CreateOnly: true}, nil)
+	if perr == nil || perr.Code != "exists" {
+		t.Fatalf("expected exists, got %+v", perr)
+	}
+	if strings.Contains(perr.Msg, root) {
+		t.Errorf("error Msg should not contain project root, got %q", perr.Msg)
+	}
 }
