@@ -1,0 +1,13 @@
+=== ash help: 1 verb(s) ===
+verb: find
+  Walk a directory tree and return matching paths; respects .gitignore.
+  --path:string! — Starting directory for the walk.
+  --glob:string=** — Doublestar glob; matched relative to --path.
+  --type:string=any — Filter by entry type. [any|file|dir|symlink]
+  --depth:int=0 — Max depth; 0 is unlimited, 1 is direct children only.
+  --limit:int=256 — Max results; hard cap 4096.
+  --exclude:string — Doublestar pattern; matching entries are skipped.
+  --hidden:bool=false — Include directories starting with '.' when true.
+  --gi:bool=true — Apply .gitignore from the walk root.
+  --meta:bool=false — Show type, size, and date per row; default is path only.
+  --absolute:bool=false — Emit absolute paths instead of repo-root-relative.

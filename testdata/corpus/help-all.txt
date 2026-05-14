@@ -1,0 +1,18 @@
+=== ash help: 17 verb(s) — use `ash help <verb>` for full schema ===
+  read      Read a file or byte/line range; UTF-8 as-is, binary base64-encoded.
+  find      Walk a directory tree and return matching paths; respects .gitignore.
+  grep      Search files for an RE2 pattern; skips binary and files >16 MiB.
+  git       Structured git calls via --op discriminator: status, log, diff, show.
+  write     Write a file atomically; creates parent directories by default.
+  metrics   Query recent call history from the ledger.
+  report    Per-verb ledger summary: n, ok%, p50/p95 latency, tokens, trunc%.
+  help      Return argument schema for one verb or all verbs.
+  hook      PreToolUse decision engine; steers harness tools to ash equivalents.
+  stat      Return lstat metadata for one or more paths.
+  edit      Atomically edit a file: string-replace, line-range, or patch mode.
+  diff      Unified diff: file vs file or inline content, capped at 2000 lines.
+  bench     Benchmark ash vs bash; report token/latency deltas per case.
+  test      Run Go tests; return structured per-test results.
+  init      Bootstrap a repo for ash: hook, gitignore, CLAUDE.md, registry. Idempotent.
+  uninit    Reverse ash init: remove hook, gitignore entry, CLAUDE.md section, registry.
+  stop      Stop the daemon cleanly (SIGTERM, 7s). Idempotent; next call auto-restarts.

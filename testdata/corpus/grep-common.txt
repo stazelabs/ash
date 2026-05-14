@@ -1,0 +1,275 @@
+=== ash grep: 256 matches in 16 files [pattern="func ", path=internal/verbs] TRUNCATED ===
+internal/verbs/argutil/argutil.go (11 matches)
+  32: func ToInt(v any) (int, bool) {
+  49: func ToInt64(v any) (int64, bool) {
+  66: func ToBool(v any) (bool, bool) {
+  81: func ToString(v any) (string, bool) {
+  90: func RequireString(in map[string]any, key string) (string, *proto.Error) {
+  105: func OptionalString(in map[string]any, key, def string) (string, *proto.Error) {
+  120: func OptionalNonEmptyString(in map[string]any, key, def string) (string, *proto.Error) {
+  133: func OptionalBool(in map[string]any, key string, def bool) (bool, *proto.Error) {
+  148: func OptionalPosInt(in map[string]any, key string, def, hardCap int) (int, *proto.Error) {
+  166: func OptionalNonNegInt(in map[string]any, key string, def, hardCap int) (int, *proto.Error) {
+  184: func OptionalEnum(in map[string]any, key, def string, allowed []string) (string, *proto.Error) {
+internal/verbs/argutil/argutil_test.go (15 matches)
+  13: func TestToInt(t *testing.T) {
+  40: func TestToInt64(t *testing.T) {
+  52: func TestToBool(t *testing.T) {
+  77: func TestRequireString(t *testing.T) {
+  104: func TestOptionalString(t *testing.T) {
+  125: func TestOptionalNonEmptyString(t *testing.T) {
+  140: func TestOptionalBool(t *testing.T) {
+  165: func TestOptionalPosInt_StringInput(t *testing.T) {
+  175: func TestOptionalPosInt_Defaults(t *testing.T) {
+  182: func TestOptionalPosInt_ClampsToHardCap(t *testing.T) {
+  189: func TestOptionalPosInt_RejectsZeroAndNegative(t *testing.T) {
+  198: func TestOptionalNonNegInt_AllowsZero(t *testing.T) {
+  205: func TestOptionalNonNegInt_RejectsNegative(t *testing.T) {
+  212: func TestOptionalEnum(t *testing.T) {
+  237: func TestErrorMessagesIncludeKey(t *testing.T) {
+internal/verbs/bench/baseline.go (12 matches)
+  121: func runRecordBaseline(d Deps, a *Args) (*RecordBaselineResult, *proto.Error) {
+  176: func runExportMd(d Deps, _ *Args) (*ExportMdResult, *proto.Error) {
+  198: func buildBaselineFile(res *Result, prov bench.Provenance) BaselineFile {
+  237: func buildBaselineFileFromLedger(run ledger.BenchRun, cases []ledger.BenchCaseResult) BaselineFile {
+  274: func buildLatencySnapshot(res *Result, prov bench.Provenance, a *Args) LatencySnapshotFile {
+  299: func buildLatencySnapshotFromLedger(run ledger.BenchRun, cases []ledger.BenchCaseResult) LatencySnapshotFile {
+  325: func renderBaselineMarkdown(bf BaselineFile, lf LatencySnapshotFile) string {
+  381: func loadBaselineFile(projectRoot string) (*BaselineFile, error) {
+  403: func baselineToRunSummary(bf *BaselineFile) (RunSummary, []ledger.BenchCaseResult) {
+  435: func prettyRecord(r *RecordBaselineResult) string {
+  455: func relToProjectRoot(root, abs string) string {
+  462: func maxInt(a, b int) int {
+internal/verbs/bench/bench.go (17 matches)
+  134: func ParseArgs(in map[string]any) (*Args, *proto.Error) {
+  231: func RunWithDeps(d Deps, a *Args) (any, *proto.Error) {
+  255: func runStandard(d Deps, a *Args) (*Result, *proto.Error) {
+  294: func persistRun(d Deps, res *Result, a *Args) string {
+  344: func newRunUUID() string {
+  352: func selectCases(a *Args) []bench.Case {
+  379: func runCase(d Deps, c bench.Case, repeat, warmup int) (CaseResult, bool, string) {
+  456: func runAshOnce(d Deps, c bench.Case) (string, *proto.Error, int64) {
+  473: func runBashOnce(argv []string) bench.BashResult {
+  480: func aggregateByVerb(rows []CaseResult) []VerbSummary {
+  502: func aggregateOverall(rows []CaseResult) VerbSummary {
+  517: func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
+  640: func pctDelta(ash, bash int) string {
+  651: func pctDeltaInt64(ash, bash int64) string {
+  662: func truncStr(s string, n int) string {
+  675: func percentileUs(samples []int64, p float64) int64 {
+  692: func minUs(samples []int64) int64 {
+internal/verbs/bench/bench_test.go (3 matches)
+  9: func TestParseArgs_WireShape(t *testing.T) {
+  26: func TestParseBenchLine(t *testing.T) {
+  82: func TestParseArgs_MicroFlags(t *testing.T) {
+internal/verbs/bench/coverage_test.go (3 matches)
+  13: func TestEveryMeasuredVerbHasACase(t *testing.T) {
+  29: func TestEveryRegisteredVerbIsClassified(t *testing.T) {
+  47: func TestNoStaleExemptions(t *testing.T) {
+internal/verbs/bench/micro.go (13 matches)
+  124: func runMicro(d Deps, a *Args) (*MicroResult, *proto.Error) {
+  180: func runRecordMicro(d Deps, a *Args) (*RecordMicroResult, *proto.Error) {
+  218: func runDiffMicro(d Deps, a *Args) (*DiffMicroResult, *proto.Error) {
+  292: func parseMicroRows(pkg string, tr *testverb.Result) []MicroBenchRow {
+  353: func buildMicroBaselineFile(res *MicroResult, prov bench.Provenance) MicroBaselineFile {
+  375: func renderMicroMarkdown(bf MicroBaselineFile) string {
+  401: func loadMicroBaselineFile(projectRoot string) (*MicroBaselineFile, error) {
+  418: func prettyMicro(r *MicroResult) string {
+  449: func prettyRecordMicro(r *RecordMicroResult) string {
+  463: func prettyDiffMicro(r *DiffMicroResult) string {
+  512: func parseBenchLine(line string) (MicroBenchRow, bool) {
+  530: func stripGOMAXPROCS(name string) string {
+  547: func countMicroPackages(rows []MicroBenchRow) int {
+internal/verbs/bench/trend.go (16 matches)
+  90: func runList(d Deps, a *Args) (*ListResult, *proto.Error) {
+  111: func runCompare(d Deps, a *Args) (*CompareResult, *proto.Error) {
+  130: func runWithBaseline(d Deps, a *Args) (*CompareResult, *proto.Error) {
+  182: func resolveRun(d Deps, token string) (*RunSummary, []ledger.BenchCaseResult, *proto.Error) {
+  218: func summarizeRun(led *ledger.Ledger, r ledger.BenchRun) RunSummary {
+  249: func buildCompare(a, b RunSummary, casesA, casesB []ledger.BenchCaseResult, args *Args) *CompareResult {
+  312: func indexByCase(rows []ledger.BenchCaseResult) map[string]ledger.BenchCaseResult {
+  320: func unionCaseNames(a, b map[string]ledger.BenchCaseResult) []string {
+  338: func pctChange(a, b int) float64 {
+  345: func pctChangeInt64(a, b int64) float64 {
+  355: func classifyDelta(dTok, dLat, regTok, regLat float64) (regress, improve bool) {
+  366: func prettyList(lr *ListResult) string {
+  404: func prettyCompare(cr *CompareResult) string {
+  451: func shortRunID(s string) string {
+  458: func min(a, b int) int {
+  468: func parseDuration(s string) (time.Duration, error) {
+internal/verbs/diff/diff.go (3 matches)
+  46: func ParseArgs(in map[string]any) (*Args, *proto.Error) {
+  87: func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
+  161: func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
+internal/verbs/diff/diff_test.go (23 matches)
+  13: func TestParseArgs_RequiresPath(t *testing.T) {
+  20: func TestParseArgs_RequiresOtherOrContent(t *testing.T) {
+  27: func TestParseArgs_BothOtherAndContent(t *testing.T) {
+  34: func TestParseArgs_OtherMode(t *testing.T) {
+  44: func TestParseArgs_ContentMode(t *testing.T) {
+  56: func TestRun_Identical(t *testing.T) {
+  74: func TestRun_FileVsContent(t *testing.T) {
+  98: func TestRun_TwoFiles(t *testing.T) {
+  115: func TestRun_FileNotFound(t *testing.T) {
+  125: func TestParseArgs_StatFlag(t *testing.T) {
+  135: func TestParseArgs_StatDefault(t *testing.T) {
+  149: func TestParseArgs_WireShape(t *testing.T) {
+  176: func TestRun_StatMode_Changed(t *testing.T) {
+  197: func TestRun_StatMode_Identical(t *testing.T) {
+  215: func TestPrettyResponse_StatMode(t *testing.T) {
+  228: func TestPrettyResponse_Unchanged(t *testing.T) {
+  236: func TestPrettyResponse_WithPatch(t *testing.T) {
+  255: func TestRun_DefaultStripsRepoRootPrefix_Diff(t *testing.T) {
+  286: func TestRun_AbsoluteFlagPreservesAbsolutePaths_Diff(t *testing.T) {
+  311: func TestRun_NoPolicyLeavesPathsAlone_Diff(t *testing.T) {
+  335: func TestParseArgs_AbsoluteFlag_Diff(t *testing.T) {
+  354: func okResponse(r *Result) *proto.Response {
+  360: func TestRun_NotFoundErrorStripsPrefix_Diff(t *testing.T) {
+internal/verbs/edit/edit.go (12 matches)
+  69: func ParseArgs(in map[string]any) (*Args, *proto.Error) {
+  130: func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
+  215: func computePatch(oldContent, newContent, path string) string {
+  236: func parseHunkHeader(line string) (oldStart, oldCount, newStart, newCount int, err error) {
+  286: func parsePatch(patchText string) ([]patchHunk, error) {
+  344: func applyPatch(content, patchText string) (string, int, *proto.Error) {
+  449: func applyStringReplace(content, oldStr, newStr string, replaceAll bool) (string, int, *proto.Error) {
+  467: func applyLineRange(content, spec, newContent string) (string, *proto.Error) {
+  518: func lineStartOffsets(s string) []int {
+  531: func countLines(s string) int {
+  547: func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
+  600: func hunkLabel(n int) string {
+internal/verbs/edit/edit_test.go (68 matches)
+  15: func TestParseArgs_RequiresPath(t *testing.T) {
+  22: func TestParseArgs_RequiresOldStringOrRange(t *testing.T) {
+  29: func TestParseArgs_BothOldStringAndRange(t *testing.T) {
+  36: func TestParseArgs_StringModeDefaults(t *testing.T) {
+  51: func TestParseArgs_WireShape(t *testing.T) {
+  83: func TestParseArgs_RangeModeDefaults(t *testing.T) {
+  93: func TestParseArgs_PatchMode(t *testing.T) {
+  103: func TestParseArgs_PatchExclusive(t *testing.T) {
+  119: func TestStringReplace_Basic(t *testing.T) {
+  132: func TestStringReplace_Deletion(t *testing.T) {
+  142: func TestStringReplace_NotFound(t *testing.T) {
+  149: func TestStringReplace_Ambiguous(t *testing.T) {
+  156: func TestStringReplace_ReplaceAll(t *testing.T) {
+  169: func TestStringReplace_MultilineOldString(t *testing.T) {
+  170: 	content := "func foo() {\n\treturn 1\n}\n"
+  184: func TestLineRange_Basic(t *testing.T) {
+  196: func TestLineRange_NormalizesMissingTrailingNewline(t *testing.T) {
+  208: func TestLineRange_DeleteLines(t *testing.T) {
+  220: func TestLineRange_ReplaceFirstLine(t *testing.T) {
+  232: func TestLineRange_ReplaceLastLine(t *testing.T) {
+  244: func TestLineRange_ReplaceAll(t *testing.T) {
+  256: func TestLineRange_EndClampedToFileLength(t *testing.T) {
+  268: func TestLineRange_StartBeyondFile(t *testing.T) {
+  275: func TestLineRange_EmptyFile(t *testing.T) {
+  282: func TestLineRange_InvalidRange(t *testing.T) {
+  289: func TestLineRange_StartGreaterThanEnd(t *testing.T) {
+  298: func TestParseHunkHeader_FullFormat(t *testing.T) {
+  308: func TestParseHunkHeader_WithContext(t *testing.T) {
+  310: 	oldStart, oldCount, newStart, newCount, err := parseHunkHeader("@@ -10,3 +10,4 @@ func foo() {")
+  319: func TestParseHunkHeader_ZeroCount(t *testing.T) {
+  330: func TestParseHunkHeader_OmittedCount(t *testing.T) {
+  341: func TestParseHunkHeader_Malformed(t *testing.T) {
+  358: func TestApplyPatch_CleanApply(t *testing.T) {
+  375: func TestApplyPatch_MultiHunk(t *testing.T) {
+  393: func TestApplyPatch_AddOnly(t *testing.T) {
+  408: func TestApplyPatch_DeleteOnly(t *testing.T) {
+  423: func TestApplyPatch_HunkMismatch_ContextLine(t *testing.T) {
+  434: func TestApplyPatch_HunkMismatch_DeleteLine(t *testing.T) {
+  445: func TestApplyPatch_MalformedInput_Empty(t *testing.T) {
+  452: func TestApplyPatch_MalformedInput_NoHunks(t *testing.T) {
+  459: func TestApplyPatch_MalformedInput_BadHeader(t *testing.T) {
+  466: func TestApplyPatch_UnknownBodyPrefix(t *testing.T) {
+  474: func TestApplyPatch_AppendToEndOfFile(t *testing.T) {
+  489: func TestApplyPatch_SkipsNoNewlineMarker(t *testing.T) {
+  506: func TestRun_StringReplace(t *testing.T) {
+  509: 	_ = os.WriteFile(path, []byte("package main\n\nfunc old() {}\n"), 0o644)
+  511: 	a := &Args{Path: path, OldString: "func old() {}", NewString: "func new() {}"}
+  520: 	if !strings.Contains(string(got), "func new()") {
+  525: func TestRun_LineRange(t *testing.T) {
+  545: func TestRun_PatchMode_Write(t *testing.T) {
+  566: func TestRun_PatchMode_DryRun(t *testing.T) {
+  591: func TestRun_PatchMode_HunkMismatch(t *testing.T) {
+  605: func TestRun_PatchMode_MalformedPatch(t *testing.T) {
+  617: func TestRun_FileNotFound(t *testing.T) {
+  625: func TestRun_IsDirectory(t *testing.T) {
+  636: func TestPrettyResponse_StringReplace(t *testing.T) {
+  645: func TestPrettyResponse_ReplaceAll(t *testing.T) {
+  654: func TestPrettyResponse_RangeMode(t *testing.T) {
+  664: func TestPrettyResponse_PatchMode_SingleHunk(t *testing.T) {
+  674: func TestPrettyResponse_PatchMode_MultiHunk(t *testing.T) {
+  684: func TestPrettyResponse_PatchMode_DryRun(t *testing.T) {
+  698: func TestRun_DefaultStripsRepoRootPrefix_Edit(t *testing.T) {
+  719: func TestRun_AbsoluteFlagPreservesAbsolutePaths_Edit(t *testing.T) {
+  737: func TestRun_NoPolicyLeavesPathsAlone_Edit(t *testing.T) {
+  754: func TestParseArgs_AbsoluteFlag_Edit(t *testing.T) {
+  773: func okResponse(r *Result) *proto.Response {
+  779: func TestRun_NotFoundErrorStripsPrefix_Edit(t *testing.T) {
+  794: func TestRun_IsDirErrorStripsPrefix_Edit(t *testing.T) {
+internal/verbs/find/find.go (9 matches)
+  75: func ParseArgs(in map[string]any) (*Args, *proto.Error) {
+  124: func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
+  197: func findTruncHint(ti *proto.TruncInfo) string {
+  213: func typeMatches(want, got string) bool {
+  234: func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
+  294: func writeRecordLean(b *strings.Builder, r Record) {
+  304: func writeRecordFull(b *strings.Builder, r Record) {
+  322: func scopeFromArgs(req *proto.Request) string {
+  352: func CompactResponse(rsp *proto.Response) (any, error) {
+internal/verbs/find/find_test.go (36 matches)
+  31: func makeTree(t *testing.T) string {
+  61: func pathsByType(t *testing.T, r *Result, root, typ string) []string {
+  78: func TestRun_DefaultsFindAllNonHidden(t *testing.T) {
+  105: func TestRun_IncludeHiddenRecurses(t *testing.T) {
+  117: func TestRun_GlobFilters(t *testing.T) {
+  130: func TestRun_TypeFilter(t *testing.T) {
+  148: func TestRun_MaxDepth(t *testing.T) {
+  166: func TestRun_RespectsGitignoreByDefault(t *testing.T) {
+  194: func TestRun_OptOutOfGitignore(t *testing.T) {
+  209: func TestRun_NoGitignoreFileIsNoop(t *testing.T) {
+  222: func TestParseArgs_DefaultsRespectGitignoreTrue(t *testing.T) {
+  232: func TestRun_Exclude(t *testing.T) {
+  246: func TestRun_LimitTruncatesWithHint(t *testing.T) {
+  272: func TestRun_TruncationHintAtHardCap(t *testing.T) {
+  286: func TestRun_NotFound(t *testing.T) {
+  293: func TestRun_NotADir(t *testing.T) {
+  305: func TestParseArgs_RejectsBadGlob(t *testing.T) {
+  312: func TestParseArgs_LimitClampedToMax(t *testing.T) {
+  322: func contains(xs []string, target string) bool {
+  331: func equalSlices(a, b []string) bool {
+  347: func TestParseArgs_WireShape(t *testing.T) {
+  392: func TestRun_DefaultStripsRepoRootPrefix(t *testing.T) {
+  421: func TestRun_AbsoluteFlagPreservesAbsolutePaths(t *testing.T) {
+  443: func TestRun_DefaultLeavesOutsideRootAsAbsolute(t *testing.T) {
+  470: func TestRun_NoPolicyLeavesPathsAlone(t *testing.T) {
+  486: func TestParseArgs_AbsoluteFlag(t *testing.T) {
+  505: func TestPrettyResponse_HeaderHasNoScope(t *testing.T) {
+  530: func TestPrettyResponse_HeaderShowsTruncated(t *testing.T) {
+  549: func hasRecord(records []Record, path string) bool {
+  558: func recordPaths(records []Record) []string {
+  569: func TestPrettyResponse_AliasTableSingleAllowPath(t *testing.T) {
+  607: func TestPrettyResponse_AliasTableTwoAllowPaths(t *testing.T) {
+  649: func TestPrettyResponse_NoAliasTableWithoutAllowPaths(t *testing.T) {
+  671: func TestPrettyResponse_AbsoluteFlagSkipsAliasTable(t *testing.T) {
+  694: func TestRun_NotFoundErrorStripsPrefix(t *testing.T) {
+  709: func TestRun_NotDirErrorStripsPrefix(t *testing.T) {
+internal/verbs/git/backend.go (7 matches)
+  43: func SetBackend(name string) error {
+  57: func currentBackend() backendKind {
+  64: func notImplementedBackend(op string) *proto.Error {
+  69: func runStatus(a *Args, tr *proto.Tracer) (*StatusResult, *proto.Error) {
+  78: func runLog(a *Args, tr *proto.Tracer) (*LogResult, *proto.Error) {
+  87: func runDiff(a *Args, tr *proto.Tracer) (*DiffResult, *proto.Error) {
+  96: func runShow(a *Args, tr *proto.Tracer) (*ShowResult, *proto.Error) {
+internal/verbs/git/diff.go (8 matches)
+  47: func runDiffShellout(a *Args, tr *proto.Tracer) (*DiffResult, *proto.Error) {
+  54: func buildDiffArgs(extra []string, a *Args) []string {
+  72: func runDiffStat(a *Args, tr *proto.Tracer) (*DiffResult, *proto.Error) {
+  85: func runDiffFull(a *Args, tr *proto.Tracer) (*DiffResult, *proto.Error) {
+  99: func parseDiffNumstat(out []byte) (*DiffResult, *proto.Error) {
+  139: func parseDiffUnified(out []byte, limitBytes int) (*DiffResult, *proto.Error) {
+  259: func diffTruncHint(ti *proto.TruncInfo) string {
+  269: func prettyDiff(d *DiffResult) string {
+
+[truncation: hit max=256. narrow with --glob, --mpf, --exclude, or raise --max (max 4096).]

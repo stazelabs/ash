@@ -1,0 +1,21 @@
+=== ash metrics: 20 calls ===
+2026-05-13T15:17:31Z  git       ok   in=5      out=170    exec_us=15027     io_us=14642  
+2026-05-13T15:17:31Z  git       ok   in=9      out=732    exec_us=9429      io_us=7475   
+2026-05-13T15:17:31Z  grep      ok   in=11     out=245    exec_us=9689      walk_us=9627     io_us=7847     regex_us=1088   regex_compile_us=12   
+2026-05-13T15:17:31Z  grep      ok   in=11     out=5203   exec_us=6050      walk_us=5899     io_us=3306     regex_us=2360   regex_compile_us=15     truncated
+2026-05-13T15:17:31Z  find      ok   in=14     out=879    exec_us=1635      walk_us=1573   
+2026-05-13T15:17:31Z  find      ok   in=5      out=164    exec_us=301       walk_us=262    
+2026-05-13T15:17:31Z  read      ok   in=9      out=2879   exec_us=241       io_us=196      dispatch_us=1    
+2026-05-13T15:17:31Z  read      ok   in=9      out=4841   exec_us=361       io_us=308    
+2026-05-13T15:17:31Z  read      ok   in=6      out=792    exec_us=82        io_us=31     
+2026-05-13T15:17:28Z  hook      ok   in=37     out=2      exec_us=14      
+2026-05-13T15:17:23Z  write     ok   in=28     out=21     exec_us=481       io_us=411    
+2026-05-13T15:17:21Z  hook      ok   in=820    out=2      exec_us=46        dispatch_us=6    
+2026-05-13T15:16:24Z  hook      ok   in=222    out=2      exec_us=118     
+2026-05-13T15:16:00Z  read      ok   in=29     out=1883   exec_us=110       io_us=49     
+2026-05-13T15:16:00Z  hook      ok   in=38     out=2      exec_us=9       
+2026-05-13T15:15:49Z  hook      ok   in=33     out=2      exec_us=12      
+2026-05-13T15:15:44Z  edit      ok   in=604    out=22     exec_us=470       io_us=407    
+2026-05-13T15:15:44Z  hook      ok   in=613    out=2      exec_us=31      
+2026-05-13T15:15:37Z  edit      ok   in=474    out=22     exec_us=414       io_us=358    
+2026-05-13T15:15:37Z  hook      ok   in=483    out=2      exec_us=17      

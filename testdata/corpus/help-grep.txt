@@ -1,0 +1,19 @@
+=== ash help: 1 verb(s) ===
+verb: grep
+  Search files for an RE2 pattern; skips binary and files >16 MiB.
+  --pattern:string! — RE2 regex; literal text when lit=true.
+  --path:string! — File or directory to search.
+  --glob:string=** — Doublestar pattern; scan only matching files.
+  --case:string=smart — Case sensitivity; smart is insensitive unless pattern has uppercase. [smart|sensitive|insensitive]
+  --lit:bool=false — Treat pattern as literal text, not a regex.
+  --max:int=256 — Max total match records; hard cap 4096.
+  --mpf:int=0 — Max match records per file; 0 is unlimited.
+  --cb:int=0 — Context lines before each match; max 50.
+  --ca:int=0 — Context lines after each match; max 50.
+  --context:int=0 — Symmetric context; sets both --cb and --ca.
+  --fo:bool=false — Return only paths of files with at least one match.
+  --no-text:bool=false — Omit matched line text; render path:line:col only.
+  --depth:int=0 — Max depth; 0 is unlimited.
+  --hidden:bool=false — Include directories starting with '.' when true.
+  --gi:bool=true — Apply .gitignore from the walk root.
+  --absolute:bool=false — Emit absolute paths instead of repo-root-relative.
