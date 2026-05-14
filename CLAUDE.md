@@ -117,6 +117,8 @@ The model is pinned to `claude-sonnet-4-5` in the Makefile so the cross-check ba
 
 Cost: ~160 `count_tokens` calls in the default run, cached by body — usually many fewer. The endpoint is cheap, not free. Run `make validate` after non-trivial header/footer/error-string changes (ASH-100, ASH-114, future token-shape work) before claiming a saving.
 
+`make validate-check` is the no-API-key companion gate: it parses the checked-in `testdata/validate_results.md` for `✗` rows (sign disagreement between cl100k Δ and Claude Δ) and exits non-zero if any are present. Pair it with `make validate` in the same way `make vocab-check` pairs with `make vocab` — regenerate, then gate.
+
 ## Gotchas
 
 Hard-won wisdom from real session friction. Read these once; they save tuition.

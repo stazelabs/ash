@@ -1,4 +1,4 @@
-.PHONY: all clean restart install uninstall bench bench-baseline vocab vocab-check validate
+.PHONY: all clean restart install uninstall bench bench-baseline vocab vocab-check validate validate-check
 
 PREFIX ?= $(HOME)/.local/bin
 
@@ -82,3 +82,22 @@ validate: bin/encexplore
 		exit 1; \
 	fi; \
 	./bin/encexplore validate --model claude-sonnet-4-5 --out testdata/validate_results.md
+
+# validate-check: gate the checked-in cross-validation artifact. Fails if any
+# rule's cl100k Δ disagrees with its Claude Δ in sign (the `✗` marker in
+# testdata/validate_results.md). File-only — no API key needed — so it can run
+# in CI for free. Contributors still have to run `make validate` after a
+# token-shape change for this gate to bite. Same contract as vocab-check.
+validate-check:
+	@if [ ! -f testdata/validate_results.md ]; then \
+		echo "validate-check: testdata/validate_results.md missing. Run \`make validate\` to generate it." >&2; \
+		exit 1; \
+	fi
+	@if grep -q '✗' testdata/validate_results.md; then \
+		echo "validate-check: cl100k vs Claude sign disagreement in testdata/validate_results.md:" >&2; \
+		grep '✗' testdata/validate_results.md >&2; \
+		echo "" >&2; \
+		echo "Run \`make validate\` after fixing the offending substitution rule." >&2; \
+		exit 1; \
+	fi
+	@echo "validate-check: ok"
