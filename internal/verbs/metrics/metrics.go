@@ -113,45 +113,112 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		fmt.Fprintf(&b, " [%s]", scope)
 	}
 	b.WriteString("\n")
+	if r.Count == 0 {
+		return strings.TrimRight(b.String(), "\n")
+	}
+	cols := pickColumns(r.Rows)
+	writeHeader(&b, cols)
 	for _, row := range r.Rows {
-		writeRow(&b, row)
+		writeRow(&b, row, cols)
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
 
-func writeRow(b *strings.Builder, r Row) {
+// colSet tracks which sub-phase columns at least one row instrumented,
+// so we only widen the table when there is something to put there.
+type colSet struct {
+	walk, io, regex, regexCompile, dispatch bool
+}
+
+func pickColumns(rows []Row) colSet {
+	var cs colSet
+	for _, r := range rows {
+		if r.WalkUs > 0 {
+			cs.walk = true
+		}
+		if r.IOUs > 0 {
+			cs.io = true
+		}
+		if r.RegexUs > 0 {
+			cs.regex = true
+		}
+		if r.RegexCompileUs > 0 {
+			cs.regexCompile = true
+		}
+		if r.LatencyDispatchUs > 0 {
+			cs.dispatch = true
+		}
+	}
+	return cs
+}
+
+// ASH-98: single-letter column labels emitted once in the header so
+// every row is purely positional. n=tokens_in, o=tokens_out, x=exec_us,
+// w=walk_us, i=io_us, r=regex_us, R=regex_compile_us, d=dispatch_us.
+// Trailing flags column carries err=<code> and/or "trunc" when present.
+func writeHeader(b *strings.Builder, cs colSet) {
+	fmt.Fprintf(b, "%-20s  %-8s  %-3s  %-5s  %-5s  %-8s",
+		"ts", "verb", "ok", "n", "o", "x")
+	if cs.walk {
+		fmt.Fprintf(b, "  %-7s", "w")
+	}
+	if cs.io {
+		fmt.Fprintf(b, "  %-7s", "i")
+	}
+	if cs.regex {
+		fmt.Fprintf(b, "  %-5s", "r")
+	}
+	if cs.regexCompile {
+		fmt.Fprintf(b, "  %-5s", "R")
+	}
+	if cs.dispatch {
+		fmt.Fprintf(b, "  %-5s", "d")
+	}
+	b.WriteString("  flags\n")
+}
+
+func writeRow(b *strings.Builder, r Row, cs colSet) {
 	ts := time.Unix(0, r.Timestamp).UTC().Format("2006-01-02T15:04:05Z")
 	status := "ok "
 	if !r.OK {
 		status = "ERR"
 	}
-	fmt.Fprintf(b, "%s  %-8s  %s  in=%-5d  out=%-5d  exec_us=%-8d",
+	fmt.Fprintf(b, "%-20s  %-8s  %-3s  %-5d  %-5d  %-8d",
 		ts, r.Verb, status, r.TokensIn, r.TokensOut, r.LatencyExecUs)
-	// Sub-phase breakdown — only printed when the verb instrumented at
-	// least one phase. Keeps the row short for help/metrics, surfaces
-	// detail for find/grep/read.
-	if r.WalkUs > 0 {
-		fmt.Fprintf(b, "  walk_us=%-7d", r.WalkUs)
+	if cs.walk {
+		writeOptInt(b, r.WalkUs, 7)
 	}
-	if r.IOUs > 0 {
-		fmt.Fprintf(b, "  io_us=%-7d", r.IOUs)
+	if cs.io {
+		writeOptInt(b, r.IOUs, 7)
 	}
-	if r.RegexUs > 0 {
-		fmt.Fprintf(b, "  regex_us=%-5d", r.RegexUs)
+	if cs.regex {
+		writeOptInt(b, r.RegexUs, 5)
 	}
-	if r.RegexCompileUs > 0 {
-		fmt.Fprintf(b, "  regex_compile_us=%-5d", r.RegexCompileUs)
+	if cs.regexCompile {
+		writeOptInt(b, r.RegexCompileUs, 5)
 	}
-	if r.LatencyDispatchUs > 0 {
-		fmt.Fprintf(b, "  dispatch_us=%-5d", r.LatencyDispatchUs)
+	if cs.dispatch {
+		writeOptInt(b, r.LatencyDispatchUs, 5)
 	}
+	var flags []string
 	if r.ErrCode != "" {
-		fmt.Fprintf(b, "  err=%s", r.ErrCode)
+		flags = append(flags, "err="+r.ErrCode)
 	}
 	if r.Truncated {
-		b.WriteString("  truncated")
+		flags = append(flags, "trunc")
+	}
+	if len(flags) > 0 {
+		fmt.Fprintf(b, "  %s", strings.Join(flags, " "))
 	}
 	b.WriteByte('\n')
+}
+
+func writeOptInt(b *strings.Builder, v int64, width int) {
+	if v > 0 {
+		fmt.Fprintf(b, "  %-*d", width, v)
+	} else {
+		fmt.Fprintf(b, "  %-*s", width, "")
+	}
 }
 
 func scopeFromArgs(req *proto.Request) string {

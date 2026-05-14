@@ -2041,16 +2041,6 @@
         ]
       },
       {
-        "literal": "regex_compile_us=",
-        "cl100k_tokens": 4,
-        "sites": [
-          {
-            "file": "internal/verbs/metrics/metrics.go",
-            "line": 143
-          }
-        ]
-      },
-      {
         "literal": "arg distributions:",
         "cl100k_tokens": 3,
         "sites": [
@@ -2087,16 +2077,6 @@
           {
             "file": "internal/verbs/bench/bench.go",
             "line": 614
-          }
-        ]
-      },
-      {
-        "literal": "dispatch_us=",
-        "cl100k_tokens": 3,
-        "sites": [
-          {
-            "file": "internal/verbs/metrics/metrics.go",
-            "line": 146
           }
         ]
       },
@@ -2139,42 +2119,12 @@
         ]
       },
       {
-        "literal": "io_us=",
-        "cl100k_tokens": 3,
-        "sites": [
-          {
-            "file": "internal/verbs/metrics/metrics.go",
-            "line": 137
-          }
-        ]
-      },
-      {
-        "literal": "regex_us=",
-        "cl100k_tokens": 3,
-        "sites": [
-          {
-            "file": "internal/verbs/metrics/metrics.go",
-            "line": 140
-          }
-        ]
-      },
-      {
         "literal": "stdout pipe:",
         "cl100k_tokens": 3,
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
             "line": 235
-          }
-        ]
-      },
-      {
-        "literal": "walk_us=",
-        "cl100k_tokens": 3,
-        "sites": [
-          {
-            "file": "internal/verbs/metrics/metrics.go",
-            "line": 134
           }
         ]
       },
@@ -2212,7 +2162,7 @@
         "sites": [
           {
             "file": "internal/verbs/metrics/metrics.go",
-            "line": 149
+            "line": 205
           }
         ]
       },

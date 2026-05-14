@@ -196,7 +196,7 @@ var fmtDirectiveRE = regexp.MustCompile(`%[-+# 0]*\d*\.?\d*[a-zA-Z%]`)
 var labelLikeRE = regexp.MustCompile(`(?i)^[a-z][a-z0-9_]*([ ][a-z0-9_]+)*[:=]$`)
 
 // looksLikeLabel returns true for short strings that look like a column
-// or key label — e.g. "verb:", "tokens=", "exec_us=", " w=" (after
+// or key label — e.g. "verb:", "tokens=", "tok/KiB", " w=" (after
 // format-directive stripping). Heuristic:
 //
 //   - length ≤ 40 (after stripping)
