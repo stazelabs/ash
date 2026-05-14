@@ -71,6 +71,16 @@ The bash command splitter is **literal** (no shell quoting awareness): a `;` ins
 
 Within a segment, positional args are scanned with shell redirection operators (`>`, `>>`, `<`, `<<`, `&>`, `2>&1`, `[N]>...`, etc.) stripped before they reach the suggestion builders. A stray `2>&1` or `> /tmp/list` no longer pollutes the suggested `--path` value, and `cat`/`echo`/`printf`/`tee` invocations with an output redirect are routed to `ash write` rather than `ash read` (ASH-69).
 
+## Known escapes
+
+The hook steers via canonical bash idioms — it tokenizes the top-level command and routes on the first program word. Wrapping the inner command in a shell-of-a-shell sidesteps that introspection:
+
+- `bash -c '<inner>'` (and `sh -c`, `dash -c`, `zsh -c`) — the segmenter sees `prog=bash`, `args[0]=-c`, and treats the quoted body as an opaque argument. No recursion into the inner command.
+- `eval '<inner>'` — same shape: the inner string is never re-parsed as a command.
+- `xargs … sh -c '<inner>'` — the `xargs` wrapper hides the `sh -c` from the segmenter.
+
+These are bypass-by-design (the hook is steering, not enforcing) rather than bugs. Agents who genuinely need the escape (e.g., running `go test -bench=…` while `ash test` does not yet expose `--bench` — see [session note](session-notes/2026-05-10-hook-hot-path.md)) should not pretend it does not exist; agents tempted to use it to dodge intent should know they are sidestepping the design, not exploiting a hole. If a session surfaces an *unintentional* escape (the agent reached for `bash -c` without realizing it bypassed the deny), file a follow-up to recursively segment the inner command.
+
 ## A note on Read denial
 
 An earlier iteration of this hook (when it was a Python script) denied `Read` on text files but had to remove that handler: at the time, `ash edit` and `ash write` did not exist, and the harness's `Edit`/`Write` tools refused to act unless they had previously seen a harness `Read` on the same path. Denying `Read` therefore left the agent unable to edit anything without bash workarounds. See [docs/session-notes/2026-05-08-hook-allows-read.md](session-notes/2026-05-08-hook-allows-read.md) for the original incident.
