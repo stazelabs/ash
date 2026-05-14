@@ -223,6 +223,8 @@ Instrumentation was wired in from the first verb, not retrofitted. A tool that c
 
 **Privacy.** The ledger is local-only. Export is opt-in and explicit; nothing leaves the machine without an action that says so.
 
+**Tokenizer note.** `cl100k_base` undercounts Claude's tokenizer by ~19% on a representative ash corpus ([session note](docs/session-notes/2026-05-13-encoding-substitution-measurement.md)). Multiply absolute figures by ~1.2 for Claude estimates; directional comparisons (ash vs bash, verb A vs verb B) remain honest.
+
 **Static surface inventory.** [docs/vocab/inventory.md](docs/vocab/inventory.md) is the checked-in catalog of every stable string ash emits — verb names, flags, value enums, status values, error codes, pretty-form headers, labels — each with its cl100k token cost and source locations. The ledger tells you what the surface *did* on a given call; the inventory tells you what the surface *is*. `make vocab-check` fails when they drift.
 
 ## Benchmarks
