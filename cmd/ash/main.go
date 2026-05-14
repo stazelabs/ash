@@ -355,7 +355,24 @@ func parseFlags(verb string, argv []string) (map[string]any, error) {
 // resolveStdin replaces any arg value of exactly "-" with content read from
 // stdin. Only one arg may use "-" per invocation; reading stdin twice is an
 // error. This enables: echo 'new code' | ash write --path f.go --content -
+//
+// All "-" sentinels share one stdin: --old, --new, --content, --patch are
+// each pluggable; the verb consuming the resolved string doesn't care which
+// flag carried the dash. ASH-113 covered --old explicitly to relieve
+// multi-line shell-quoting friction.
 func resolveStdin(args map[string]any) error {
+	isTTY := false
+	if fi, err := os.Stdin.Stat(); err == nil && (fi.Mode()&os.ModeCharDevice) != 0 {
+		isTTY = true
+	}
+	return resolveStdinFromReader(args, os.Stdin, isTTY)
+}
+
+// resolveStdinFromReader is the testable core of resolveStdin: it scans args
+// for "-" sentinels, errors on duplicates or TTY-piped input, and otherwise
+// reads the full reader into the sentinel arg. Kept separate from
+// resolveStdin so tests can inject a controlled reader.
+func resolveStdinFromReader(args map[string]any, r io.Reader, isTTY bool) error {
 	var stdinKey string
 	for k, v := range args {
 		if s, ok := v.(string); ok && s == "-" {
@@ -368,10 +385,14 @@ func resolveStdin(args map[string]any) error {
 	if stdinKey == "" {
 		return nil
 	}
-	if fi, err := os.Stdin.Stat(); err == nil && (fi.Mode()&os.ModeCharDevice) != 0 {
-		return fmt.Errorf("stdin_not_piped: --%s uses \"-\" to read from stdin, but stdin is a terminal\n  pipe content in: echo '...' | ash %s\n  or pass the value directly: --%s '...'", stdinKey, os.Args[1], stdinKey)
+	if isTTY {
+		verbName := ""
+		if len(os.Args) > 1 {
+			verbName = os.Args[1]
+		}
+		return fmt.Errorf("stdin_not_piped: --%s uses \"-\" to read from stdin, but stdin is a terminal\n  pipe content in: echo '...' | ash %s\n  or pass the value directly: --%s '...'", stdinKey, verbName, stdinKey)
 	}
-	data, err := io.ReadAll(os.Stdin)
+	data, err := io.ReadAll(r)
 	if err != nil {
 		return fmt.Errorf("reading stdin for --%s: %w", stdinKey, err)
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -239,5 +240,59 @@ func TestParseFlags_BenchTwoPositionals(t *testing.T) {
 	want := map[string]any{"verb": "grep", "case": "large-file"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestResolveStdin_OldDash(t *testing.T) {
+	args := map[string]any{"path": "f.go", "old": "-"}
+	if err := resolveStdinFromReader(args, strings.NewReader("multi\nline\npattern\n"), false); err != nil {
+		t.Fatalf("resolveStdinFromReader: %v", err)
+	}
+	want := map[string]any{"path": "f.go", "old": "multi\nline\npattern\n"}
+	if !reflect.DeepEqual(args, want) {
+		t.Errorf("got %v, want %v", args, want)
+	}
+}
+
+func TestResolveStdin_NewDash(t *testing.T) {
+	args := map[string]any{"path": "f.go", "new": "-"}
+	if err := resolveStdinFromReader(args, strings.NewReader("replacement"), false); err != nil {
+		t.Fatalf("resolveStdinFromReader: %v", err)
+	}
+	if args["new"] != "replacement" {
+		t.Errorf("got %v, want \"replacement\"", args["new"])
+	}
+}
+
+func TestResolveStdin_NoDash(t *testing.T) {
+	args := map[string]any{"path": "f.go", "old": "literal"}
+	before := map[string]any{"path": "f.go", "old": "literal"}
+	if err := resolveStdinFromReader(args, strings.NewReader("ignored"), false); err != nil {
+		t.Fatalf("resolveStdinFromReader: %v", err)
+	}
+	if !reflect.DeepEqual(args, before) {
+		t.Errorf("args mutated when no - sentinel: got %v, want %v", args, before)
+	}
+}
+
+func TestResolveStdin_BothOldAndNewConflict(t *testing.T) {
+	args := map[string]any{"old": "-", "new": "-"}
+	err := resolveStdinFromReader(args, strings.NewReader("x"), false)
+	if err == nil {
+		t.Fatal("expected conflict error for --old - and --new -, got nil")
+	}
+	if !strings.Contains(err.Error(), "only one arg can read from stdin") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestResolveStdin_TTYRefuses(t *testing.T) {
+	args := map[string]any{"old": "-"}
+	err := resolveStdinFromReader(args, strings.NewReader(""), true)
+	if err == nil {
+		t.Fatal("expected stdin_not_piped error, got nil")
+	}
+	if !strings.Contains(err.Error(), "stdin_not_piped") {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
