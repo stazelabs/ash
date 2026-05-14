@@ -126,21 +126,13 @@ var subSets = []subSet{
 		},
 	},
 
-	// ─── Truncation-hint compaction ──────────────────────────────────────
-
-
-	// Probed: "truncation" = 3 toks, "TRUNCATED" = 3 toks.
-	// Replace prose with a sentinel character.
-	{
-		Name: "truncation_compact", Surface: "headers",
-		Pairs: [][2]string{
-			{"TRUNCATED", "✂"},
-			{"[truncation:", "[✂"},
-			{"truncated", "✂"},
-		},
-	},
+	// ─── Truncation-hint compaction (dropped, ASH-117) ───────────────────
+	// Was: TRUNCATED→✂, [truncation:→[✂, truncated→✂. The cl100k proxy
+	// claimed +3 tokens saved on grep-common, but the Anthropic count_tokens
+	// endpoint reported +0 — the substitution does not pay off on Claude.
+	// Removed from subSets so combined_aggressive no longer drags this row
+	// into validate_results.md as a sign-disagreement (✗).
 }
-
 // combinedSubs returns a synthetic "combined aggressive" set that applies
 // every substitution above in order (longest first within each set).
 func combinedSubs() subSet {

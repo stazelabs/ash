@@ -11,7 +11,7 @@
 | read-medium | metrics_short_ascii | +0 | +0.00% | +0 | +0.00% | — |
 | read-medium | metrics_no_equals | +4 | +0.08% | +8 | +0.14% | ✓ |
 | read-medium | headers_compact | +0 | +0.00% | +0 | +0.00% | — |
-| read-medium | combined_aggressive | +3 | +0.06% | +6 | +0.11% | ✓ |
+| read-medium | combined_aggressive | +4 | +0.08% | +8 | +0.14% | ✓ |
 | read-large | errors_ascii | +0 | +0.00% | +0 | +0.00% | — |
 | read-large | metrics_short_ascii | +0 | +0.00% | +0 | +0.00% | — |
 | read-large | metrics_no_equals | +0 | +0.00% | +0 | +0.00% | — |
@@ -31,7 +31,7 @@
 | grep-common | metrics_short_ascii | +0 | +0.00% | +0 | +0.00% | — |
 | grep-common | metrics_no_equals | +0 | +0.00% | +0 | +0.00% | — |
 | grep-common | headers_compact | +0 | +0.00% | +0 | +0.00% | — |
-| grep-common | combined_aggressive | +3 | +0.06% | +0 | +0.00% | ✗ |
+| grep-common | combined_aggressive | +0 | +0.00% | +0 | +0.00% | — |
 | grep-error-code | errors_ascii | +0 | +0.00% | +0 | +0.00% | — |
 | grep-error-code | metrics_short_ascii | +0 | +0.00% | +0 | +0.00% | — |
 | grep-error-code | metrics_no_equals | +0 | +0.00% | +0 | +0.00% | — |
@@ -41,7 +41,7 @@
 | git-log | metrics_short_ascii | +0 | +0.00% | +0 | +0.00% | — |
 | git-log | metrics_no_equals | +0 | +0.00% | +0 | +0.00% | — |
 | git-log | headers_compact | +2 | +0.27% | +4 | +0.49% | ✓ |
-| git-log | combined_aggressive | +5 | +0.67% | +4 | +0.49% | ✓ |
+| git-log | combined_aggressive | +2 | +0.27% | +4 | +0.49% | ✓ |
 | git-status | errors_ascii | +0 | +0.00% | +0 | +0.00% | — |
 | git-status | metrics_short_ascii | +0 | +0.00% | +0 | +0.00% | — |
 | git-status | metrics_no_equals | +0 | +0.00% | +0 | +0.00% | — |
@@ -56,7 +56,7 @@
 | report-session | metrics_short_ascii | +0 | +0.00% | +0 | +0.00% | — |
 | report-session | metrics_no_equals | +2 | +0.40% | +2 | +0.40% | ✓ |
 | report-session | headers_compact | +0 | +0.00% | +0 | +0.00% | — |
-| report-session | combined_aggressive | +1 | +0.20% | +1 | +0.20% | ✓ |
+| report-session | combined_aggressive | +2 | +0.40% | +2 | +0.40% | ✓ |
 | help-all | errors_ascii | +0 | +0.00% | +0 | +0.00% | — |
 | help-all | metrics_short_ascii | +0 | +0.00% | +0 | +0.00% | — |
 | help-all | metrics_no_equals | +0 | +0.00% | +0 | +0.00% | — |
@@ -91,4 +91,4 @@
 | metrics_short_ascii | 18040 | 18040 | +0.00% | 21557 | 21557 | +0.00% |
 | metrics_no_equals | 18040 | 18034 | +0.03% | 21557 | 21547 | +0.05% |
 | headers_compact | 18040 | 18038 | +0.01% | 21557 | 21553 | +0.02% |
-| combined_aggressive | 18040 | 18023 | +0.09% | 21557 | 21537 | +0.09% |
+| combined_aggressive | 18040 | 18027 | +0.07% | 21557 | 21534 | +0.11% |
