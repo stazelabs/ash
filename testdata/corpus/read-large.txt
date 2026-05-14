@@ -1,4 +1,4 @@
-=== docs/encodings.md [10709B, 185L] ===
+§docs/encodings.md 10689B 185L
 # Exploration: optional encodings to reduce ash token usage
 
 ## Context

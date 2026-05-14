@@ -1,82 +1,41 @@
-§report: current — 177 calls, 4.2s exec
-totals: ok=176/177 (99%), tokens_in=17929, tokens_out=66233
-path-prefix tax: 36 tokens (0% of out)
+§report: current — 10 calls, 35.4ms exec
+totals: ok=10/10 (100%), tokens_in=85, tokens_out=16654
 
 verb           n   ok%   p50_exec   p95_exec  p50_out  p95_out  trunc%
 ------------------------------------------------------------------------
-metrics        2  100%      183us      183us      179      179      0%
-git           10  100%      2.0ms     15.0ms       87      732      0%
-grep           7  100%      6.7ms     13.1ms     1419     5203     29%
-find           9  100%      977us      1.6ms       11      164      0%
-read          35  100%      241us      392us      792     2879      0%
-hook          98  100%       14us       63us        2       22      0%
-write         10  100%      320us      488us       19       21      0%
-edit           3   67%      414us      414us       22       22      0%
-help           1  100%      740us      740us      175      175      0%
-report         1  100%      3.1ms      3.1ms     1265     1265      0%
-bench          1  100%       3.9s       3.9s       73       73      0%
+metrics        1  100%      265us      265us      673      673      0%
+git            2  100%      5.2ms      5.2ms      144      144      0%
+grep           2  100%      4.3ms      4.3ms      240      240     50%
+find           2  100%      410us      410us      199      199      0%
+read           3  100%      204us      204us     2872     2872      0%
 
 sub-phase breakdown (% of exec, verbs that instrument phases):
 verb        walk%   io%  regex%  other%
 ----------------------------------------
-git            0%   94%      0%      6%
-grep           3%   58%     36%      3%
-find          96%    0%      0%      4%
-read           0%   74%      0%     26%
-write          0%   84%      0%     16%
-edit           0%   86%      0%     14%
+git            0%   96%      0%      4%
+grep          10%   53%     35%      2%
+find          97%    0%      0%      3%
+read           0%   69%      0%     31%
 
-truncation (2 truncated):
-  grep × 2  — path=internal/verbs pattern=func 
-
-errors (1):
-  args × 1  — "one of old, range, or patch is required"
+truncation (1 truncated):
+  grep × 1  — path=internal/verbs pattern=func 
 
 token efficiency (tokens per KiB of response):
 verb         tok/KiB
 ----------------------
-metrics       312.1
-git            38.3
-grep          210.2
-find          108.2
-read          280.7
-hook           32.5
-write         141.7
-edit          127.7
-help          163.1
-report        188.4
-bench           7.8
+metrics       275.8
+git            35.8
+grep          182.8
+find          110.7
+read          284.6
 
 arg distributions:
-  metrics  last: 20 (1×), 5 (1×)
-  git  limit: 20 (4×), 30 (1×), 5 (1×)
-       op: log (6×), status (3×), show (1×)
-       range: origin/main..cstaszak/ash-88-strip-pr... (1×), origin/main..cstaszak/ash-89-absolute... (1×), origin/main..cstaszak/hook-sed-coverage (1×)
-       ref: cad3825 (1×)
-       stat: true (1×)
-  grep  fixed_string: false (1×)
-        max: 100 (1×)
-        no_text: false (1×)
-        path: internal/verbs (3×), . (1×), cmd/ashd (1×), internal (1×), testdata/single_token_runes.txt (1×)
-        pattern: Code:\s*"[a-z_]+" (1×), Dingbats|Misc Symbols$|Geometric Shap... (1×), ErrCode (1×), cl100k_base|tokens_in|tokens_out|toke... (1×), func  (1×)
-  find  glob: *.go (2×), **/*.go (1×), *.proto (1×), cmd/encexplore/** (1×), go.mod (1×)
+  metrics  last: 20 (1×)
+  git  limit: 20 (1×)
+       op: log (1×), status (1×)
+  grep  path: internal/verbs (2×)
+        pattern: ErrCode (1×), func  (1×)
+  find  glob: **/*.go (1×)
         limit: 200 (1×)
-        path: . (5×), internal/proto (2×), cmd (1×), internal/verbs (1×)
-        with_meta: false (4×)
-  read  path: cmd/ash/main.go (4×), cmd/ashd/main.go (3×), docs/cli-tokens.md (3×), docs/encodings.md (3×), go.mod (2×)
-        range: 1:100 (5×), 1:150 (3×), 1:30 (2×), 1:50 (2×), 100:200 (1×)
-        unit: lines (3×)
-  hook  command: bin/ash read --path docs/encodings.md (2×), bin/ash read --path internal/ledger/t... (2×), <truncated:11321> (1×), <truncated:1160> (1×), <truncated:1304> (1×)
-        content: <truncated:11246> (1×)
-        file: /Users/cstaszak/.claude/plans/i-d-lik... (1×), docs/cli-tokens.md (1×), docs/encodings.md (1×), internal/ledger/tokens.go (1×)
-        tool: Bash (94×), Read (3×), Write (1×)
-  write  content: <truncated:1053> (1×), <truncated:11211> (1×), <truncated:1688> (1×), <truncated:2611> (1×), <truncated:3071> (1×)
-         path: cmd/encexplore/corpus.go (2×), /Users/cstaszak/.claude/plans/i-d-lik... (1×), /tmp/ash88.txt (1×), /tmp/branch-protection.txt (1×), /tmp/recent.txt (1×)
-  edit  new: 	{"ASCII printable", 0x0020, 0x007E},... (1×), <truncated:1051> (1×)
-        new_string: 	{"ASCII printable", 0x0020, 0x007E},... (1×)
-        old: 	{"ASCII printable", 0x0020, 0x007E},... (1×), 	{"CJK Symbols/Punctuation", 0x3000, ... (1×)
-        old_string: 	{"ASCII printable", 0x0020, 0x007E},... (1×)
-        path: cmd/encexplore/atlas.go (3×)
-  help  verb: edit (1×)
-  report  top: 20 (1×)
-  bench  record_baseline: true (1×)
+        path: . (1×), cmd (1×)
+  read  path: docs/cli-tokens.md (1×), docs/encodings.md (1×), go.mod (1×)

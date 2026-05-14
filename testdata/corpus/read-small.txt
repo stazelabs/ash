@@ -1,4 +1,4 @@
-=== go.mod [1967B, 47L] ===
+§go.mod 1967B 47L
 module github.com/stazelabs/ash
 
 go 1.26

@@ -1,4 +1,4 @@
-=== docs/cli-tokens.md [17405B, 202L] ===
+§docs/cli-tokens.md 17405B 202L
 # ash CLI surface: token-efficiency evaluation
 
 ## Context

@@ -1,4 +1,4 @@
-§find: 108 results
+§find: 118 results
 cmd/ash/hook.go
 cmd/ash/hook_bench_test.go
 cmd/ash/main.go
@@ -9,11 +9,15 @@ cmd/ashd/integration_test.go
 cmd/ashd/main.go
 cmd/ashd/main_test.go
 cmd/ashd/resilience_test.go
+cmd/ashvocab/gen.go
+cmd/ashvocab/main.go
 cmd/encexplore/atlas.go
 cmd/encexplore/corpus.go
 cmd/encexplore/main.go
 cmd/encexplore/measure.go
 cmd/encexplore/probe.go
+cmd/encexplore/subs.go
+cmd/encexplore/validate.go
 internal/atomicwrite/atomicwrite.go
 internal/bench/cases.go
 internal/bench/provenance.go
@@ -104,6 +108,12 @@ internal/verbs/uninit/uninit_test.go
 internal/verbs/verbs.go
 internal/verbs/write/write.go
 internal/verbs/write/write_test.go
+internal/vocab/errors.go
+internal/vocab/generate.go
+internal/vocab/literals.go
+internal/vocab/schema.go
+internal/vocab/status.go
+internal/vocab/types.go
 internal/walker/walker.go
 internal/walker/walker_bench_test.go
 internal/walker/walker_test.go

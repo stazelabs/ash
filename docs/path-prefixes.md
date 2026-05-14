@@ -42,7 +42,7 @@ After all phases land on this repo:
 
 - `ash find --path /Users/.../ash --glob '**/*.go' --limit 8` — bare repo-relative paths, ~40% fewer tokens than `--absolute true`.
 - `ash grep --pattern Foo --path /Users/.../ash/internal/verbs/find` — header scope shows `path=internal/verbs/find`; match rows are bare relative.
-- `ash read --path /Users/.../ash/ash.toml.example` — header shows `=== ash.toml.example [...] ===`.
+- `ash read --path /Users/.../ash/ash.toml.example` — header shows `§ash.toml.example <size>B ...`.
 - `ash stat --paths /Users/.../ash/ash.toml.example,/Users/.../ash/Makefile` — both rows bare.
 - `ash diff --path /Users/.../ash/cmd/ash/main.go --other /Users/.../ash/cmd/ash/hook.go` — header `cmd/ash/main.go vs cmd/ash/hook.go`.
 - `ash report --since 5m` — no `path-prefix tax` line emitted across these verbs (residual tax is 0). Arg distributions show `path: .`, `path: cmd/ash/main.go`, hook commands with embedded paths stripped to relative.

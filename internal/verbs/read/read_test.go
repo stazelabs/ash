@@ -188,7 +188,7 @@ func TestPrettyResponse_LeanDefault(t *testing.T) {
 		}),
 	}
 	got := PrettyResponse(&proto.Request{Verb: "read", Args: map[string]any{}}, rsp)
-	if !strings.HasPrefix(got, "=== foo.go [1024B, 42L] ===\n") {
+	if !strings.HasPrefix(got, "§foo.go 1024B 42L\n") {
 		t.Errorf("lean default header mismatch:\ngot %q", got)
 	}
 	if strings.Contains(got, "mtime=") {
@@ -258,7 +258,7 @@ func TestPrettyResponse_VerbatimRangeSuppressesNLAndRange(t *testing.T) {
 	}
 	req := &proto.Request{Verb: "read", Args: map[string]any{"range": "1:5", "unit": "lines"}}
 	got := PrettyResponse(req, rsp)
-	if !strings.HasPrefix(got, "=== go.mod [1967B] ===\n") {
+	if !strings.HasPrefix(got, "§go.mod 1967B\n") {
 		t.Errorf("expected minimal header on verbatim range, got %q", got)
 	}
 	if strings.Contains(got, "range=") {
@@ -287,7 +287,7 @@ func TestPrettyResponse_ShortFileEmitsNL(t *testing.T) {
 	}
 	req := &proto.Request{Verb: "read", Args: map[string]any{"range": "1:10", "unit": "lines"}}
 	got := PrettyResponse(req, rsp)
-	if !strings.Contains(got, ", 3L") {
+	if !strings.Contains(got, " 3L") {
 		t.Errorf("NL=3 must be emitted on short-file divergence: %q", got)
 	}
 	if !strings.Contains(got, "range=1:3") {

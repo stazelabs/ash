@@ -1,17 +1,14 @@
 §git status: on main -> origin/main
-untracked (15):
-  .claude/settings.local.json
-  cmd/encexplore/atlas.go
-  cmd/encexplore/corpus.go
-  cmd/encexplore/main.go
-  cmd/encexplore/measure.go
-  cmd/encexplore/probe.go
-  testdata/corpus/find-deep-glob.txt
-  testdata/corpus/find-shallow.txt
-  testdata/corpus/git-log.txt
-  testdata/corpus/grep-common.txt
-  testdata/corpus/grep-error-code.txt
-  testdata/corpus/read-large.txt
-  testdata/corpus/read-medium.txt
-  testdata/corpus/read-small.txt
-  testdata/single_token_runes.txt
+unstaged (12):
+  M cmd/encexplore/subs.go
+  M docs/bench.md
+  M internal/verbs/read/read.go
+  M internal/verbs/read/read_test.go
+  M testdata/corpus/find-deep-glob.txt
+  M testdata/corpus/find-shallow.txt
+  M testdata/corpus/git-log.txt
+  M testdata/corpus/grep-error-code.txt
+  M testdata/corpus/read-large.txt
+  M testdata/corpus/read-medium.txt
+  M testdata/corpus/read-small.txt
+  M testdata/measure_results.md

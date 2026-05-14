@@ -106,7 +106,29 @@ var subSets = []subSet{
 		},
 	},
 
+	// ─── Read-header compaction (file frame fence + bracket removal) ────
+	// Old: "=== <path> [<size>B, <lines>L] ===\n" — 13 toks for typical path.
+	// New: "§<path> <size>B <lines>L\n"           — 10 toks.
+	// Saves ~3 tokens per `ash read` call by:
+	//   "=== "    → "§"   (2-tok leading fence → 1-tok sentinel)
+	//   "B, "     → "B "  (drop comma inside bracket)
+	//   "L] ===" → "L"   (drop close bracket + trailing fence)
+	// Glyph choice: reuse `§` from headers_compact. The agent disambiguates
+	// verb sections from file frames by the suffix shape (verb sections end
+	// in `:`, file frames end in `B[L]`). One sentinel = one classifier path.
+	{
+		Name: "read_header_compact", Surface: "headers",
+		Pairs: [][2]string{
+			{"=== ", "§"},
+			{"B, ", "B "},
+			{"L] ===", "L"},
+			{"B] ===", "B"}, // size-only variant (no lines)
+		},
+	},
+
 	// ─── Truncation-hint compaction ──────────────────────────────────────
+
+
 	// Probed: "truncation" = 3 toks, "TRUNCATED" = 3 toks.
 	// Replace prose with a sentinel character.
 	{

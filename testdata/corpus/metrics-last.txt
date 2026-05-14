@@ -1,21 +1,22 @@
 §metrics: 20 calls
-2026-05-13T15:17:31Z  git       ok   in=5      out=170    exec_us=15027     io_us=14642  
-2026-05-13T15:17:31Z  git       ok   in=9      out=732    exec_us=9429      io_us=7475   
-2026-05-13T15:17:31Z  grep      ok   in=11     out=245    exec_us=9689      walk_us=9627     io_us=7847     regex_us=1088   regex_compile_us=12   
-2026-05-13T15:17:31Z  grep      ok   in=11     out=5203   exec_us=6050      walk_us=5899     io_us=3306     regex_us=2360   regex_compile_us=15     truncated
-2026-05-13T15:17:31Z  find      ok   in=14     out=879    exec_us=1635      walk_us=1573   
-2026-05-13T15:17:31Z  find      ok   in=5      out=164    exec_us=301       walk_us=262    
-2026-05-13T15:17:31Z  read      ok   in=9      out=2879   exec_us=241       io_us=196      dispatch_us=1    
-2026-05-13T15:17:31Z  read      ok   in=9      out=4841   exec_us=361       io_us=308    
-2026-05-13T15:17:31Z  read      ok   in=6      out=792    exec_us=82        io_us=31     
-2026-05-13T15:17:28Z  hook      ok   in=37     out=2      exec_us=14      
-2026-05-13T15:17:23Z  write     ok   in=28     out=21     exec_us=481       io_us=411    
-2026-05-13T15:17:21Z  hook      ok   in=820    out=2      exec_us=46        dispatch_us=6    
-2026-05-13T15:16:24Z  hook      ok   in=222    out=2      exec_us=118     
-2026-05-13T15:16:00Z  read      ok   in=29     out=1883   exec_us=110       io_us=49     
-2026-05-13T15:16:00Z  hook      ok   in=38     out=2      exec_us=9       
-2026-05-13T15:15:49Z  hook      ok   in=33     out=2      exec_us=12      
-2026-05-13T15:15:44Z  edit      ok   in=604    out=22     exec_us=470       io_us=407    
-2026-05-13T15:15:44Z  hook      ok   in=613    out=2      exec_us=31      
-2026-05-13T15:15:37Z  edit      ok   in=474    out=22     exec_us=414       io_us=358    
-2026-05-13T15:15:37Z  hook      ok   in=483    out=2      exec_us=17      
+ts                    verb      ok   n      o      x         w        i        r      R      d      flags
+2026-05-14T04:20:24Z  git       ok   5      144    14403              13991                       
+2026-05-14T04:20:24Z  git       ok   9      751    5161               4851                        
+2026-05-14T04:20:24Z  grep      ok   11     240    6351      6302     4174     1369   5           
+2026-05-14T04:20:23Z  grep      ok   11     5201   4299      4134     1487     2371   4             trunc
+2026-05-14T04:20:23Z  find      ok   14     947    3893      3830                                 
+2026-05-14T04:20:23Z  find      ok   5      199    410       357                             1    
+2026-05-14T04:20:23Z  read      ok   9      2872   204                158                         
+2026-05-14T04:20:23Z  read      ok   9      4838   284                227                         
+2026-05-14T04:20:23Z  read      ok   6      789    133                45                          
+2026-05-14T04:20:18Z  hook      ok   25     2      12                                             
+2026-05-14T04:20:16Z  hook      ok   29     16     21                                             
+2026-05-14T04:20:13Z  read      ok   13     799    103                43                          
+2026-05-14T04:20:13Z  hook      ok   22     2      10                                             
+2026-05-14T04:20:05Z  edit      ok   255    16     718                658                         
+2026-05-14T04:20:05Z  hook      ok   268    2      40                                             
+2026-05-14T04:19:56Z  read      ok   14     206    95                 33                          
+2026-05-14T04:19:56Z  hook      ok   23     2      13                                             
+2026-05-14T04:19:53Z  grep      ok   14     391    36598     36535    32027    2457   6           
+2026-05-14T04:19:53Z  hook      ok   24     2      9                                              
+2026-05-14T04:19:50Z  edit      ok   38     19     517                437                         

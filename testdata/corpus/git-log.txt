@@ -1,4 +1,16 @@
 §git log: 20 commits TRUNCATED
+c42186c  2026-05-14  cstaszak  ASH-113: ash edit — document --old/--new accept '-' for stdin
+cd8a2ae  2026-05-14  cstaszak  docs: revolutionary-directions.md — phase-3 strategy doc (ASH-103..ASH-112)
+8852189  2026-05-14  cstaszak  ASH-32: raise diff LCS cap 2000 -> 4000 after profiling
+0fee837  2026-05-14  cstaszak  ASH-95: bench.md — document the read/find header-trim optimization round
+4a72781  2026-05-14  cstaszak  ASH-91: document `bash -c '…'` / `eval` / `sh -c` segmenter escapes
+64e24b8  2026-05-14  cstaszak  ASH-98: metrics pretty — header row + positional columns (drop _us suffix and =)
+9457dc9  2026-05-14  cstaszak  ASH-99: doc-only caveat — cl100k_base undercounts Claude tokens by ~19%
+b53c23f  2026-05-14  cstaszak  ASH-100: collapse `=== ash <verb>: … ===` pretty header to `§<verb>: …`
+e76055f  2026-05-14  cstaszak  README: surface the vocabulary inventory alongside ash help
+64ed888  2026-05-14  cstaszak  ASH-102: vocab — generator + checked-in inventory + drift lint
+575312a  2026-05-14  cstaszak  ASH-101: vocab design — decide extraction strategy + tooling shape
+8eaeaad  2026-05-14  cstaszak  encexplore: encoding-substitution measurement (cl100k vs Claude)
 ffdcd80  2026-05-11  cstaszak  ASH-89: absolute-path bench cases to expose ASH-71 prefix-strip win
 95e03b7  2026-05-11  cstaszak  ASH-88: strip project-root prefix in path-bearing error messages
 cf03410  2026-05-11  cstaszak  hook: redirect file-mode sed to ash edit / ash read --range
@@ -7,17 +19,5 @@ a251096  2026-05-11  cstaszak  ASH-87: audit git verb pretty headers — nothing
 aca08ac  2026-05-11  cstaszak  ASH-85: prefix aliasing for jail.allow_paths in pretty output
 968f580  2026-05-11  cstaszak  ASH-92: ash bench --micro/--record-micro/--diff-micro for Go microbenchmarks
 70e36b8  2026-05-10  cstaszak  ASH-90: ash test --bench/--benchmem/--benchtime flags for microbenchmark runs
-f3309b8  2026-05-10  cstaszak  ASH-93: pretty is the default format everywhere
-64d92df  2026-05-10  cstaszak  ASH-94: read — clamp range_returned end in lines mode
-7dda302  2026-05-10  cstaszak  read/find: trim verbatim arg echoes from pretty headers
-1a47bfd  2026-05-10  cstaszak  hook: trim client-side fixed overhead on the PreToolUse hot path
-bcedd71  2026-05-10  cstaszak  ASH-71: strip project-root prefix across verb surface + ledger tax
-0dd1f69  2026-05-10  cstaszak  bench: scrub hostname; rename Hostname→Platform, capture GOOS/GOARCH
-4828eba  2026-05-10  cstaszak  bench: update cases + translate for ASH-80 flag renames (ASH-80 follow-up)
-1ded64d  2026-05-10  cstaszak  ASH-84: structured Error.Hint; move human advisory to pretty-only rendering
-0e21397  2026-05-10  cstaszak  ASH-83: tighten all arg descriptions to ≤15 words; add --verbose for prose
-0aae3fe  2026-05-10  cstaszak  ASH-82: positional slots for git op, help verb, report/metrics/bench verb
-6e9c746  2026-05-10  cstaszak  ASH-81: --no-foo negation form for default-true booleans
-4835c42  2026-05-10  cstaszak  ASH-80: rename all snake_case multi-word flags to short forms
 
 [truncation: hit limit of 20 commits. narrow with --range/--author/--since/--pathspec, or raise --limit (max 200).]

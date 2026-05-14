@@ -1,4 +1,4 @@
-§find: 20 results
+§find: 25 results
 cmd/ash/
 cmd/ash/hook.go
 cmd/ash/hook_bench_test.go
@@ -13,9 +13,14 @@ cmd/ashd/integration_test.go
 cmd/ashd/main.go
 cmd/ashd/main_test.go
 cmd/ashd/resilience_test.go
+cmd/ashvocab/
+cmd/ashvocab/gen.go
+cmd/ashvocab/main.go
 cmd/encexplore/
 cmd/encexplore/atlas.go
 cmd/encexplore/corpus.go
 cmd/encexplore/main.go
 cmd/encexplore/measure.go
 cmd/encexplore/probe.go
+cmd/encexplore/subs.go
+cmd/encexplore/validate.go

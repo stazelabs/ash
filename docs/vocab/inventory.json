@@ -2027,6 +2027,16 @@
             "line": 278
           }
         ]
+      },
+      {
+        "literal": "§",
+        "cl100k_tokens": 1,
+        "sites": [
+          {
+            "file": "internal/verbs/read/read.go",
+            "line": 275
+          }
+        ]
       }
     ],
     "labels": [
@@ -2157,6 +2167,16 @@
         ]
       },
       {
+        "literal": "encoding=",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/read/read.go",
+            "line": 291
+          }
+        ]
+      },
+      {
         "literal": "err=",
         "cl100k_tokens": 2,
         "sites": [
@@ -2173,6 +2193,16 @@
           {
             "file": "cmd/ash/main.go",
             "line": 209
+          }
+        ]
+      },
+      {
+        "literal": "mtime=",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/read/read.go",
+            "line": 288
           }
         ]
       },
@@ -2217,6 +2247,16 @@
           {
             "file": "cmd/ash/main.go",
             "line": 212
+          }
+        ]
+      },
+      {
+        "literal": "range=",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/read/read.go",
+            "line": 297
           }
         ]
       },

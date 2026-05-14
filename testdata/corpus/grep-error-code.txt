@@ -2,9 +2,9 @@
 internal/verbs/metrics/metrics.go (5 matches)
   36: 	ErrCode       string `msgpack:"err_code,omitempty"`
   85: 			ErrCode:       c.ErrCode,
-  148: 	if r.ErrCode != "" {
-  149: 		fmt.Fprintf(b, "  err=%s", r.ErrCode)
-  187: 			row.Timestamp, row.Verb, row.OK, row.ErrCode,
+  204: 	if r.ErrCode != "" {
+  205: 		flags = append(flags, "err="+r.ErrCode)
+  254: 			row.Timestamp, row.Verb, row.OK, row.ErrCode,
 internal/verbs/report/report.go (5 matches)
   398: 			if c.ErrCode != "" {
   399: 				if _, seen := errCounts[c.ErrCode]; !seen {

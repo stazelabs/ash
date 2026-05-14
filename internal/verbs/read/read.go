@@ -232,10 +232,17 @@ func reqRangeBounds(spec string) (start, end int, ok bool) {
 // agent-facing form. Used both for client display and for daemon-side token
 // counting.
 //
-// Default ("lean") header: `=== <path> [<size>B[, <lines>L][, encoding=base64]
-// [, range=<r>][, TRUNCATED]] ===`. Encoding surfaces only when non-utf-8
-// (base64) since that changes how the agent must consume the body. Mtime
-// is included only with --meta=true (the verbose form).
+// Default ("lean") header: `§<path> <size>B[ <lines>L][ encoding=base64][ range=<r>][ TRUNCATED]`.
+// Verbose header (--meta=true): `§<path> <size>B <lines>L <encoding> mtime=<t>`.
+// Encoding surfaces in lean form only when non-utf-8 (base64) since that
+// changes how the agent must consume the body. Mtime is included only with
+// --meta=true.
+//
+// Format history: pre-ASH-114 the header was `=== <path> [<size>B, ...] ===`
+// with comma-separated fields inside brackets and `===` fences. ASH-114
+// dropped the fences (`§` sentinel, no trailing `===`), removed the brackets,
+// and switched to space separators — net -3 cl100k tokens per `ash read` call
+// (measured via cmd/encexplore `read_header_compact`).
 //
 // `<lines>L` and `range=<r>` are emitted only when they convey novel
 // info: when no range was requested (NL = total file lines) or when
@@ -265,36 +272,36 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	}
 	reqStart, reqEnd, hasReqRange := reqRangeBounds(reqRange)
 	var b strings.Builder
-	b.WriteString("=== ")
+	b.WriteString("§")
 	b.WriteString(r.Path)
-	b.WriteString(" [")
+	b.WriteString(" ")
 	b.WriteString(strconv.FormatInt(r.Size, 10))
 	b.WriteString("B")
 	if r.Lines > 0 && (!hasReqRange || r.Lines != reqEnd-reqStart+1) {
-		b.WriteString(", ")
+		b.WriteString(" ")
 		b.WriteString(strconv.Itoa(r.Lines))
 		b.WriteString("L")
 	}
 	if withMeta {
-		b.WriteString(", ")
+		b.WriteString(" ")
 		b.WriteString(r.Encoding)
-		b.WriteString(", mtime=")
+		b.WriteString(" mtime=")
 		b.WriteString(time.Unix(0, r.Mtime).UTC().Format("2006-01-02T15:04:05Z"))
 	} else if r.Encoding != "" && r.Encoding != "utf-8" {
-		b.WriteString(", encoding=")
+		b.WriteString(" encoding=")
 		b.WriteString(r.Encoding)
 	}
 	if r.RangeReturned != "" {
 		showRange := !hasReqRange || r.RangeReturned != fmt.Sprintf("%d:%d", reqStart, reqEnd)
 		if showRange {
-			b.WriteString(", range=")
+			b.WriteString(" range=")
 			b.WriteString(r.RangeReturned)
 		}
 	}
 	if r.Truncated {
-		b.WriteString(", TRUNCATED")
+		b.WriteString(" TRUNCATED")
 	}
-	b.WriteString("] ===\n")
+	b.WriteString("\n")
 	b.WriteString(r.Content)
 	if r.Truncated && r.TruncInfo != nil {
 		b.WriteString("\n\n[truncation: bytes=")
