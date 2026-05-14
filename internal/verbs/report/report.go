@@ -644,7 +644,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	} else if r.Scope.Root != "" {
 		sessionLabel += ", root=" + r.Scope.Root
 	}
-	fmt.Fprintf(&b, "=== ash report: %s \xe2\x80\x94 %d calls, %s exec ===\n",
+	fmt.Fprintf(&b, "§report: %s \xe2\x80\x94 %d calls, %s exec\n",
 		sessionLabel, r.Totals.Calls, fmtUs(r.Totals.ExecSumUs))
 
 	// Totals line

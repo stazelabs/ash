@@ -1,4 +1,4 @@
-=== ash metrics: 20 calls ===
+§metrics: 20 calls
 2026-05-13T15:17:31Z  git       ok   in=5      out=170    exec_us=15027     io_us=14642  
 2026-05-13T15:17:31Z  git       ok   in=9      out=732    exec_us=9429      io_us=7475   
 2026-05-13T15:17:31Z  grep      ok   in=11     out=245    exec_us=9689      walk_us=9627     io_us=7847     regex_us=1088   regex_compile_us=12   

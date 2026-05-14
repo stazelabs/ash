@@ -108,11 +108,11 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		return "ok\n<unrecognized metrics result>"
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "=== ash metrics: %d calls", r.Count)
+	fmt.Fprintf(&b, "§metrics: %d calls", r.Count)
 	if scope := scopeFromArgs(req); scope != "" {
 		fmt.Fprintf(&b, " [%s]", scope)
 	}
-	b.WriteString(" ===\n")
+	b.WriteString("\n")
 	for _, row := range r.Rows {
 		writeRow(&b, row)
 	}

@@ -168,11 +168,11 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	}
 	a, c := r.PathA, r.PathB
 	if r.Unchanged {
-		return fmt.Sprintf("=== ash diff: %s vs %s [identical] ===", a, c)
+		return fmt.Sprintf("§diff: %s vs %s [identical]", a, c)
 	}
 	if r.Patch == "" {
-		return fmt.Sprintf("=== ash diff: %s vs %s [+%d -%d] ===", a, c, r.Additions, r.Deletions)
+		return fmt.Sprintf("§diff: %s vs %s [+%d -%d]", a, c, r.Additions, r.Deletions)
 	}
-	header := fmt.Sprintf("=== ash diff: %s vs %s [+%d -%d] ===\n", a, c, r.Additions, r.Deletions)
+	header := fmt.Sprintf("§diff: %s vs %s [+%d -%d]\n", a, c, r.Additions, r.Deletions)
 	return header + r.Patch
 }

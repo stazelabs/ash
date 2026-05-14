@@ -242,9 +242,9 @@ func PrettyResponse(_ *proto.Request, rsp *proto.Response) string {
 		return "ok\n<unrecognized uninit result>"
 	}
 	var b strings.Builder
-	header := fmt.Sprintf("=== ash uninit: %s ===", r.Path)
+	header := fmt.Sprintf("§uninit: %s", r.Path)
 	if r.NotInstalled {
-		header = fmt.Sprintf("=== ash uninit: %s — not installed ===", r.Path)
+		header = fmt.Sprintf("§uninit: %s — not installed", r.Path)
 	}
 	b.WriteString(header)
 	b.WriteByte('\n')

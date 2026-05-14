@@ -434,7 +434,7 @@ func baselineToRunSummary(bf *BaselineFile) (RunSummary, []ledger.BenchCaseResul
 // `ash bench --record-baseline` writes the three files.
 func prettyRecord(r *RecordBaselineResult) string {
 	var b strings.Builder
-	b.WriteString("=== ash bench --record-baseline ===\n")
+	b.WriteString("§bench --record-baseline\n")
 	fmt.Fprintf(&b, "wrote %s\n", r.BaselinePath)
 	fmt.Fprintf(&b, "wrote %s\n", r.MarkdownPath)
 	fmt.Fprintf(&b, "wrote %s\n", r.LatencyPath)

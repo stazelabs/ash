@@ -51,7 +51,7 @@ bench-baseline: bin/ash
 # this after editing a verb's schema, adding/renaming an error code,
 # or changing a pretty header/label. The companion target vocab-check
 # runs the same generation and fails on drift; CI runs vocab-check.
-bin/ashvocab: 
+bin/ashvocab: $(shell find cmd/ashvocab internal -name '*.go')
 	go build -o bin/ashvocab ./cmd/ashvocab
 
 vocab: bin/ashvocab

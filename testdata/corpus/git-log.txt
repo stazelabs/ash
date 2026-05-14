@@ -1,4 +1,4 @@
-=== ash git log: 20 commits TRUNCATED ===
+§git log: 20 commits TRUNCATED
 ffdcd80  2026-05-11  cstaszak  ASH-89: absolute-path bench cases to expose ASH-71 prefix-strip win
 95e03b7  2026-05-11  cstaszak  ASH-88: strip project-root prefix in path-bearing error messages
 cf03410  2026-05-11  cstaszak  hook: redirect file-mode sed to ash edit / ash read --range

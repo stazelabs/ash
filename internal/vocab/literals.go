@@ -145,7 +145,7 @@ func entriesFromBucket(m map[string]*aggLit, counter Counter) []Entry {
 // Glue entries are dropped from the inventory.
 func classifyLiteral(s, fn string) string {
 	switch {
-	case strings.Contains(s, "=== ash"):
+	case strings.HasPrefix(s, "§"):
 		return "header"
 	case strings.HasPrefix(s, "[ash ") || strings.HasPrefix(s, "[ash bi"):
 		return "footer"
@@ -224,15 +224,13 @@ func canonicalLabel(s string) string {
 	return strings.TrimSpace(fmtDirectiveRE.ReplaceAllString(s, ""))
 }
 
-// normalizeHeader collapses the formatting variability in `=== ash …`
-// headers down to a vocabulary signature. Stripping the trailing `===`
-// and any trailing format-directive tail (e.g. "%d verb(s) ===") leaves
-// the per-verb header *shape* — e.g. `=== ash find:`, `=== ash grep:`.
-// We keep the trailing `:` because it's tokenized.
+// normalizeHeader collapses the formatting variability in `§…`
+// headers down to a vocabulary signature. Stripping any trailing
+// format-directive tail (e.g. "%d verb(s)") leaves the per-verb header
+// *shape* — e.g. `§find:`, `§grep:`. We keep the trailing `:` because
+// it is tokenized.
 func normalizeHeader(s string) string {
 	t := strings.TrimSpace(s)
-	t = strings.TrimSuffix(t, "===")
-	t = strings.TrimSpace(t)
 	if i := strings.IndexAny(t, "%"); i >= 0 {
 		t = strings.TrimSpace(t[:i])
 	}

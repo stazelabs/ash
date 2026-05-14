@@ -260,7 +260,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "=== ash find: %d results", r.Count)
+	fmt.Fprintf(&b, "§find: %d results", r.Count)
 	// Note: the request args are deliberately not echoed in the header
 	// (the agent already has them); only Count and TRUNCATED are novel.
 	// scopeFromArgs() remains in this file for potential future use
@@ -268,7 +268,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if r.Truncated {
 		b.WriteString(" TRUNCATED")
 	}
-	b.WriteString(" ===\n")
+	b.WriteString("\n")
 	if !aliases.Empty() {
 		b.WriteString(aliases.Header())
 	}

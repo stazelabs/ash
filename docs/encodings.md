@@ -44,7 +44,7 @@ Any option in the menu must respect:
 2. **`tokens_in` honesty.** If we add aliases / positionals / interning,
    the daemon must tokenize what the agent literally typed, not the
    post-expansion canonical form.
-3. **Headers stay by default.** The `=== ash <verb>: ... ===` context
+3. **Headers stay by default.** The `§<verb>: ...` context
    header is on by default; compact mode is opt-in.
 4. **Wire parity.** Anything dropped from pretty must still ride the
    wire (JSON / msgpack). Only the agent-facing rendering changes.
@@ -68,7 +68,7 @@ Goal: turn "where do our tokens go?" from intuition into data.
    [internal/verbs/bench/](internal/verbs/bench/).
 3. **Decompose hot verbs.** For the top 2-3 verbs by total token output,
    mechanically partition `tokens_out` into:
-   - header (the `=== ash <verb>: ... ===` line + truncation hint)
+   - header (the `§<verb>: ...` line + truncation hint)
    - per-record overhead (e.g. the date column in `find --with_meta`,
      the `(N matches)` parenthetical in `grep`)
    - record body

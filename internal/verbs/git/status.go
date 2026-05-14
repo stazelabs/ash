@@ -198,7 +198,7 @@ func prettyStatus(s *StatusResult) string {
 		return "ok\n<empty status>"
 	}
 	var b strings.Builder
-	b.WriteString("=== ash git status: ")
+	b.WriteString("§git status: ")
 	switch {
 	case s.Initial:
 		b.WriteString("initial commit")
@@ -217,7 +217,7 @@ func prettyStatus(s *StatusResult) string {
 	if s.Clean {
 		b.WriteString(" — clean")
 	}
-	b.WriteString(" ===\n")
+	b.WriteString("\n")
 	if len(s.Staged) > 0 {
 		fmt.Fprintf(&b, "staged (%d):\n", len(s.Staged))
 		writeChanges(&b, s.Staged)

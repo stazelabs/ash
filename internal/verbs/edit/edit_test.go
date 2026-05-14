@@ -636,7 +636,7 @@ func TestRun_IsDirectory(t *testing.T) {
 func TestPrettyResponse_StringReplace(t *testing.T) {
 	r := &Result{Path: "cmd/main.go", BytesWritten: 100, LinesTotal: 5, Occurrences: 1}
 	got := PrettyResponse(nil, okResponse(r))
-	want := "=== ash edit: cmd/main.go [100B, 1 replacement] ==="
+	want := "§edit: cmd/main.go [100B, 1 replacement]"
 	if got != want {
 		t.Errorf("pretty=%q want %q", got, want)
 	}
@@ -645,7 +645,7 @@ func TestPrettyResponse_StringReplace(t *testing.T) {
 func TestPrettyResponse_ReplaceAll(t *testing.T) {
 	r := &Result{Path: "a.go", BytesWritten: 50, LinesTotal: 3, Occurrences: 4}
 	got := PrettyResponse(nil, okResponse(r))
-	want := "=== ash edit: a.go [50B, 4 replacements] ==="
+	want := "§edit: a.go [50B, 4 replacements]"
 	if got != want {
 		t.Errorf("pretty=%q want %q", got, want)
 	}
@@ -655,7 +655,7 @@ func TestPrettyResponse_RangeMode(t *testing.T) {
 	r := &Result{Path: "a.go", BytesWritten: 60, LinesTotal: 4, Occurrences: 1}
 	req := &proto.Request{Args: map[string]any{"range": "3:5"}}
 	got := PrettyResponse(req, okResponse(r))
-	want := "=== ash edit: a.go [60B, lines 3:5 replaced] ==="
+	want := "§edit: a.go [60B, lines 3:5 replaced]"
 	if got != want {
 		t.Errorf("pretty=%q want %q", got, want)
 	}
@@ -665,7 +665,7 @@ func TestPrettyResponse_PatchMode_SingleHunk(t *testing.T) {
 	r := &Result{Path: "a.go", BytesWritten: 80, LinesTotal: 5, Occurrences: 1}
 	req := &proto.Request{Args: map[string]any{"patch": "--- a\n+++ b\n@@ -1 +1 @@\n-x\n+y\n"}}
 	got := PrettyResponse(req, okResponse(r))
-	want := "=== ash edit: a.go [80B, 1 hunk applied] ==="
+	want := "§edit: a.go [80B, 1 hunk applied]"
 	if got != want {
 		t.Errorf("pretty=%q want %q", got, want)
 	}
@@ -675,7 +675,7 @@ func TestPrettyResponse_PatchMode_MultiHunk(t *testing.T) {
 	r := &Result{Path: "a.go", BytesWritten: 80, LinesTotal: 5, Occurrences: 3}
 	req := &proto.Request{Args: map[string]any{"patch": "--- a\n+++ b\n@@ -1 +1 @@\n-x\n+y\n"}}
 	got := PrettyResponse(req, okResponse(r))
-	want := "=== ash edit: a.go [80B, 3 hunks applied] ==="
+	want := "§edit: a.go [80B, 3 hunks applied]"
 	if got != want {
 		t.Errorf("pretty=%q want %q", got, want)
 	}

@@ -572,12 +572,12 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	}
 
 	var b strings.Builder
-	b.WriteString("=== ash bench: ")
+	b.WriteString("§bench: ")
 	fmt.Fprintf(&b, "%d case(s)", len(r.Cases))
 	if len(r.NotRun) > 0 {
 		fmt.Fprintf(&b, ", %d skipped", len(r.NotRun))
 	}
-	b.WriteString(" ===\n")
+	b.WriteString("\n")
 
 	// per-case rows
 	fmt.Fprintf(&b, "%-26s %-8s %8s %8s %7s %10s %10s %7s\n",

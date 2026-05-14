@@ -12,8 +12,8 @@
 //               Hand-curated; the ~10 values are too few to AST-walk
 //               reliably and the source-of-truth comment lives next to
 //               the assignment sites.
-//   - headers:  the leading and trailing `=== ash <verb>: … ===`
-//               sentinel from pretty renderers, plus the `[ash …]`
+//   - headers:  the `§<verb>: …` sentinel from pretty renderers,
+//               plus the `[ash …]`
 //               metrics footer and the `[truncation: …]` annotation.
 //               AST scan for format-string literals.
 //   - labels:   other label-shaped substrings inside PrettyResponse

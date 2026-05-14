@@ -620,7 +620,7 @@ func prettyResult(r *Result) string {
 			failingPkgs++
 		}
 	}
-	fmt.Fprintf(&b, "=== ash test: %d pkgs (%d pass, %d fail) — %.2fs [%s] ===\n",
+	fmt.Fprintf(&b, "§test: %d pkgs (%d pass, %d fail) — %.2fs [%s]\n",
 		len(r.Packages), len(r.Packages)-failingPkgs, failingPkgs, r.Elapsed, overall)
 
 	verbose := false

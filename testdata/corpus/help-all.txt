@@ -1,4 +1,4 @@
-=== ash help: 17 verb(s) — use `ash help <verb>` for full schema ===
+§help: 17 verb(s) — use `ash help <verb>` for full schema
   read      Read a file or byte/line range; UTF-8 as-is, binary base64-encoded.
   find      Walk a directory tree and return matching paths; respects .gitignore.
   grep      Search files for an RE2 pattern; skips binary and files >16 MiB.

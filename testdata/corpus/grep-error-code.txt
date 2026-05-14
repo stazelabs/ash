@@ -1,4 +1,4 @@
-=== ash grep: 12 matches in 3 files [pattern="ErrCode", path=internal/verbs] ===
+§grep: 12 matches in 3 files [pattern="ErrCode", path=internal/verbs]
 internal/verbs/metrics/metrics.go (5 matches)
   36: 	ErrCode       string `msgpack:"err_code,omitempty"`
   85: 			ErrCode:       c.ErrCode,

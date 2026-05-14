@@ -200,11 +200,10 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		}
 	}
 	var b strings.Builder
-	header := fmt.Sprintf("=== ash stat: %d path(s)", r.Count)
+	header := fmt.Sprintf("§stat: %d path(s)", r.Count)
 	if r.Errors > 0 {
 		header += fmt.Sprintf(", %d error(s)", r.Errors)
 	}
-	header += " ==="
 	b.WriteString(header)
 	b.WriteByte('\n')
 	for _, e := range r.Entries {

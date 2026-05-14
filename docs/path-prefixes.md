@@ -69,10 +69,10 @@ Wire-side data (`Result.Records`, `Result.Matches`) is **unchanged** — only pr
 Audited all four ops with an absolute `--path`/`--pathspec`:
 
 ```
-ash git --op status   --path     /Users/.../ash           → "=== ash git status: on main -> origin/main ==="
-ash git --op log      --pathspec /Users/.../ash/cmd       → "=== ash git log: 0 commits ==="
-ash git --op diff     --pathspec /Users/.../ash/cmd       → "=== ash git diff: 0 file(s) +0 -0 ==="
-ash git --op show     --ref HEAD --pathspec .../ash/cmd   → "=== ash git show: <hash> — <message> ==="
+ash git --op status   --path     /Users/.../ash           → "§git status: on main -> origin/main"
+ash git --op log      --pathspec /Users/.../ash/cmd       → "§git log: 0 commits"
+ash git --op diff     --pathspec /Users/.../ash/cmd       → "§git diff: 0 file(s) +0 -0"
+ash git --op show     --ref HEAD --pathspec .../ash/cmd   → "§git show: <hash> — <message>"
 ```
 
 **Result: nothing to strip.** Headers surface branch name, commit count, diff stats, and commit ref/message — none echo the input `--path` or `--pathspec`. Result data already uses repo-root-relative paths (noted in CLAUDE.md). No code change needed; closed as "nothing to do."

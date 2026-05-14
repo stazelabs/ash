@@ -365,7 +365,7 @@ func classifyDelta(dTok, dLat, regTok, regLat float64) (regress, improve bool) {
 // prettyList renders the recent-runs table for `ash bench --list`.
 func prettyList(lr *ListResult) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "=== ash bench --list: %d run(s) ===\n", len(lr.Runs))
+	fmt.Fprintf(&b, "§bench --list: %d run(s)\n", len(lr.Runs))
 	if len(lr.Runs) == 0 {
 		b.WriteString("no runs persisted yet (run `ash bench` first)")
 		return b.String()
@@ -403,7 +403,7 @@ func prettyList(lr *ListResult) string {
 // prettyCompare renders a side-by-side compare result.
 func prettyCompare(cr *CompareResult) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "=== ash bench compare: A=%s vs B=%s ===\n",
+	fmt.Fprintf(&b, "§bench compare: A=%s vs B=%s\n",
 		shortRunID(cr.A.RunUUID), shortRunID(cr.B.RunUUID))
 	if cr.CaseSetMatch {
 		fmt.Fprintf(&b, "case-set: matched (%s)\n", cr.A.CaseSetVersion)

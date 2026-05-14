@@ -1,4 +1,4 @@
-=== ash help: 1 verb(s) ===
+§help: 1 verb(s)
 verb: find
   Walk a directory tree and return matching paths; respects .gitignore.
   --path:string! — Starting directory for the walk.

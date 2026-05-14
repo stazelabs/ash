@@ -275,12 +275,12 @@ func prettyDiff(d *DiffResult) string {
 	if d.StatOnly {
 		verb = "diff --stat"
 	}
-	fmt.Fprintf(&b, "=== ash git %s: %d file(s) +%d -%d",
+	fmt.Fprintf(&b, "§git %s: %d file(s) +%d -%d",
 		verb, len(d.Files), d.TotalAdditions, d.TotalDeletions)
 	if d.Truncated {
 		b.WriteString(" TRUNCATED")
 	}
-	b.WriteString(" ===\n")
+	b.WriteString("\n")
 
 	if d.StatOnly {
 		for _, f := range d.Files {

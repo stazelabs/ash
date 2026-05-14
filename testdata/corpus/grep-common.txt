@@ -1,4 +1,4 @@
-=== ash grep: 256 matches in 16 files [pattern="func ", path=internal/verbs] TRUNCATED ===
+§grep: 256 matches in 16 files [pattern="func ", path=internal/verbs] TRUNCATED
 internal/verbs/argutil/argutil.go (11 matches)
   32: func ToInt(v any) (int, bool) {
   49: func ToInt64(v any) (int64, bool) {

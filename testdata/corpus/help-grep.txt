@@ -1,4 +1,4 @@
-=== ash help: 1 verb(s) ===
+§help: 1 verb(s)
 verb: grep
   Search files for an RE2 pattern; skips binary and files >16 MiB.
   --pattern:string! — RE2 regex; literal text when lit=true.

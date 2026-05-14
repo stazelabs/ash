@@ -194,14 +194,14 @@ func prettyLog(l *LogResult) string {
 		return "ok\n<empty log>"
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "=== ash git log: %d commit", l.Count)
+	fmt.Fprintf(&b, "§git log: %d commit", l.Count)
 	if l.Count != 1 {
 		b.WriteByte('s')
 	}
 	if l.Truncated {
 		b.WriteString(" TRUNCATED")
 	}
-	b.WriteString(" ===\n")
+	b.WriteString("\n")
 	for _, c := range l.Commits {
 		// One line per commit: `<short> <date> <author>  <subject>`. Body is
 		// dropped from pretty form to keep tokens cheap; the structured

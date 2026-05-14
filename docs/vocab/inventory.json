@@ -1735,8 +1735,8 @@
         ]
       },
       {
-        "literal": "=== ash bench --diff-micro: vs baseline",
-        "cl100k_tokens": 10,
+        "literal": "§bench --diff-micro: vs baseline",
+        "cl100k_tokens": 9,
         "sites": [
           {
             "file": "internal/verbs/bench/micro.go",
@@ -1745,8 +1745,8 @@
         ]
       },
       {
-        "literal": "=== ash bench --record-baseline",
-        "cl100k_tokens": 7,
+        "literal": "§bench --record-baseline",
+        "cl100k_tokens": 6,
         "sites": [
           {
             "file": "internal/verbs/bench/baseline.go",
@@ -1755,8 +1755,8 @@
         ]
       },
       {
-        "literal": "=== ash bench --record-micro",
-        "cl100k_tokens": 7,
+        "literal": "§bench --record-micro",
+        "cl100k_tokens": 6,
         "sites": [
           {
             "file": "internal/verbs/bench/micro.go",
@@ -1765,8 +1765,8 @@
         ]
       },
       {
-        "literal": "=== ash bench compare: A=",
-        "cl100k_tokens": 7,
+        "literal": "§bench compare: A=",
+        "cl100k_tokens": 6,
         "sites": [
           {
             "file": "internal/verbs/bench/trend.go",
@@ -1775,8 +1775,8 @@
         ]
       },
       {
-        "literal": "=== ash edit --dry_run:",
-        "cl100k_tokens": 7,
+        "literal": "§edit --dry_run:",
+        "cl100k_tokens": 6,
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
@@ -1785,8 +1785,8 @@
         ]
       },
       {
-        "literal": "=== ash stop: no daemon running",
-        "cl100k_tokens": 7,
+        "literal": "§stop: no daemon running",
+        "cl100k_tokens": 6,
         "sites": [
           {
             "file": "internal/verbs/stop/stop.go",
@@ -1795,8 +1795,8 @@
         ]
       },
       {
-        "literal": "=== ash bench --list:",
-        "cl100k_tokens": 6,
+        "literal": "§bench --list:",
+        "cl100k_tokens": 5,
         "sites": [
           {
             "file": "internal/verbs/bench/trend.go",
@@ -1805,8 +1805,8 @@
         ]
       },
       {
-        "literal": "=== ash bench --micro:",
-        "cl100k_tokens": 6,
+        "literal": "§bench --micro:",
+        "cl100k_tokens": 5,
         "sites": [
           {
             "file": "internal/verbs/bench/micro.go",
@@ -1815,8 +1815,8 @@
         ]
       },
       {
-        "literal": "=== ash stop: stopped (",
-        "cl100k_tokens": 6,
+        "literal": "§stop: stopped (",
+        "cl100k_tokens": 5,
         "sites": [
           {
             "file": "internal/verbs/stop/stop.go",
@@ -1825,8 +1825,8 @@
         ]
       },
       {
-        "literal": "=== ash stop: timeout after",
-        "cl100k_tokens": 6,
+        "literal": "§stop: timeout after",
+        "cl100k_tokens": 5,
         "sites": [
           {
             "file": "internal/verbs/stop/stop.go",
@@ -1835,8 +1835,8 @@
         ]
       },
       {
-        "literal": "=== ash git log:",
-        "cl100k_tokens": 5,
+        "literal": "§git log:",
+        "cl100k_tokens": 4,
         "sites": [
           {
             "file": "internal/verbs/git/log.go",
@@ -1845,8 +1845,8 @@
         ]
       },
       {
-        "literal": "=== ash git show:",
-        "cl100k_tokens": 5,
+        "literal": "§git show:",
+        "cl100k_tokens": 4,
         "sites": [
           {
             "file": "internal/verbs/git/show.go",
@@ -1855,8 +1855,8 @@
         ]
       },
       {
-        "literal": "=== ash git status:",
-        "cl100k_tokens": 5,
+        "literal": "§git status:",
+        "cl100k_tokens": 4,
         "sites": [
           {
             "file": "internal/verbs/git/status.go",
@@ -1865,8 +1865,8 @@
         ]
       },
       {
-        "literal": "=== ash uninit:",
-        "cl100k_tokens": 5,
+        "literal": "§uninit:",
+        "cl100k_tokens": 4,
         "sites": [
           {
             "file": "internal/verbs/uninit/uninit.go",
@@ -1879,8 +1879,8 @@
         ]
       },
       {
-        "literal": "=== ash bench:",
-        "cl100k_tokens": 4,
+        "literal": "§bench:",
+        "cl100k_tokens": 3,
         "sites": [
           {
             "file": "internal/verbs/bench/bench.go",
@@ -1889,8 +1889,8 @@
         ]
       },
       {
-        "literal": "=== ash diff:",
-        "cl100k_tokens": 4,
+        "literal": "§diff:",
+        "cl100k_tokens": 3,
         "sites": [
           {
             "file": "internal/verbs/diff/diff.go",
@@ -1907,8 +1907,8 @@
         ]
       },
       {
-        "literal": "=== ash edit:",
-        "cl100k_tokens": 4,
+        "literal": "§edit:",
+        "cl100k_tokens": 3,
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
@@ -1917,8 +1917,8 @@
         ]
       },
       {
-        "literal": "=== ash find:",
-        "cl100k_tokens": 4,
+        "literal": "§find:",
+        "cl100k_tokens": 3,
         "sites": [
           {
             "file": "internal/verbs/find/find.go",
@@ -1927,8 +1927,8 @@
         ]
       },
       {
-        "literal": "=== ash grep:",
-        "cl100k_tokens": 4,
+        "literal": "§grep:",
+        "cl100k_tokens": 3,
         "sites": [
           {
             "file": "internal/verbs/grep/grep.go",
@@ -1941,8 +1941,8 @@
         ]
       },
       {
-        "literal": "=== ash help:",
-        "cl100k_tokens": 4,
+        "literal": "§help:",
+        "cl100k_tokens": 3,
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
@@ -1955,8 +1955,8 @@
         ]
       },
       {
-        "literal": "=== ash init:",
-        "cl100k_tokens": 4,
+        "literal": "§init:",
+        "cl100k_tokens": 3,
         "sites": [
           {
             "file": "internal/verbs/initverb/initverb.go",
@@ -1969,8 +1969,8 @@
         ]
       },
       {
-        "literal": "=== ash metrics:",
-        "cl100k_tokens": 4,
+        "literal": "§metrics:",
+        "cl100k_tokens": 3,
         "sites": [
           {
             "file": "internal/verbs/metrics/metrics.go",
@@ -1979,8 +1979,8 @@
         ]
       },
       {
-        "literal": "=== ash report:",
-        "cl100k_tokens": 4,
+        "literal": "§report:",
+        "cl100k_tokens": 3,
         "sites": [
           {
             "file": "internal/verbs/report/report.go",
@@ -1989,8 +1989,8 @@
         ]
       },
       {
-        "literal": "=== ash stat:",
-        "cl100k_tokens": 4,
+        "literal": "§stat:",
+        "cl100k_tokens": 3,
         "sites": [
           {
             "file": "internal/verbs/stat/stat.go",
@@ -1999,8 +1999,8 @@
         ]
       },
       {
-        "literal": "=== ash test:",
-        "cl100k_tokens": 4,
+        "literal": "§test:",
+        "cl100k_tokens": 3,
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
@@ -2009,8 +2009,8 @@
         ]
       },
       {
-        "literal": "=== ash write:",
-        "cl100k_tokens": 4,
+        "literal": "§write:",
+        "cl100k_tokens": 3,
         "sites": [
           {
             "file": "internal/verbs/write/write.go",
@@ -2019,8 +2019,8 @@
         ]
       },
       {
-        "literal": "=== ash git",
-        "cl100k_tokens": 3,
+        "literal": "§git",
+        "cl100k_tokens": 2,
         "sites": [
           {
             "file": "internal/verbs/git/diff.go",

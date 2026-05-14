@@ -541,13 +541,13 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	}
 	var b strings.Builder
 	if r.Count != 1 {
-		fmt.Fprintf(&b, "=== ash help: %d verb(s) — use `ash help <verb>` for full schema ===\n", r.Count)
+		fmt.Fprintf(&b, "§help: %d verb(s) — use `ash help <verb>` for full schema\n", r.Count)
 		for _, vs := range r.Verbs {
 			fmt.Fprintf(&b, "  %-*s  %s\n", verbNameW, vs.Verb, vs.Description)
 		}
 		return strings.TrimRight(b.String(), "\n")
 	}
-	fmt.Fprintf(&b, "=== ash help: %d verb(s) ===\n", r.Count)
+	fmt.Fprintf(&b, "§help: %d verb(s)\n", r.Count)
 	for i, vs := range r.Verbs {
 		if i > 0 {
 			b.WriteByte('\n')

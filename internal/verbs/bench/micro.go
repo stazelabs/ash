@@ -418,7 +418,7 @@ func loadMicroBaselineFile(projectRoot string) (*MicroBaselineFile, error) {
 func prettyMicro(r *MicroResult) string {
 	var b strings.Builder
 	n := len(r.All)
-	fmt.Fprintf(&b, "=== ash bench --micro: %d benchmark(s), benchtime=%s count=%d ===\n",
+	fmt.Fprintf(&b, "§bench --micro: %d benchmark(s), benchtime=%s count=%d\n",
 		n, r.BenchTime, r.Count)
 	if n == 0 {
 		b.WriteString("no benchmarks found in curated packages\n")
@@ -448,7 +448,7 @@ func prettyMicro(r *MicroResult) string {
 // prettyRecordMicro renders a RecordMicroResult.
 func prettyRecordMicro(r *RecordMicroResult) string {
 	var b strings.Builder
-	b.WriteString("=== ash bench --record-micro ===\n")
+	b.WriteString("§bench --record-micro\n")
 	fmt.Fprintf(&b, "wrote %s\n", r.JSONPath)
 	fmt.Fprintf(&b, "wrote %s\n", r.MarkdownPath)
 	fmt.Fprintf(&b, "%d bytes total\n", r.BytesWritten)
@@ -466,7 +466,7 @@ func prettyDiffMicro(r *DiffMicroResult) string {
 	if len(baseDate) >= 10 {
 		baseDate = baseDate[:10]
 	}
-	fmt.Fprintf(&b, "=== ash bench --diff-micro: vs baseline %s (regress_pct=%d%%) ===\n",
+	fmt.Fprintf(&b, "§bench --diff-micro: vs baseline %s (regress_pct=%d%%)\n",
 		baseDate, r.RegressPct)
 	if len(r.Rows) == 0 && len(r.NewOnly) == 0 && len(r.BaseOnly) == 0 {
 		b.WriteString("no benchmarks to compare\n")

@@ -255,7 +255,7 @@ func TestPrettyResponse_ok(t *testing.T) {
 	res, _ := Run(&Args{Paths: []string{filePath}}, nil)
 	rsp := &proto.Response{OK: true, Data: proto.MustData(res)}
 	out := PrettyResponse(nil, rsp)
-	if !strings.Contains(out, "ash stat: 1 path(s)") {
+	if !strings.Contains(out, "§stat: 1 path(s)") {
 		t.Errorf("unexpected header: %q", out)
 	}
 	if !strings.Contains(out, "F ") {

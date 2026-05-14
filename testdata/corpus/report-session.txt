@@ -1,4 +1,4 @@
-=== ash report: current — 177 calls, 4.2s exec ===
+§report: current — 177 calls, 4.2s exec
 totals: ok=176/177 (99%), tokens_in=17929, tokens_out=66233
 path-prefix tax: 36 tokens (0% of out)
 

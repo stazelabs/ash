@@ -317,9 +317,9 @@ func PrettyResponse(_ *proto.Request, rsp *proto.Response) string {
 	}
 	var b strings.Builder
 	if r.AlreadyInstalled {
-		fmt.Fprintf(&b, "=== ash init: %s — already installed ===\n", r.Path)
+		fmt.Fprintf(&b, "§init: %s — already installed\n", r.Path)
 	} else {
-		fmt.Fprintf(&b, "=== ash init: %s ===\n", r.Path)
+		fmt.Fprintf(&b, "§init: %s\n", r.Path)
 	}
 	fmt.Fprintf(&b, "settings:  %s\n", yesNo(r.SettingsWritten))
 	fmt.Fprintf(&b, "gitignore: %s\n", yesNo(r.GitignoreUpdated))

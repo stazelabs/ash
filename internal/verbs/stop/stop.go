@@ -127,17 +127,17 @@ func PrettyResult(r *Result) string {
 	var b strings.Builder
 	switch r.Status {
 	case "already_stopped":
-		b.WriteString("=== ash stop: no daemon running ===\n")
+		b.WriteString("§stop: no daemon running\n")
 		if r.PID > 0 {
 			fmt.Fprintf(&b, "pid:     %d (already gone)\n", r.PID)
 		}
 	case "timeout":
-		fmt.Fprintf(&b, "=== ash stop: timeout after %dms ===\n", r.ElapsedMs)
+		fmt.Fprintf(&b, "§stop: timeout after %dms\n", r.ElapsedMs)
 		fmt.Fprintf(&b, "pid:     %d\n", r.PID)
 		b.WriteString("signal:  sent (SIGTERM)\n")
 		b.WriteString("exited:  no — process still running after timeout\n")
 	default: // "stopped"
-		fmt.Fprintf(&b, "=== ash stop: stopped (%dms) ===\n", r.ElapsedMs)
+		fmt.Fprintf(&b, "§stop: stopped (%dms)\n", r.ElapsedMs)
 		fmt.Fprintf(&b, "pid:     %d\n", r.PID)
 		b.WriteString("signal:  sent (SIGTERM)\n")
 		b.WriteString("exited:  yes\n")

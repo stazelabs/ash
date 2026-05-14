@@ -165,7 +165,7 @@ Bench delta after the change:
 Take-aways the bench made visible:
 
 1. The single biggest cost was the date column — tiktoken splits hyphenated dates aggressively. If we ever bring date back to the default, format it as `yyyymmdd` (3 tokens) rather than `yyyy-mm-dd` (5 tokens).
-2. JSON-envelope penalty on tiny queries (find_shallow still +71%) is a header amortization issue — the `=== ash find: N results [scope] ===` line is fixed cost. Acceptable for now; if it becomes load-bearing, we can collapse the header on small results.
+2. JSON-envelope penalty on tiny queries (find_shallow still +71%) is a header amortization issue — the `§find: N results [scope]` line is fixed cost. Acceptable for now; if it becomes load-bearing, we can collapse the header on small results.
 3. Structured data on the wire vs human-readable rendering are separable concerns — the design principle "robot-first, structured everything" survived the change because nothing the agent could *do* with the result lost any information.
 
 ## Heavy-tree case (2026-05-08): `grep_heavy_func_internal` exercises truncation

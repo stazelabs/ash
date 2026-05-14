@@ -585,14 +585,14 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		aliases = nil
 	}
 
-	fmt.Fprintf(&b, "=== ash grep: %s in %s", plural(r.MatchCount, "match", "matches"), plural(r.FileCount, "file", "files"))
+	fmt.Fprintf(&b, "§grep: %s in %s", plural(r.MatchCount, "match", "matches"), plural(r.FileCount, "file", "files"))
 	if scope := scopeFromArgs(req); scope != "" {
 		fmt.Fprintf(&b, " [%s]", scope)
 	}
 	if r.Truncated {
 		b.WriteString(" TRUNCATED")
 	}
-	b.WriteString(" ===\n")
+	b.WriteString("\n")
 	if !aliases.Empty() {
 		b.WriteString(aliases.Header())
 	}
@@ -641,14 +641,14 @@ func prettyFilesOnly(req *proto.Request, r *Result) string {
 		aliases = nil
 	}
 
-	fmt.Fprintf(&b, "=== ash grep: %s", plural(r.Count, "file", "files"))
+	fmt.Fprintf(&b, "§grep: %s", plural(r.Count, "file", "files"))
 	if scope := scopeFromArgs(req); scope != "" {
 		fmt.Fprintf(&b, " [%s]", scope)
 	}
 	if r.Truncated {
 		b.WriteString(" TRUNCATED")
 	}
-	b.WriteString(" ===\n")
+	b.WriteString("\n")
 	if !aliases.Empty() {
 		b.WriteString(aliases.Header())
 	}

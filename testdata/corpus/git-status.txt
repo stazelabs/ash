@@ -1,4 +1,4 @@
-=== ash git status: on main -> origin/main ===
+§git status: on main -> origin/main
 untracked (15):
   .claude/settings.local.json
   cmd/encexplore/atlas.go

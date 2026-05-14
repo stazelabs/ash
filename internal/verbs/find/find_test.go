@@ -519,7 +519,7 @@ func TestPrettyResponse_HeaderHasNoScope(t *testing.T) {
 		Args: map[string]any{"path": "docs", "glob": "**/*.md", "type": "file"},
 	}
 	got := PrettyResponse(req, rsp)
-	if !strings.HasPrefix(got, "=== ash find: 3 results ===\n") {
+	if !strings.HasPrefix(got, "§find: 3 results\n") {
 		t.Errorf("expected header without scope echo, got %q", got)
 	}
 	if strings.Contains(got, "[path=") || strings.Contains(got, "[glob=") || strings.Contains(got, "[type=") {

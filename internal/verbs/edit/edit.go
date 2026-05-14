@@ -572,7 +572,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 				detail = fmt.Sprintf("%d replacements", r.Occurrences)
 			}
 		}
-		header := fmt.Sprintf("=== ash edit --dry_run: %s [%d lines, %s — not written] ===", r.Path, r.LinesTotal, detail)
+		header := fmt.Sprintf("§edit --dry_run: %s [%d lines, %s — not written]", r.Path, r.LinesTotal, detail)
 		if r.Patch == "" {
 			return header + "\n(no changes)"
 		}
@@ -594,7 +594,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 			detail = fmt.Sprintf("%d replacements", r.Occurrences)
 		}
 	}
-	return fmt.Sprintf("=== ash edit: %s [%dB, %s] ===", r.Path, r.BytesWritten, detail)
+	return fmt.Sprintf("§edit: %s [%dB, %s]", r.Path, r.BytesWritten, detail)
 }
 
 func hunkLabel(n int) string {

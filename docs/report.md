@@ -28,7 +28,7 @@ Defaults: `--session=current` with no other filters → "everything in the live 
 ### Output (pretty)
 
 ```
-=== ash report: session abc12345 — 28 calls, 26.4s exec ===
+§report: session abc12345 — 28 calls, 26.4s exec
 totals: ok=27/28 (96%), tokens_in=312, tokens_out=8412
 
 verb     n   ok%   p50_exec  p95_exec  p50_out  p95_out  trunc%

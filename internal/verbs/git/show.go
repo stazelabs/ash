@@ -121,7 +121,7 @@ func prettyShow(s *ShowResult) string {
 	}
 	var b strings.Builder
 	c := s.Commit
-	fmt.Fprintf(&b, "=== ash git show: %s — %s ===\n", c.ShortSHA, c.Subject)
+	fmt.Fprintf(&b, "§git show: %s — %s\n", c.ShortSHA, c.Subject)
 	fmt.Fprintf(&b, "author: %s <%s>  %s\n",
 		c.AuthorName, c.AuthorEmail,
 		time.Unix(0, c.AuthorTime).UTC().Format("2006-01-02"))

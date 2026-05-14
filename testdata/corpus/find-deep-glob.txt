@@ -1,4 +1,4 @@
-=== ash find: 108 results ===
+§find: 108 results
 cmd/ash/hook.go
 cmd/ash/hook_bench_test.go
 cmd/ash/main.go

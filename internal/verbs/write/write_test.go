@@ -219,7 +219,7 @@ func TestRun_EmptyContent(t *testing.T) {
 func TestPrettyResponse_Created(t *testing.T) {
 	r := &Result{Path: "foo/bar.go", BytesWritten: 42, Created: true}
 	got := PrettyResponse(nil, okResponse(r))
-	want := "=== ash write: foo/bar.go [42B, created] ==="
+	want := "§write: foo/bar.go [42B, created]"
 	if got != want {
 		t.Errorf("pretty=%q want %q", got, want)
 	}
@@ -228,7 +228,7 @@ func TestPrettyResponse_Created(t *testing.T) {
 func TestPrettyResponse_Overwritten(t *testing.T) {
 	r := &Result{Path: "foo/bar.go", BytesWritten: 100, Created: false}
 	got := PrettyResponse(nil, okResponse(r))
-	want := "=== ash write: foo/bar.go [100B, overwritten] ==="
+	want := "§write: foo/bar.go [100B, overwritten]"
 	if got != want {
 		t.Errorf("pretty=%q want %q", got, want)
 	}
