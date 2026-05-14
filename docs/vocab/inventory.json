@@ -1,0 +1,2544 @@
+{
+  "generated_by": "cmd/ashvocab (ASH-102)",
+  "tokenizer": "cl100k_base",
+  "categories": {
+    "enums": [
+      {
+        "literal": "\u003cid\u003e",
+        "cl100k_tokens": 3,
+        "context": "report:--session"
+      },
+      {
+        "literal": "utf-8",
+        "cl100k_tokens": 3,
+        "context": "write:--encoding"
+      },
+      {
+        "literal": "base64",
+        "cl100k_tokens": 2,
+        "context": "write:--encoding"
+      },
+      {
+        "literal": "insensitive",
+        "cl100k_tokens": 2,
+        "context": "grep:--case"
+      },
+      {
+        "literal": "sensitive",
+        "cl100k_tokens": 2,
+        "context": "grep:--case"
+      },
+      {
+        "literal": "symlink",
+        "cl100k_tokens": 2,
+        "context": "find:--type"
+      },
+      {
+        "literal": "all",
+        "cl100k_tokens": 1,
+        "context": "report:--session"
+      },
+      {
+        "literal": "any",
+        "cl100k_tokens": 1,
+        "context": "find:--type"
+      },
+      {
+        "literal": "bytes",
+        "cl100k_tokens": 1,
+        "context": "read:--unit"
+      },
+      {
+        "literal": "current",
+        "cl100k_tokens": 1,
+        "context": "report:--session"
+      },
+      {
+        "literal": "diff",
+        "cl100k_tokens": 1,
+        "context": "git:--op"
+      },
+      {
+        "literal": "dir",
+        "cl100k_tokens": 1,
+        "context": "find:--type"
+      },
+      {
+        "literal": "file",
+        "cl100k_tokens": 1,
+        "context": "find:--type"
+      },
+      {
+        "literal": "lines",
+        "cl100k_tokens": 1,
+        "context": "read:--unit"
+      },
+      {
+        "literal": "log",
+        "cl100k_tokens": 1,
+        "context": "git:--op"
+      },
+      {
+        "literal": "show",
+        "cl100k_tokens": 1,
+        "context": "git:--op"
+      },
+      {
+        "literal": "smart",
+        "cl100k_tokens": 1,
+        "context": "grep:--case"
+      },
+      {
+        "literal": "status",
+        "cl100k_tokens": 1,
+        "context": "git:--op"
+      }
+    ],
+    "errors": [
+      {
+        "literal": "\u003cprog\u003e+\"_not_found\"",
+        "cl100k_tokens": 7,
+        "sites": [
+          {
+            "file": "internal/runner/runner.go",
+            "line": 42
+          }
+        ],
+        "computed": true
+      },
+      {
+        "literal": "\u003cprog\u003e+\"_failed\"",
+        "cl100k_tokens": 6,
+        "sites": [
+          {
+            "file": "internal/runner/runner.go",
+            "line": 81
+          },
+          {
+            "file": "internal/runner/runner.go",
+            "line": 91
+          },
+          {
+            "file": "internal/runner/runner.go",
+            "line": 96
+          },
+          {
+            "file": "internal/runner/runner.go",
+            "line": 127
+          }
+        ],
+        "computed": true
+      },
+      {
+        "literal": "range_out_of_bounds",
+        "cl100k_tokens": 4,
+        "sites": [
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 484
+          },
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 487
+          },
+          {
+            "file": "internal/verbs/read/read.go",
+            "line": 176
+          },
+          {
+            "file": "internal/verbs/read/read.go",
+            "line": 206
+          }
+        ]
+      },
+      {
+        "literal": "git_not_found",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/runner/runner.go",
+            "line": 42
+          }
+        ]
+      },
+      {
+        "literal": "gitignore_read",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/initverb/initverb.go",
+            "line": 292
+          },
+          {
+            "file": "internal/verbs/uninit/uninit.go",
+            "line": 214
+          }
+        ]
+      },
+      {
+        "literal": "gitignore_write",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/initverb/initverb.go",
+            "line": 305
+          },
+          {
+            "file": "internal/verbs/uninit/uninit.go",
+            "line": 231
+          }
+        ]
+      },
+      {
+        "literal": "go_not_found",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/runner/runner.go",
+            "line": 42
+          },
+          {
+            "file": "internal/verbs/test/test.go",
+            "line": 243
+          }
+        ]
+      },
+      {
+        "literal": "guidance_read",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/initverb/template.go",
+            "line": 71
+          },
+          {
+            "file": "internal/verbs/initverb/template.go",
+            "line": 129
+          }
+        ]
+      },
+      {
+        "literal": "guidance_write",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/initverb/template.go",
+            "line": 74
+          },
+          {
+            "file": "internal/verbs/initverb/template.go",
+            "line": 91
+          },
+          {
+            "file": "internal/verbs/initverb/template.go",
+            "line": 112
+          },
+          {
+            "file": "internal/verbs/initverb/template.go",
+            "line": 145
+          }
+        ]
+      },
+      {
+        "literal": "match_not_found",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 452
+          }
+        ]
+      },
+      {
+        "literal": "no_roots",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/report/report.go",
+            "line": 297
+          }
+        ],
+        "hints": [
+          {
+            "text": "run 'ash init' in each target repo first",
+            "cl100k_tokens": 10
+          }
+        ]
+      },
+      {
+        "literal": "not_a_dir",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/initverb/initverb.go",
+            "line": 107
+          }
+        ]
+      },
+      {
+        "literal": "not_a_repo",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/git/git.go",
+            "line": 45
+          },
+          {
+            "file": "internal/verbs/git/gogit_common.go",
+            "line": 31
+          },
+          {
+            "file": "internal/verbs/git/log.go",
+            "line": 97
+          },
+          {
+            "file": "internal/verbs/git/show.go",
+            "line": 105
+          }
+        ]
+      },
+      {
+        "literal": "not_implemented",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/git/backend.go",
+            "line": 65
+          }
+        ]
+      },
+      {
+        "literal": "patch_parse_error",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 347
+          },
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 432
+          }
+        ]
+      },
+      {
+        "literal": "path_denied",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/jail/policy.go",
+            "line": 218
+          }
+        ]
+      },
+      {
+        "literal": "ref_not_found",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/git/gogit_common.go",
+            "line": 48
+          },
+          {
+            "file": "internal/verbs/git/show.go",
+            "line": 52
+          },
+          {
+            "file": "internal/verbs/git/show.go",
+            "line": 110
+          }
+        ]
+      },
+      {
+        "literal": "settings_marshal",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/initverb/initverb.go",
+            "line": 201
+          },
+          {
+            "file": "internal/verbs/uninit/uninit.go",
+            "line": 164
+          }
+        ]
+      },
+      {
+        "literal": "unknown_verb",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/verbs.go",
+            "line": 140
+          }
+        ]
+      },
+      {
+        "literal": "client_only",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/stop/stop.go",
+            "line": 109
+          }
+        ],
+        "hints": [
+          {
+            "text": "'ash stop' runs in the client; the daemon cannot receive it",
+            "cl100k_tokens": 14
+          }
+        ]
+      },
+      {
+        "literal": "git_failed",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/runner/runner.go",
+            "line": 81
+          },
+          {
+            "file": "internal/runner/runner.go",
+            "line": 91
+          },
+          {
+            "file": "internal/runner/runner.go",
+            "line": 96
+          },
+          {
+            "file": "internal/runner/runner.go",
+            "line": 127
+          },
+          {
+            "file": "internal/verbs/git/git.go",
+            "line": 47
+          },
+          {
+            "file": "internal/verbs/git/gogit_common.go",
+            "line": 33
+          },
+          {
+            "file": "internal/verbs/git/gogit_common.go",
+            "line": 50
+          },
+          {
+            "file": "internal/verbs/git/gogit_diff.go",
+            "line": 64
+          },
+          {
+            "file": "internal/verbs/git/gogit_diff.go",
+            "line": 72
+          },
+          {
+            "file": "internal/verbs/git/gogit_diff.go",
+            "line": 78
+          },
+          {
+            "file": "internal/verbs/git/gogit_diff.go",
+            "line": 126
+          },
+          {
+            "file": "internal/verbs/git/gogit_diff.go",
+            "line": 176
+          },
+          {
+            "file": "internal/verbs/git/gogit_diff.go",
+            "line": 223
+          },
+          {
+            "file": "internal/verbs/git/gogit_diff.go",
+            "line": 232
+          },
+          {
+            "file": "internal/verbs/git/gogit_diff.go",
+            "line": 236
+          },
+          {
+            "file": "internal/verbs/git/gogit_diff.go",
+            "line": 243
+          },
+          {
+            "file": "internal/verbs/git/gogit_diff.go",
+            "line": 269
+          },
+          {
+            "file": "internal/verbs/git/gogit_diff.go",
+            "line": 273
+          },
+          {
+            "file": "internal/verbs/git/gogit_diff.go",
+            "line": 277
+          },
+          {
+            "file": "internal/verbs/git/gogit_diff.go",
+            "line": 320
+          },
+          {
+            "file": "internal/verbs/git/gogit_diff.go",
+            "line": 327
+          },
+          {
+            "file": "internal/verbs/git/gogit_diff.go",
+            "line": 342
+          },
+          {
+            "file": "internal/verbs/git/gogit_diff.go",
+            "line": 346
+          },
+          {
+            "file": "internal/verbs/git/gogit_diff.go",
+            "line": 364
+          },
+          {
+            "file": "internal/verbs/git/gogit_diff.go",
+            "line": 409
+          },
+          {
+            "file": "internal/verbs/git/gogit_diff.go",
+            "line": 413
+          },
+          {
+            "file": "internal/verbs/git/gogit_diff.go",
+            "line": 417
+          },
+          {
+            "file": "internal/verbs/git/gogit_log.go",
+            "line": 75
+          },
+          {
+            "file": "internal/verbs/git/gogit_log.go",
+            "line": 97
+          },
+          {
+            "file": "internal/verbs/git/gogit_log.go",
+            "line": 121
+          },
+          {
+            "file": "internal/verbs/git/gogit_status.go",
+            "line": 40
+          },
+          {
+            "file": "internal/verbs/git/gogit_status.go",
+            "line": 47
+          },
+          {
+            "file": "internal/verbs/git/log.go",
+            "line": 111
+          },
+          {
+            "file": "internal/verbs/git/show.go",
+            "line": 115
+          }
+        ]
+      },
+      {
+        "literal": "go_failed",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/runner/runner.go",
+            "line": 81
+          },
+          {
+            "file": "internal/runner/runner.go",
+            "line": 91
+          },
+          {
+            "file": "internal/runner/runner.go",
+            "line": 96
+          },
+          {
+            "file": "internal/runner/runner.go",
+            "line": 127
+          },
+          {
+            "file": "internal/verbs/test/test.go",
+            "line": 235
+          },
+          {
+            "file": "internal/verbs/test/test.go",
+            "line": 245
+          },
+          {
+            "file": "internal/verbs/test/test.go",
+            "line": 269
+          }
+        ]
+      },
+      {
+        "literal": "is_dir",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 142
+          },
+          {
+            "file": "internal/verbs/read/read.go",
+            "line": 96
+          },
+          {
+            "file": "internal/verbs/write/write.go",
+            "line": 92
+          }
+        ],
+        "hints": [
+          {
+            "text": "use 'ash find' to list contents, then 'ash read' a file",
+            "cl100k_tokens": 16
+          }
+        ]
+      },
+      {
+        "literal": "ledger_open",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/report/report.go",
+            "line": 345
+          }
+        ]
+      },
+      {
+        "literal": "no_baseline",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/bench/micro.go",
+            "line": 224
+          },
+          {
+            "file": "internal/verbs/bench/trend.go",
+            "line": 162
+          },
+          {
+            "file": "internal/verbs/bench/trend.go",
+            "line": 189
+          }
+        ],
+        "hints": [
+          {
+            "text": "run 'ash bench --record-micro' first",
+            "cl100k_tokens": 10
+          }
+        ]
+      },
+      {
+        "literal": "no_packages",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/test/test.go",
+            "line": 289
+          },
+          {
+            "file": "internal/verbs/test/test.go",
+            "line": 291
+          }
+        ]
+      },
+      {
+        "literal": "no_parent",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/write/write.go",
+            "line": 115
+          }
+        ],
+        "hints": [
+          {
+            "text": "pass --mkdir true to create it",
+            "cl100k_tokens": 7
+          }
+        ]
+      },
+      {
+        "literal": "no_runs",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/bench/baseline.go",
+            "line": 185
+          },
+          {
+            "file": "internal/verbs/bench/trend.go",
+            "line": 200
+          }
+        ],
+        "hints": [
+          {
+            "text": "run 'ash bench' first",
+            "cl100k_tokens": 6
+          }
+        ]
+      },
+      {
+        "literal": "not_dir",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/find/find.go",
+            "line": 136
+          }
+        ],
+        "hints": [
+          {
+            "text": "use 'ash read' for files",
+            "cl100k_tokens": 7
+          }
+        ]
+      },
+      {
+        "literal": "not_found",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/bench/trend.go",
+            "line": 207
+          },
+          {
+            "file": "internal/verbs/diff/diff.go",
+            "line": 94
+          },
+          {
+            "file": "internal/verbs/diff/diff.go",
+            "line": 111
+          },
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 134
+          },
+          {
+            "file": "internal/verbs/find/find.go",
+            "line": 128
+          },
+          {
+            "file": "internal/verbs/grep/grep.go",
+            "line": 199
+          },
+          {
+            "file": "internal/verbs/help/help.go",
+            "line": 520
+          },
+          {
+            "file": "internal/verbs/initverb/initverb.go",
+            "line": 102
+          },
+          {
+            "file": "internal/verbs/read/read.go",
+            "line": 88
+          }
+        ]
+      },
+      {
+        "literal": "patch_failed",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 373
+          },
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 392
+          },
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 410
+          },
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 423
+          }
+        ]
+      },
+      {
+        "literal": "settings_parse",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/initverb/initverb.go",
+            "line": 162
+          },
+          {
+            "file": "internal/verbs/uninit/uninit.go",
+            "line": 130
+          }
+        ]
+      },
+      {
+        "literal": "settings_read",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/initverb/initverb.go",
+            "line": 165
+          },
+          {
+            "file": "internal/verbs/uninit/uninit.go",
+            "line": 126
+          }
+        ]
+      },
+      {
+        "literal": "settings_write",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/initverb/initverb.go",
+            "line": 197
+          },
+          {
+            "file": "internal/verbs/initverb/initverb.go",
+            "line": 205
+          },
+          {
+            "file": "internal/verbs/uninit/uninit.go",
+            "line": 168
+          }
+        ]
+      },
+      {
+        "literal": "too_large",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/diff/diff.go",
+            "line": 130
+          }
+        ]
+      },
+      {
+        "literal": "unknown_op",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/git/git.go",
+            "line": 174
+          }
+        ],
+        "hints": [
+          {
+            "text": "live ops: status, log, diff, show",
+            "cl100k_tokens": 10
+          }
+        ]
+      },
+      {
+        "literal": "ambiguous",
+        "cl100k_tokens": 1,
+        "sites": [
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 455
+          }
+        ],
+        "hints": [
+          {
+            "text": "pass --all true to replace all, or use a more specific old string",
+            "cl100k_tokens": 15
+          }
+        ]
+      },
+      {
+        "literal": "args",
+        "cl100k_tokens": 1,
+        "sites": [
+          {
+            "file": "internal/verbs/argutil/argutil.go",
+            "line": 93
+          },
+          {
+            "file": "internal/verbs/argutil/argutil.go",
+            "line": 97
+          },
+          {
+            "file": "internal/verbs/argutil/argutil.go",
+            "line": 112
+          },
+          {
+            "file": "internal/verbs/argutil/argutil.go",
+            "line": 127
+          },
+          {
+            "file": "internal/verbs/argutil/argutil.go",
+            "line": 140
+          },
+          {
+            "file": "internal/verbs/argutil/argutil.go",
+            "line": 155
+          },
+          {
+            "file": "internal/verbs/argutil/argutil.go",
+            "line": 173
+          },
+          {
+            "file": "internal/verbs/argutil/argutil.go",
+            "line": 191
+          },
+          {
+            "file": "internal/verbs/argutil/argutil.go",
+            "line": 198
+          },
+          {
+            "file": "internal/verbs/bench/bench.go",
+            "line": 182
+          },
+          {
+            "file": "internal/verbs/bench/trend.go",
+            "line": 133
+          },
+          {
+            "file": "internal/verbs/bench/trend.go",
+            "line": 184
+          },
+          {
+            "file": "internal/verbs/diff/diff.go",
+            "line": 73
+          },
+          {
+            "file": "internal/verbs/diff/diff.go",
+            "line": 75
+          },
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 117
+          },
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 119
+          },
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 470
+          },
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 475
+          },
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 478
+          },
+          {
+            "file": "internal/verbs/find/find.go",
+            "line": 109
+          },
+          {
+            "file": "internal/verbs/find/find.go",
+            "line": 112
+          },
+          {
+            "file": "internal/verbs/git/gogit_log.go",
+            "line": 130
+          },
+          {
+            "file": "internal/verbs/git/gogit_log.go",
+            "line": 155
+          },
+          {
+            "file": "internal/verbs/git/gogit_log.go",
+            "line": 162
+          },
+          {
+            "file": "internal/verbs/git/gogit_show.go",
+            "line": 15
+          },
+          {
+            "file": "internal/verbs/git/show.go",
+            "line": 34
+          },
+          {
+            "file": "internal/verbs/grep/grep.go",
+            "line": 172
+          },
+          {
+            "file": "internal/verbs/grep/grep.go",
+            "line": 175
+          },
+          {
+            "file": "internal/verbs/grep/grep.go",
+            "line": 482
+          },
+          {
+            "file": "internal/verbs/initverb/initverb.go",
+            "line": 97
+          },
+          {
+            "file": "internal/verbs/read/read.go",
+            "line": 164
+          },
+          {
+            "file": "internal/verbs/read/read.go",
+            "line": 169
+          },
+          {
+            "file": "internal/verbs/read/read.go",
+            "line": 172
+          },
+          {
+            "file": "internal/verbs/report/report.go",
+            "line": 169
+          },
+          {
+            "file": "internal/verbs/report/report.go",
+            "line": 189
+          },
+          {
+            "file": "internal/verbs/report/report.go",
+            "line": 266
+          },
+          {
+            "file": "internal/verbs/stat/stat.go",
+            "line": 66
+          },
+          {
+            "file": "internal/verbs/stat/stat.go",
+            "line": 78
+          },
+          {
+            "file": "internal/verbs/test/test.go",
+            "line": 102
+          },
+          {
+            "file": "internal/verbs/test/test.go",
+            "line": 105
+          },
+          {
+            "file": "internal/verbs/uninit/uninit.go",
+            "line": 71
+          },
+          {
+            "file": "internal/verbs/write/write.go",
+            "line": 84
+          }
+        ]
+      },
+      {
+        "literal": "config",
+        "cl100k_tokens": 1,
+        "sites": [
+          {
+            "file": "internal/verbs/bench/baseline.go",
+            "line": 123
+          },
+          {
+            "file": "internal/verbs/bench/baseline.go",
+            "line": 178
+          },
+          {
+            "file": "internal/verbs/bench/bench.go",
+            "line": 257
+          },
+          {
+            "file": "internal/verbs/bench/micro.go",
+            "line": 126
+          },
+          {
+            "file": "internal/verbs/bench/micro.go",
+            "line": 182
+          },
+          {
+            "file": "internal/verbs/bench/micro.go",
+            "line": 220
+          },
+          {
+            "file": "internal/verbs/bench/trend.go",
+            "line": 92
+          },
+          {
+            "file": "internal/verbs/bench/trend.go",
+            "line": 113
+          }
+        ]
+      },
+      {
+        "literal": "exists",
+        "cl100k_tokens": 1,
+        "sites": [
+          {
+            "file": "internal/verbs/write/write.go",
+            "line": 99
+          }
+        ],
+        "hints": [
+          {
+            "text": "pass --no-clobber false to overwrite",
+            "cl100k_tokens": 8
+          }
+        ]
+      },
+      {
+        "literal": "io",
+        "cl100k_tokens": 1,
+        "sites": [
+          {
+            "file": "internal/verbs/bench/baseline.go",
+            "line": 141
+          },
+          {
+            "file": "internal/verbs/bench/baseline.go",
+            "line": 151
+          },
+          {
+            "file": "internal/verbs/bench/baseline.go",
+            "line": 155
+          },
+          {
+            "file": "internal/verbs/bench/baseline.go",
+            "line": 160
+          },
+          {
+            "file": "internal/verbs/bench/micro.go",
+            "line": 193
+          },
+          {
+            "file": "internal/verbs/bench/micro.go",
+            "line": 201
+          },
+          {
+            "file": "internal/verbs/bench/micro.go",
+            "line": 205
+          }
+        ]
+      },
+      {
+        "literal": "ledger",
+        "cl100k_tokens": 1,
+        "sites": [
+          {
+            "file": "internal/verbs/bench/baseline.go",
+            "line": 182
+          },
+          {
+            "file": "internal/verbs/bench/baseline.go",
+            "line": 189
+          },
+          {
+            "file": "internal/verbs/bench/trend.go",
+            "line": 100
+          },
+          {
+            "file": "internal/verbs/bench/trend.go",
+            "line": 159
+          },
+          {
+            "file": "internal/verbs/bench/trend.go",
+            "line": 197
+          },
+          {
+            "file": "internal/verbs/bench/trend.go",
+            "line": 209
+          },
+          {
+            "file": "internal/verbs/metrics/metrics.go",
+            "line": 73
+          },
+          {
+            "file": "internal/verbs/report/report.go",
+            "line": 219
+          },
+          {
+            "file": "internal/verbs/report/report.go",
+            "line": 363
+          }
+        ]
+      },
+      {
+        "literal": "mkdir",
+        "cl100k_tokens": 1,
+        "sites": [
+          {
+            "file": "internal/verbs/write/write.go",
+            "line": 111
+          }
+        ]
+      },
+      {
+        "literal": "parse",
+        "cl100k_tokens": 1,
+        "sites": [
+          {
+            "file": "internal/verbs/git/diff.go",
+            "line": 127
+          },
+          {
+            "file": "internal/verbs/git/diff.go",
+            "line": 229
+          },
+          {
+            "file": "internal/verbs/git/status.go",
+            "line": 117
+          },
+          {
+            "file": "internal/verbs/test/test.go",
+            "line": 281
+          }
+        ]
+      },
+      {
+        "literal": "permission",
+        "cl100k_tokens": 1,
+        "sites": [
+          {
+            "file": "internal/verbs/diff/diff.go",
+            "line": 97
+          },
+          {
+            "file": "internal/verbs/diff/diff.go",
+            "line": 114
+          },
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 137
+          },
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 201
+          },
+          {
+            "file": "internal/verbs/find/find.go",
+            "line": 131
+          },
+          {
+            "file": "internal/verbs/grep/grep.go",
+            "line": 202
+          },
+          {
+            "file": "internal/verbs/read/read.go",
+            "line": 91
+          },
+          {
+            "file": "internal/verbs/write/write.go",
+            "line": 109
+          },
+          {
+            "file": "internal/verbs/write/write.go",
+            "line": 124
+          }
+        ]
+      },
+      {
+        "literal": "read",
+        "cl100k_tokens": 1,
+        "sites": [
+          {
+            "file": "internal/verbs/diff/diff.go",
+            "line": 99
+          },
+          {
+            "file": "internal/verbs/diff/diff.go",
+            "line": 116
+          },
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 149
+          },
+          {
+            "file": "internal/verbs/read/read.go",
+            "line": 103
+          }
+        ]
+      },
+      {
+        "literal": "registry",
+        "cl100k_tokens": 1,
+        "sites": [
+          {
+            "file": "internal/verbs/report/report.go",
+            "line": 294
+          }
+        ]
+      },
+      {
+        "literal": "stat",
+        "cl100k_tokens": 1,
+        "sites": [
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 139
+          },
+          {
+            "file": "internal/verbs/find/find.go",
+            "line": 133
+          },
+          {
+            "file": "internal/verbs/grep/grep.go",
+            "line": 204
+          },
+          {
+            "file": "internal/verbs/initverb/initverb.go",
+            "line": 104
+          },
+          {
+            "file": "internal/verbs/read/read.go",
+            "line": 93
+          }
+        ]
+      },
+      {
+        "literal": "timeout",
+        "cl100k_tokens": 1,
+        "sites": [
+          {
+            "file": "internal/verbs/test/test.go",
+            "line": 263
+          }
+        ]
+      },
+      {
+        "literal": "walk",
+        "cl100k_tokens": 1,
+        "sites": [
+          {
+            "file": "internal/verbs/find/find.go",
+            "line": 176
+          },
+          {
+            "file": "internal/verbs/grep/grep.go",
+            "line": 241
+          }
+        ]
+      },
+      {
+        "literal": "write",
+        "cl100k_tokens": 1,
+        "sites": [
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 203
+          },
+          {
+            "file": "internal/verbs/write/write.go",
+            "line": 126
+          }
+        ]
+      }
+    ],
+    "flags": [
+      {
+        "literal": "--micro_benchtime",
+        "cl100k_tokens": 5,
+        "context": "bench"
+      },
+      {
+        "literal": "--no-clobber",
+        "cl100k_tokens": 4,
+        "context": "write"
+      },
+      {
+        "literal": "--no-registry",
+        "cl100k_tokens": 4,
+        "context": "init,uninit"
+      },
+      {
+        "literal": "--regress_latency",
+        "cl100k_tokens": 4,
+        "context": "bench"
+      },
+      {
+        "literal": "--regress_tokens",
+        "cl100k_tokens": 4,
+        "context": "bench"
+      },
+      {
+        "literal": "--benchmem",
+        "cl100k_tokens": 3,
+        "context": "test"
+      },
+      {
+        "literal": "--benchtime",
+        "cl100k_tokens": 3,
+        "context": "test"
+      },
+      {
+        "literal": "--diff_micro",
+        "cl100k_tokens": 3,
+        "context": "bench"
+      },
+      {
+        "literal": "--export_md",
+        "cl100k_tokens": 3,
+        "context": "bench"
+      },
+      {
+        "literal": "--list_limit",
+        "cl100k_tokens": 3,
+        "context": "bench"
+      },
+      {
+        "literal": "--micro_count",
+        "cl100k_tokens": 3,
+        "context": "bench"
+      },
+      {
+        "literal": "--micro_packages",
+        "cl100k_tokens": 3,
+        "context": "bench"
+      },
+      {
+        "literal": "--mpf",
+        "cl100k_tokens": 3,
+        "context": "grep"
+      },
+      {
+        "literal": "--no-text",
+        "cl100k_tokens": 3,
+        "context": "grep"
+      },
+      {
+        "literal": "--pathspec",
+        "cl100k_tokens": 3,
+        "context": "git"
+      },
+      {
+        "literal": "--record_baseline",
+        "cl100k_tokens": 3,
+        "context": "bench"
+      },
+      {
+        "literal": "--record_micro",
+        "cl100k_tokens": 3,
+        "context": "bench"
+      },
+      {
+        "literal": "--staged",
+        "cl100k_tokens": 3,
+        "context": "git"
+      },
+      {
+        "literal": "--untracked",
+        "cl100k_tokens": 3,
+        "context": "git"
+      },
+      {
+        "literal": "--warmup",
+        "cl100k_tokens": 3,
+        "context": "bench"
+      },
+      {
+        "literal": "--absolute",
+        "cl100k_tokens": 2,
+        "context": "diff,edit,find,grep,read,stat,write"
+      },
+      {
+        "literal": "--all",
+        "cl100k_tokens": 2,
+        "context": "edit,report"
+      },
+      {
+        "literal": "--author",
+        "cl100k_tokens": 2,
+        "context": "git"
+      },
+      {
+        "literal": "--baseline",
+        "cl100k_tokens": 2,
+        "context": "bench"
+      },
+      {
+        "literal": "--bench",
+        "cl100k_tokens": 2,
+        "context": "test"
+      },
+      {
+        "literal": "--bytes",
+        "cl100k_tokens": 2,
+        "context": "git,read"
+      },
+      {
+        "literal": "--ca",
+        "cl100k_tokens": 2,
+        "context": "grep"
+      },
+      {
+        "literal": "--case",
+        "cl100k_tokens": 2,
+        "context": "bench,grep"
+      },
+      {
+        "literal": "--cb",
+        "cl100k_tokens": 2,
+        "context": "grep"
+      },
+      {
+        "literal": "--command",
+        "cl100k_tokens": 2,
+        "context": "hook"
+      },
+      {
+        "literal": "--compare",
+        "cl100k_tokens": 2,
+        "context": "bench"
+      },
+      {
+        "literal": "--content",
+        "cl100k_tokens": 2,
+        "context": "diff,hook,write"
+      },
+      {
+        "literal": "--context",
+        "cl100k_tokens": 2,
+        "context": "diff,git,grep"
+      },
+      {
+        "literal": "--count",
+        "cl100k_tokens": 2,
+        "context": "test"
+      },
+      {
+        "literal": "--depth",
+        "cl100k_tokens": 2,
+        "context": "find,grep"
+      },
+      {
+        "literal": "--dry",
+        "cl100k_tokens": 2,
+        "context": "edit"
+      },
+      {
+        "literal": "--encoding",
+        "cl100k_tokens": 2,
+        "context": "write"
+      },
+      {
+        "literal": "--exclude",
+        "cl100k_tokens": 2,
+        "context": "find"
+      },
+      {
+        "literal": "--file",
+        "cl100k_tokens": 2,
+        "context": "hook"
+      },
+      {
+        "literal": "--fo",
+        "cl100k_tokens": 2,
+        "context": "grep"
+      },
+      {
+        "literal": "--follow",
+        "cl100k_tokens": 2,
+        "context": "stat"
+      },
+      {
+        "literal": "--force",
+        "cl100k_tokens": 2,
+        "context": "init"
+      },
+      {
+        "literal": "--gi",
+        "cl100k_tokens": 2,
+        "context": "find,grep"
+      },
+      {
+        "literal": "--glob",
+        "cl100k_tokens": 2,
+        "context": "find,grep,hook"
+      },
+      {
+        "literal": "--hidden",
+        "cl100k_tokens": 2,
+        "context": "find,grep"
+      },
+      {
+        "literal": "--ignored",
+        "cl100k_tokens": 2,
+        "context": "git"
+      },
+      {
+        "literal": "--last",
+        "cl100k_tokens": 2,
+        "context": "metrics,report"
+      },
+      {
+        "literal": "--limit",
+        "cl100k_tokens": 2,
+        "context": "bench,find,git"
+      },
+      {
+        "literal": "--list",
+        "cl100k_tokens": 2,
+        "context": "bench"
+      },
+      {
+        "literal": "--lit",
+        "cl100k_tokens": 2,
+        "context": "grep"
+      },
+      {
+        "literal": "--max",
+        "cl100k_tokens": 2,
+        "context": "grep"
+      },
+      {
+        "literal": "--meta",
+        "cl100k_tokens": 2,
+        "context": "find,read"
+      },
+      {
+        "literal": "--micro",
+        "cl100k_tokens": 2,
+        "context": "bench"
+      },
+      {
+        "literal": "--mkdir",
+        "cl100k_tokens": 2,
+        "context": "write"
+      },
+      {
+        "literal": "--new",
+        "cl100k_tokens": 2,
+        "context": "edit,hook"
+      },
+      {
+        "literal": "--old",
+        "cl100k_tokens": 2,
+        "context": "edit,hook"
+      },
+      {
+        "literal": "--op",
+        "cl100k_tokens": 2,
+        "context": "git"
+      },
+      {
+        "literal": "--other",
+        "cl100k_tokens": 2,
+        "context": "diff"
+      },
+      {
+        "literal": "--packages",
+        "cl100k_tokens": 2,
+        "context": "test"
+      },
+      {
+        "literal": "--patch",
+        "cl100k_tokens": 2,
+        "context": "edit"
+      },
+      {
+        "literal": "--path",
+        "cl100k_tokens": 2,
+        "context": "diff,edit,find,git,grep,hook,init,read,stat,uninit,write"
+      },
+      {
+        "literal": "--paths",
+        "cl100k_tokens": 2,
+        "context": "stat"
+      },
+      {
+        "literal": "--pattern",
+        "cl100k_tokens": 2,
+        "context": "grep,hook"
+      },
+      {
+        "literal": "--race",
+        "cl100k_tokens": 2,
+        "context": "test"
+      },
+      {
+        "literal": "--range",
+        "cl100k_tokens": 2,
+        "context": "edit,git,read"
+      },
+      {
+        "literal": "--ref",
+        "cl100k_tokens": 2,
+        "context": "git"
+      },
+      {
+        "literal": "--repeat",
+        "cl100k_tokens": 2,
+        "context": "bench"
+      },
+      {
+        "literal": "--root",
+        "cl100k_tokens": 2,
+        "context": "report"
+      },
+      {
+        "literal": "--run",
+        "cl100k_tokens": 2,
+        "context": "test"
+      },
+      {
+        "literal": "--session",
+        "cl100k_tokens": 2,
+        "context": "report"
+      },
+      {
+        "literal": "--short",
+        "cl100k_tokens": 2,
+        "context": "test"
+      },
+      {
+        "literal": "--since",
+        "cl100k_tokens": 2,
+        "context": "git,report"
+      },
+      {
+        "literal": "--stat",
+        "cl100k_tokens": 2,
+        "context": "diff,git"
+      },
+      {
+        "literal": "--timeout",
+        "cl100k_tokens": 2,
+        "context": "test"
+      },
+      {
+        "literal": "--tool",
+        "cl100k_tokens": 2,
+        "context": "hook"
+      },
+      {
+        "literal": "--top",
+        "cl100k_tokens": 2,
+        "context": "report"
+      },
+      {
+        "literal": "--type",
+        "cl100k_tokens": 2,
+        "context": "find"
+      },
+      {
+        "literal": "--unit",
+        "cl100k_tokens": 2,
+        "context": "read"
+      },
+      {
+        "literal": "--until",
+        "cl100k_tokens": 2,
+        "context": "git"
+      },
+      {
+        "literal": "--verb",
+        "cl100k_tokens": 2,
+        "context": "bench,help,metrics,report"
+      },
+      {
+        "literal": "--verbose",
+        "cl100k_tokens": 2,
+        "context": "help,test"
+      }
+    ],
+    "headers": [
+      {
+        "literal": "[ash WARNING: ledger record FAILED: %s -- this call's metrics did not persist]\n",
+        "cl100k_tokens": 19,
+        "sites": [
+          {
+            "file": "cmd/ash/main.go",
+            "line": 224
+          }
+        ]
+      },
+      {
+        "literal": "=== ash bench --diff-micro: vs baseline",
+        "cl100k_tokens": 10,
+        "sites": [
+          {
+            "file": "internal/verbs/bench/micro.go",
+            "line": 469
+          }
+        ]
+      },
+      {
+        "literal": "=== ash bench --record-baseline",
+        "cl100k_tokens": 7,
+        "sites": [
+          {
+            "file": "internal/verbs/bench/baseline.go",
+            "line": 437
+          }
+        ]
+      },
+      {
+        "literal": "=== ash bench --record-micro",
+        "cl100k_tokens": 7,
+        "sites": [
+          {
+            "file": "internal/verbs/bench/micro.go",
+            "line": 451
+          }
+        ]
+      },
+      {
+        "literal": "=== ash bench compare: A=",
+        "cl100k_tokens": 7,
+        "sites": [
+          {
+            "file": "internal/verbs/bench/trend.go",
+            "line": 406
+          }
+        ]
+      },
+      {
+        "literal": "=== ash edit --dry_run:",
+        "cl100k_tokens": 7,
+        "sites": [
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 575
+          }
+        ]
+      },
+      {
+        "literal": "=== ash stop: no daemon running",
+        "cl100k_tokens": 7,
+        "sites": [
+          {
+            "file": "internal/verbs/stop/stop.go",
+            "line": 130
+          }
+        ]
+      },
+      {
+        "literal": "=== ash bench --list:",
+        "cl100k_tokens": 6,
+        "sites": [
+          {
+            "file": "internal/verbs/bench/trend.go",
+            "line": 368
+          }
+        ]
+      },
+      {
+        "literal": "=== ash bench --micro:",
+        "cl100k_tokens": 6,
+        "sites": [
+          {
+            "file": "internal/verbs/bench/micro.go",
+            "line": 421
+          }
+        ]
+      },
+      {
+        "literal": "=== ash stop: stopped (",
+        "cl100k_tokens": 6,
+        "sites": [
+          {
+            "file": "internal/verbs/stop/stop.go",
+            "line": 140
+          }
+        ]
+      },
+      {
+        "literal": "=== ash stop: timeout after",
+        "cl100k_tokens": 6,
+        "sites": [
+          {
+            "file": "internal/verbs/stop/stop.go",
+            "line": 135
+          }
+        ]
+      },
+      {
+        "literal": "=== ash git log:",
+        "cl100k_tokens": 5,
+        "sites": [
+          {
+            "file": "internal/verbs/git/log.go",
+            "line": 197
+          }
+        ]
+      },
+      {
+        "literal": "=== ash git show:",
+        "cl100k_tokens": 5,
+        "sites": [
+          {
+            "file": "internal/verbs/git/show.go",
+            "line": 124
+          }
+        ]
+      },
+      {
+        "literal": "=== ash git status:",
+        "cl100k_tokens": 5,
+        "sites": [
+          {
+            "file": "internal/verbs/git/status.go",
+            "line": 201
+          }
+        ]
+      },
+      {
+        "literal": "=== ash uninit:",
+        "cl100k_tokens": 5,
+        "sites": [
+          {
+            "file": "internal/verbs/uninit/uninit.go",
+            "line": 245
+          },
+          {
+            "file": "internal/verbs/uninit/uninit.go",
+            "line": 247
+          }
+        ]
+      },
+      {
+        "literal": "=== ash bench:",
+        "cl100k_tokens": 4,
+        "sites": [
+          {
+            "file": "internal/verbs/bench/bench.go",
+            "line": 575
+          }
+        ]
+      },
+      {
+        "literal": "=== ash diff:",
+        "cl100k_tokens": 4,
+        "sites": [
+          {
+            "file": "internal/verbs/diff/diff.go",
+            "line": 171
+          },
+          {
+            "file": "internal/verbs/diff/diff.go",
+            "line": 174
+          },
+          {
+            "file": "internal/verbs/diff/diff.go",
+            "line": 176
+          }
+        ]
+      },
+      {
+        "literal": "=== ash edit:",
+        "cl100k_tokens": 4,
+        "sites": [
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 597
+          }
+        ]
+      },
+      {
+        "literal": "=== ash find:",
+        "cl100k_tokens": 4,
+        "sites": [
+          {
+            "file": "internal/verbs/find/find.go",
+            "line": 263
+          }
+        ]
+      },
+      {
+        "literal": "=== ash grep:",
+        "cl100k_tokens": 4,
+        "sites": [
+          {
+            "file": "internal/verbs/grep/grep.go",
+            "line": 588
+          },
+          {
+            "file": "internal/verbs/grep/grep.go",
+            "line": 644
+          }
+        ]
+      },
+      {
+        "literal": "=== ash help:",
+        "cl100k_tokens": 4,
+        "sites": [
+          {
+            "file": "internal/verbs/help/help.go",
+            "line": 544
+          },
+          {
+            "file": "internal/verbs/help/help.go",
+            "line": 550
+          }
+        ]
+      },
+      {
+        "literal": "=== ash init:",
+        "cl100k_tokens": 4,
+        "sites": [
+          {
+            "file": "internal/verbs/initverb/initverb.go",
+            "line": 320
+          },
+          {
+            "file": "internal/verbs/initverb/initverb.go",
+            "line": 322
+          }
+        ]
+      },
+      {
+        "literal": "=== ash metrics:",
+        "cl100k_tokens": 4,
+        "sites": [
+          {
+            "file": "internal/verbs/metrics/metrics.go",
+            "line": 111
+          }
+        ]
+      },
+      {
+        "literal": "=== ash report:",
+        "cl100k_tokens": 4,
+        "sites": [
+          {
+            "file": "internal/verbs/report/report.go",
+            "line": 647
+          }
+        ]
+      },
+      {
+        "literal": "=== ash stat:",
+        "cl100k_tokens": 4,
+        "sites": [
+          {
+            "file": "internal/verbs/stat/stat.go",
+            "line": 203
+          }
+        ]
+      },
+      {
+        "literal": "=== ash test:",
+        "cl100k_tokens": 4,
+        "sites": [
+          {
+            "file": "internal/verbs/test/test.go",
+            "line": 623
+          }
+        ]
+      },
+      {
+        "literal": "=== ash write:",
+        "cl100k_tokens": 4,
+        "sites": [
+          {
+            "file": "internal/verbs/write/write.go",
+            "line": 158
+          }
+        ]
+      },
+      {
+        "literal": "=== ash git",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/git/diff.go",
+            "line": 278
+          }
+        ]
+      }
+    ],
+    "labels": [
+      {
+        "literal": "go test exceeded timeout=",
+        "cl100k_tokens": 5,
+        "sites": [
+          {
+            "file": "internal/verbs/test/test.go",
+            "line": 263
+          }
+        ]
+      },
+      {
+        "literal": "regex_compile_us=",
+        "cl100k_tokens": 4,
+        "sites": [
+          {
+            "file": "internal/verbs/metrics/metrics.go",
+            "line": 143
+          }
+        ]
+      },
+      {
+        "literal": "arg distributions:",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/report/report.go",
+            "line": 779
+          }
+        ]
+      },
+      {
+        "literal": "ash_err=",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/bench/bench.go",
+            "line": 590
+          }
+        ]
+      },
+      {
+        "literal": "bash_err=",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/bench/bench.go",
+            "line": 593
+          }
+        ]
+      },
+      {
+        "literal": "by verb:",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/bench/bench.go",
+            "line": 614
+          }
+        ]
+      },
+      {
+        "literal": "dispatch_us=",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/metrics/metrics.go",
+            "line": 146
+          }
+        ]
+      },
+      {
+        "literal": "fresh run:",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/bench/trend.go",
+            "line": 421
+          }
+        ]
+      },
+      {
+        "literal": "gitignore:",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/initverb/initverb.go",
+            "line": 325
+          },
+          {
+            "file": "internal/verbs/uninit/uninit.go",
+            "line": 252
+          }
+        ]
+      },
+      {
+        "literal": "guidance:",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/initverb/initverb.go",
+            "line": 329
+          },
+          {
+            "file": "internal/verbs/uninit/uninit.go",
+            "line": 256
+          }
+        ]
+      },
+      {
+        "literal": "io_us=",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/metrics/metrics.go",
+            "line": 137
+          }
+        ]
+      },
+      {
+        "literal": "regex_us=",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/metrics/metrics.go",
+            "line": 140
+          }
+        ]
+      },
+      {
+        "literal": "stdout pipe:",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/test/test.go",
+            "line": 235
+          }
+        ]
+      },
+      {
+        "literal": "walk_us=",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/metrics/metrics.go",
+            "line": 134
+          }
+        ]
+      },
+      {
+        "literal": "ash:",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "cmd/ash/main.go",
+            "line": 51
+          },
+          {
+            "file": "cmd/ash/main.go",
+            "line": 55
+          },
+          {
+            "file": "cmd/ash/main.go",
+            "line": 59
+          }
+        ]
+      },
+      {
+        "literal": "d=",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "cmd/ash/main.go",
+            "line": 219
+          }
+        ]
+      },
+      {
+        "literal": "err=",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/metrics/metrics.go",
+            "line": 149
+          }
+        ]
+      },
+      {
+        "literal": "io=",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "cmd/ash/main.go",
+            "line": 209
+          }
+        ]
+      },
+      {
+        "literal": "ops:",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/help/help.go",
+            "line": 809
+          }
+        ]
+      },
+      {
+        "literal": "parents:",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/git/show.go",
+            "line": 137
+          }
+        ]
+      },
+      {
+        "literal": "pid:",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/stop/stop.go",
+            "line": 136
+          },
+          {
+            "file": "internal/verbs/stop/stop.go",
+            "line": 141
+          }
+        ]
+      },
+      {
+        "literal": "r=",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "cmd/ash/main.go",
+            "line": 212
+          }
+        ]
+      },
+      {
+        "literal": "rc=",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "cmd/ash/main.go",
+            "line": 215
+          }
+        ]
+      },
+      {
+        "literal": "registry:",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/initverb/initverb.go",
+            "line": 331
+          },
+          {
+            "file": "internal/verbs/uninit/uninit.go",
+            "line": 258
+          }
+        ]
+      },
+      {
+        "literal": "settings:",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/initverb/initverb.go",
+            "line": 324
+          },
+          {
+            "file": "internal/verbs/uninit/uninit.go",
+            "line": 251
+          }
+        ]
+      },
+      {
+        "literal": "start:",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/test/test.go",
+            "line": 245
+          }
+        ]
+      },
+      {
+        "literal": "tok=",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "cmd/ash/main.go",
+            "line": 202
+          }
+        ]
+      },
+      {
+        "literal": "verb:",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/help/help.go",
+            "line": 555
+          }
+        ]
+      },
+      {
+        "literal": "w=",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "cmd/ash/main.go",
+            "line": 206
+          }
+        ]
+      },
+      {
+        "literal": "wait:",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/test/test.go",
+            "line": 269
+          }
+        ]
+      },
+      {
+        "literal": "warning:",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/initverb/initverb.go",
+            "line": 333
+          },
+          {
+            "file": "internal/verbs/uninit/uninit.go",
+            "line": 260
+          }
+        ]
+      }
+    ],
+    "status": [
+      {
+        "literal": "already_stopped",
+        "cl100k_tokens": 3,
+        "context": "stop:Result.Status"
+      },
+      {
+        "literal": "build_failed",
+        "cl100k_tokens": 2,
+        "context": "test:Package.Status"
+      },
+      {
+        "literal": "no_tests",
+        "cl100k_tokens": 2,
+        "context": "test:Package.Status"
+      },
+      {
+        "literal": "A",
+        "cl100k_tokens": 1,
+        "context": "git:FileDiff.Status"
+      },
+      {
+        "literal": "C",
+        "cl100k_tokens": 1,
+        "context": "git:FileDiff.Status"
+      },
+      {
+        "literal": "D",
+        "cl100k_tokens": 1,
+        "context": "git:FileDiff.Status"
+      },
+      {
+        "literal": "M",
+        "cl100k_tokens": 1,
+        "context": "git:FileDiff.Status"
+      },
+      {
+        "literal": "R",
+        "cl100k_tokens": 1,
+        "context": "git:FileDiff.Status"
+      },
+      {
+        "literal": "err",
+        "cl100k_tokens": 1,
+        "context": "_envelope:Response"
+      },
+      {
+        "literal": "fail",
+        "cl100k_tokens": 1,
+        "context": "test:Package.Status"
+      },
+      {
+        "literal": "fail",
+        "cl100k_tokens": 1,
+        "context": "test:Test.Status"
+      },
+      {
+        "literal": "ok",
+        "cl100k_tokens": 1,
+        "context": "_envelope:Response"
+      },
+      {
+        "literal": "pass",
+        "cl100k_tokens": 1,
+        "context": "test:Package.Status"
+      },
+      {
+        "literal": "pass",
+        "cl100k_tokens": 1,
+        "context": "test:Test.Status"
+      },
+      {
+        "literal": "skip",
+        "cl100k_tokens": 1,
+        "context": "test:Package.Status"
+      },
+      {
+        "literal": "skip",
+        "cl100k_tokens": 1,
+        "context": "test:Test.Status"
+      },
+      {
+        "literal": "stopped",
+        "cl100k_tokens": 1,
+        "context": "stop:Result.Status"
+      },
+      {
+        "literal": "timeout",
+        "cl100k_tokens": 1,
+        "context": "stop:Result.Status"
+      },
+      {
+        "literal": "timeout",
+        "cl100k_tokens": 1,
+        "context": "test:Package.Status"
+      }
+    ],
+    "verbs": [
+      {
+        "literal": "uninit",
+        "cl100k_tokens": 2
+      },
+      {
+        "literal": "bench",
+        "cl100k_tokens": 1
+      },
+      {
+        "literal": "diff",
+        "cl100k_tokens": 1
+      },
+      {
+        "literal": "edit",
+        "cl100k_tokens": 1
+      },
+      {
+        "literal": "find",
+        "cl100k_tokens": 1
+      },
+      {
+        "literal": "git",
+        "cl100k_tokens": 1
+      },
+      {
+        "literal": "grep",
+        "cl100k_tokens": 1
+      },
+      {
+        "literal": "help",
+        "cl100k_tokens": 1
+      },
+      {
+        "literal": "hook",
+        "cl100k_tokens": 1
+      },
+      {
+        "literal": "init",
+        "cl100k_tokens": 1
+      },
+      {
+        "literal": "metrics",
+        "cl100k_tokens": 1
+      },
+      {
+        "literal": "read",
+        "cl100k_tokens": 1
+      },
+      {
+        "literal": "report",
+        "cl100k_tokens": 1
+      },
+      {
+        "literal": "stat",
+        "cl100k_tokens": 1
+      },
+      {
+        "literal": "stop",
+        "cl100k_tokens": 1
+      },
+      {
+        "literal": "test",
+        "cl100k_tokens": 1
+      },
+      {
+        "literal": "write",
+        "cl100k_tokens": 1
+      }
+    ]
+  }
+}

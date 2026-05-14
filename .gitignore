@@ -30,3 +30,7 @@ Thumbs.db
 .vscode/
 *.swp
 *~
+
+# Per-developer Claude Code overrides (the shared project hook config is
+# .claude/settings.json, which IS tracked).
+.claude/settings.local.json

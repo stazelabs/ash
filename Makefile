@@ -1,4 +1,4 @@
-.PHONY: all clean restart install uninstall bench bench-baseline
+.PHONY: all clean restart install uninstall bench bench-baseline vocab vocab-check
 
 PREFIX ?= $(HOME)/.local/bin
 
@@ -45,3 +45,17 @@ bench: bin/ash
 bench-baseline: bin/ash
 	./bin/ash bench --repeat 5 --warmup 2 --record_baseline true
 	@echo "review the diff: git diff bench/"
+
+# vocab: regenerate docs/vocab/inventory.{md,json} — the checked-in
+# inventory of every stable agent-facing string in ash (ASH-102). Run
+# this after editing a verb's schema, adding/renaming an error code,
+# or changing a pretty header/label. The companion target vocab-check
+# runs the same generation and fails on drift; CI runs vocab-check.
+bin/ashvocab: 
+	go build -o bin/ashvocab ./cmd/ashvocab
+
+vocab: bin/ashvocab
+	./bin/ashvocab gen
+
+vocab-check: bin/ashvocab
+	./bin/ashvocab check
