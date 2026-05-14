@@ -193,3 +193,26 @@ Take-aways:
 1. The bench needed *both* shapes to be honest — small-query cases (where ash can be neutral or negative due to JSON-envelope overhead) and many-match cases (where the truncation cap is the design choice that buys the win). The first ship had only the former.
 2. Real-world repo dependence is not a problem here. The case scope is the repos own `internal/` tree, which evolves with the codebase but is fully checked in — so results are reproducible across machines and shift only when the code shifts. A synthetic blob would be cheaper to keep stable but would test nothing the agent will actually encounter.
 3. Vendored / generated trees (e.g. `node_modules`, `vendor/`, large `bin/` artifacts) would push the gap wider still — once `ash` is benched against a larger codebase, that comparison is the next data point. For now, `internal/` is the heaviest tree the repo has on hand.
+
+## Header trimming (2026-05-10): drop verbatim arg echoes from `read` and `find` pretty headers
+
+After the find-pretty work above, three bench cases remained as small-query residuals where ash sat at parity or above bash for reasons traceable to the pretty header rather than the body: `read_tiny_range` (+118%), `read_range` (+3%), and `find_md_in_docs` (+3%). All three were paying tokens to echo arguments the agent already had — `range=X:Y` and `NL` on a verbatim range request, and `[path=…, glob=…, type=…]` on the find header — without surfacing any divergence from the request.
+
+Fix: make the echoed fields divergence-only, or drop them when they carry no novel signal.
+
+- `read` PrettyResponse ([internal/verbs/read/read.go](../internal/verbs/read/read.go)) — `range=` and the `<N>L` line-count are now suppressed when both are pure echoes of the request (range was given, `r.Lines == end-start+1`, `r.RangeReturned` matches the request). Both still emit on divergence: short file in lines mode (NL diverges), bytes-end clamp (RangeReturned diverges). The "you got less than you asked for" signal stays load-bearing.
+- `find` PrettyResponse ([internal/verbs/find/find.go](../internal/verbs/find/find.go)) — the `[path=…, glob=…, type=…]` scope echo is dropped entirely. `scopeFromArgs()` is kept in the file for potential future `--meta=true` diagnostic output. Header is now `§find: N results [TRUNCATED]`.
+
+Bench delta after the change:
+
+| case | before | after | Δ |
+|---|---|---|---|
+| read_tiny_range | +118% | +59% | -59pp (~-10 tokens) |
+| read_range | +3% | +1% | -2pp (~-10 tokens) |
+| find_md_in_docs | +3% | +1% | -2pp (~-12 tokens) |
+| **overall** | **-53.7%** | **-55.1%** | **-1.4pp** |
+
+Take-aways:
+
+1. The design principle made explicit: **don't echo what the agent already has.** The header should carry only what the agent could not have known before the call returned — counts, truncation flags, divergence from request. Verbatim arg echoes are dead weight; they cost tokens and add no signal.
+2. `read_tiny_range` stays positive (+59%) and that is now the floor. Bash `sed -n 1,5p` has no header at all; the residual ~10 tokens of `=== <path> [<size>B] ===` framing is the irreducible cost of structured output over `sed`'s plain stdout. Closing it further would require a `--raw` mode that emits just the body — explicit non-goal: an extra mode adds agent cognitive load and undermines the "robot-first, structured everything" principle that buys ash its wins elsewhere.
