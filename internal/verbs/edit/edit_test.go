@@ -631,6 +631,96 @@ func TestRun_IsDirectory(t *testing.T) {
 	}
 }
 
+// -- ASH-116 regressions ---------------------------------------------------
+//
+// docs/session-notes/2026-05-14-ash-114-read-header-compact.md §Friction
+// documents both failure modes in the original wording.
+
+// Bug A: `ash edit --range … --content -` consumed stdin (client-side) but
+// silently dropped it server-side, since edit's flag is --new not --content.
+// Net effect was a silent range delete. ParseArgs now rejects unknown args.
+func TestParseArgs_RejectsUnknownContentArg_ASH116(t *testing.T) {
+	in := map[string]any{
+		"path":    "f.go",
+		"range":   "1:3",
+		"content": "21 lines of new content here\n",
+	}
+	_, perr := ParseArgs(in)
+	if perr == nil || perr.Code != "args" {
+		t.Fatalf("expected args error for --content, got %+v", perr)
+	}
+	if !strings.Contains(perr.Msg, "content") {
+		t.Errorf("error msg should name the offending flag, got %q", perr.Msg)
+	}
+	if !strings.Contains(perr.Hint, "--new") {
+		t.Errorf("hint should point at --new, got %q", perr.Hint)
+	}
+}
+
+func TestParseArgs_RejectsArbitraryUnknownArg_ASH116(t *testing.T) {
+	_, perr := ParseArgs(map[string]any{"path": "f.go", "old": "x", "totally_made_up": "y"})
+	if perr == nil || perr.Code != "args" {
+		t.Fatalf("expected args error for unknown arg, got %+v", perr)
+	}
+	if !strings.Contains(perr.Msg, "totally_made_up") {
+		t.Errorf("error msg should name the offending flag, got %q", perr.Msg)
+	}
+}
+
+// Bug B: range edit producing unparseable Go must fail with "syntax" and
+// leave the file on disk unchanged. Simulates the ASH-114 incident where
+// an off-by-N range straddled a function declaration, orphaning the body.
+func TestRun_RangeEdit_GoSyntaxCheck_RejectsUnparseable_ASH116(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f.go")
+	original := "package main\n\nfunc foo() {\n\treturn\n}\n"
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Replace line 3 ("func foo() {") with empty — orphans the body.
+	a := &Args{Path: path, Range: "3:3", NewContent: ""}
+	_, perr := Run(a, nil)
+	if perr == nil || perr.Code != "syntax" {
+		t.Fatalf("expected syntax error, got %+v", perr)
+	}
+	got, _ := os.ReadFile(path)
+	if string(got) != original {
+		t.Errorf("file modified despite syntax error:\n got=%q\nwant=%q", got, original)
+	}
+}
+
+// Sanity check: a range edit that *does* produce valid Go still writes.
+func TestRun_RangeEdit_GoSyntaxCheck_AcceptsValid_ASH116(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f.go")
+	if err := os.WriteFile(path, []byte("package main\n\nfunc foo() int { return 1 }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := &Args{Path: path, Range: "3:3", NewContent: "func foo() int { return 2 }"}
+	if _, perr := Run(a, nil); perr != nil {
+		t.Fatalf("valid Go rejected: %+v", perr)
+	}
+	got, _ := os.ReadFile(path)
+	if !strings.Contains(string(got), "return 2") {
+		t.Errorf("replacement not written: %q", got)
+	}
+}
+
+// The syntax check is range-mode-only by ASH-116 scope; non-.go files and
+// non-range modes are untouched.
+func TestRun_RangeEdit_GoSyntaxCheck_SkipsNonGoFiles_ASH116(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f.txt")
+	if err := os.WriteFile(path, []byte("a\nb\nc\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// "func foo(" would be a Go syntax error if the file were .go.
+	a := &Args{Path: path, Range: "2:2", NewContent: "func foo("}
+	if _, perr := Run(a, nil); perr != nil {
+		t.Fatalf(".txt range edit rejected: %+v", perr)
+	}
+}
+
 // -- PrettyResponse --------------------------------------------------------
 
 func TestPrettyResponse_StringReplace(t *testing.T) {

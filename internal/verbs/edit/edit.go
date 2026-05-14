@@ -33,7 +33,11 @@ package edit
 import (
 	"errors"
 	"fmt"
+	"go/parser"
+	"go/scanner"
+	"go/token"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -44,6 +48,16 @@ import (
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
+
+// knownArgs is the set of flags edit's ParseArgs recognizes. Unknown keys
+// are rejected loudly (ASH-116) because edit's silent-ignore mode caused
+// real data loss: --content (the write verb's flag) consumed stdin via the
+// client's resolveStdin, but edit ignored args["content"] and ran with an
+// empty NewContent — silently deleting the requested range.
+var knownArgs = map[string]struct{}{
+	"path": {}, "old": {}, "new": {}, "range": {}, "patch": {},
+	"all": {}, "dry": {}, "absolute": {},
+}
 
 type Args struct {
 	Path       string
@@ -118,6 +132,19 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	case modeCount == 0:
 		return nil, &proto.Error{Code: "args", Msg: "one of old, range, or patch is required"}
 	}
+	// ASH-116: reject unknown args. Without this, --content (write's flag)
+	// consumed stdin client-side but was silently dropped here, leaving
+	// NewContent="" — which produced a silent range delete.
+	for k := range in {
+		if _, ok := knownArgs[k]; ok {
+			continue
+		}
+		perr := &proto.Error{Code: "args", Msg: "unknown arg: --" + k}
+		if k == "content" {
+			perr.Hint = "ash edit uses --new (not --content); --new accepts '-' for stdin"
+		}
+		return nil, perr
+	}
 	if perr := jail.CheckPaths(map[string]string{
 		"path": a.Path,
 	}); perr != nil {
@@ -164,6 +191,9 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		var perr *proto.Error
 		newContent, perr = applyLineRange(content, a.Range, a.NewContent)
 		if perr != nil {
+			return nil, perr
+		}
+		if perr := validateGoSyntax(a.Path, newContent); perr != nil {
 			return nil, perr
 		}
 		occurrences = 1
@@ -511,6 +541,32 @@ func applyLineRange(content, spec, newContent string) (string, *proto.Error) {
 	}
 	b.WriteString(content[endByte:])
 	return b.String(), nil
+}
+
+// validateGoSyntax returns a "syntax" proto.Error if path ends in .go and
+// src does not parse as valid Go. Used as a guardrail after range edits
+// (ASH-116 Bug B) to turn the silent corruption mode — a half-cut function
+// header, an unbalanced brace — into a loud failure before the atomic
+// write commits. The check is intentionally narrow: parse only, no
+// gofmt round-trip, no semantic analysis.
+func validateGoSyntax(path, src string) *proto.Error {
+	if filepath.Ext(path) != ".go" {
+		return nil
+	}
+	fset := token.NewFileSet()
+	_, err := parser.ParseFile(fset, path, src, parser.SkipObjectResolution)
+	if err == nil {
+		return nil
+	}
+	msg := err.Error()
+	if errList, ok := err.(scanner.ErrorList); ok && len(errList) > 0 {
+		msg = errList[0].Error()
+	}
+	return &proto.Error{
+		Code: "syntax",
+		Msg:  msg,
+		Hint: "range edit would produce unparseable Go; file unchanged. Adjust --range bounds or content and retry.",
+	}
 }
 
 // lineStartOffsets returns the byte offset where each line begins (1-based
