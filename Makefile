@@ -1,4 +1,4 @@
-.PHONY: all clean restart install uninstall bench bench-baseline vocab vocab-check
+.PHONY: all clean restart install uninstall bench bench-baseline vocab vocab-check validate
 
 PREFIX ?= $(HOME)/.local/bin
 
@@ -59,3 +59,26 @@ vocab: bin/ashvocab
 
 vocab-check: bin/ashvocab
 	./bin/ashvocab check
+
+# bin/encexplore: corpus/substitution/validate harness for token-shape work.
+# Built on demand by `make validate`; not part of the default `all` target.
+bin/encexplore: $(shell find cmd/encexplore internal -name '*.go')
+	go build -o bin/encexplore ./cmd/encexplore
+
+# validate: run encexplore's cl100k-vs-Claude cross-check (ASH-115). Sources
+# .env and .env.local if present (.env.local wins, mirroring the dotenv
+# convention) and errors clearly if ANTHROPIC_API_KEY is still unset. The
+# model is pinned so the baseline doesn't drift between sessions. Output:
+# testdata/validate_results.md.
+#
+# Cost: ~160 count_tokens calls in the default run, cached by body — usually
+# many fewer. The endpoint is cheap, not free.
+validate: bin/encexplore
+	@set -e; \
+	if [ -f .env ]; then set -a; . ./.env; set +a; fi; \
+	if [ -f .env.local ]; then set -a; . ./.env.local; set +a; fi; \
+	if [ -z "$$ANTHROPIC_API_KEY" ]; then \
+		echo "error: ANTHROPIC_API_KEY not set. Copy .env.example to .env (or .env.local) and fill it in." >&2; \
+		exit 1; \
+	fi; \
+	./bin/encexplore validate --model claude-sonnet-4-5 --out testdata/validate_results.md

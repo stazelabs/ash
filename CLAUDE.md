@@ -106,6 +106,17 @@ sqlite3 .ash/ledger.db "SELECT verb, ok, tokens_in, tokens_out, latency_exec_us 
 
 The ledger is the substrate for the recursive-development experiment. If a session feels heavy or surprising, query the ledger first — it almost certainly knows why.
 
+## Token cross-validation
+
+`cl100k_base` is a fast local proxy for Claude's tokenizer, but the two disagree on edge cases. To confirm a substitution actually saves *Claude* tokens (not just cl100k ones), use the encexplore validate harness:
+
+1. Copy [`.env.example`](.env.example) to `.env` (or `.env.local` — both are gitignored; `.env.local` wins if both exist) and fill in `ANTHROPIC_API_KEY`.
+2. Run `make validate`. The target builds `bin/encexplore`, sources the env file, and writes [`testdata/validate_results.md`](testdata/validate_results.md) with per-rule cl100k vs Claude deltas and an agreement marker.
+
+The model is pinned to `claude-sonnet-4-5` in the Makefile so the cross-check baseline doesn't drift session-to-session. A `✗` marker means the cl100k delta and the Claude delta disagree in sign — the rule "saves tokens" in one tokenizer but adds them in the other. Investigate before claiming a win.
+
+Cost: ~160 `count_tokens` calls in the default run, cached by body — usually many fewer. The endpoint is cheap, not free. Run `make validate` after non-trivial header/footer/error-string changes (ASH-100, ASH-114, future token-shape work) before claiming a saving.
+
 ## Gotchas
 
 Hard-won wisdom from real session friction. Read these once; they save tuition.

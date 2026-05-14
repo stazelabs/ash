@@ -8,6 +8,12 @@ dist/
 # Per-project ash daemon state (ledger, logs, sockets if they ever land here)
 .ash/
 
+# Local env files — never check in (ANTHROPIC_API_KEY etc.).
+# .env.example IS tracked as the template for contributors.
+.env
+.env.*
+!.env.example
+
 # Test artifacts
 *.test
 coverage.out
