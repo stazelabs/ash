@@ -26,7 +26,7 @@ a per-project Unix domain socket.
 2. **Pattern search across files** — `ash grep --pattern '<re>' --path <p> --glob '<pat>'`. Smart-case by default; add `--fixed_string true` for literal matches, `--files_only true` for path-only output, `--no_text true` for `path:line:col` rows without excerpts.
 3. **Read a file** — `ash read --path <p> [--range start:end]`. Default cap 256 KiB; UTF-8 returned as-is, binary base64-encoded.
 4. **Stat paths** — `ash stat --paths a,b,c`. Uses `lstat`. Per-entry errors keep bulk calls alive when some paths are missing.
-5. **Diff two files or contents** — `ash diff --path a --other b` or `ash diff --path f --content - < new`. Both inputs capped at 2000 lines.
+5. **Diff two files or contents** — `ash diff --path a --other b` or `ash diff --path f --content - < new`. Both inputs capped at 4000 lines.
 6. **Write a file** — `ash write --path <p> --content - << 'EOF' … EOF`. Atomic via temp-file + rename.
 7. **Edit a file** — `ash edit` with one of: `--old_string`/`--new_string`, `--range start:end --new_content`, or `--patch`. **Default to stdin** for any non-trivial content.
 8. **Git status, log, diff, show** — `ash git --op status|log|diff|show`. Other git ops (commit, push, blame, rebase, checkout, etc.) stay in bash.

@@ -10,7 +10,7 @@
 //
 // Exactly one of other or content must be provided.
 // Returns a unified diff, additions count, and deletions count.
-// Both inputs are capped at diff.MaxLines (2000) lines.
+// Both inputs are capped at diff.MaxLines (4000) lines.
 package diff
 
 import (

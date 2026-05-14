@@ -1,7 +1,7 @@
 // Package diff provides a line-level LCS diff and unified-diff formatter.
 //
 // Algorithm: standard DP LCS, O(n*m) time and O(n*m) space.
-// Both inputs are capped at MaxLines (2000) lines each; callers should check
+// Both inputs are capped at MaxLines (4000) lines each; callers should check
 // the error return and surface the cap to users rather than silently truncating.
 package diff
 
@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	MaxLines       = 2000 // per input side
+	MaxLines       = 4000 // per input side (ASH-32: profiled — ~30 MiB / 40ms worst case at 4000)
 	DefaultContext = 3
 )
 
@@ -24,20 +24,23 @@ type Edit struct {
 // Lines computes the minimal edit script from a to b using LCS.
 // Returns an error if either slice exceeds MaxLines.
 func Lines(a, b []string) ([]Edit, error) {
-	if len(a) > MaxLines {
-		return nil, fmt.Errorf("input a has %d lines (max %d)", len(a), MaxLines)
+	if len(a) > MaxLines || len(b) > MaxLines {
+		return nil, fmt.Errorf("diff inputs too large: a=%d, b=%d (max %d lines/side); reduce input size or split the file", len(a), len(b), MaxLines)
 	}
-	if len(b) > MaxLines {
-		return nil, fmt.Errorf("input b has %d lines (max %d)", len(b), MaxLines)
-	}
+	return linesLCS(a, b), nil
+}
 
+// linesLCS is the cap-free LCS implementation, separated from Lines so the
+// public guard is one line and easy to audit. Useful for profiling beyond
+// MaxLines without poking holes in the exported surface.
+func linesLCS(a, b []string) []Edit {
 	m, n := len(a), len(b)
 	if m == 0 && n == 0 {
-		return nil, nil
+		return nil
 	}
 
 	// Build flat DP table. dp[i*(n+1)+j] = LCS length of a[:i] and b[:j].
-	// Using uint16: values ≤ min(m,n) ≤ MaxLines = 2000 << 65535.
+	// Using uint16: values ≤ min(m,n) ≤ MaxLines = 4000 << 65535.
 	size := (m + 1) * (n + 1)
 	dp := make([]uint16, size)
 	stride := n + 1
@@ -78,7 +81,7 @@ func Lines(a, b []string) ([]Edit, error) {
 	for lo, hi := 0, len(edits)-1; lo < hi; lo, hi = lo+1, hi-1 {
 		edits[lo], edits[hi] = edits[hi], edits[lo]
 	}
-	return edits, nil
+	return edits
 }
 
 // Stats returns the number of added and deleted lines in an edit script.

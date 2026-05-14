@@ -49,7 +49,7 @@ Any `ash` invocation auto-starts the daemon. Use `bin/ash` from the repo root, o
 
 
 
-9. **Diffing content in this repo** — use `ash diff`. Canonical: `ash diff --path a.go --other b.go` or `ash diff --path f.go --content - < new.go`. Add `--stat true` for token-cheap counts only. Both inputs capped at 2000 lines. `ash help --verb diff` for the full schema.
+9. **Diffing content in this repo** — use `ash diff`. Canonical: `ash diff --path a.go --other b.go` or `ash diff --path f.go --content - < new.go`. Add `--stat true` for token-cheap counts only. Both inputs capped at 4000 lines. `ash help --verb diff` for the full schema.
 
 10. **Running Go tests** — use `ash test` instead of `go test`. Canonical: `ash test` (defaults to `./...`, `count=1` to bypass cache, 60s timeout). Add `--packages internal/walker` for one package, `--run TestX` for name filter, `--race true` for race detector, `--short true` for `-short` mode, `--timeout 10m` for big suites. Failures arrive as a structured `Tests []Test` slice with `file:line` extracted; build failures land as `Status=build_failed`. `ash help --verb test` for the full schema.
 

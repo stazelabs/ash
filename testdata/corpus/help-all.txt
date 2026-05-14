@@ -10,7 +10,7 @@
   hook      PreToolUse decision engine; steers harness tools to ash equivalents.
   stat      Return lstat metadata for one or more paths.
   edit      Atomically edit a file: string-replace, line-range, or patch mode.
-  diff      Unified diff: file vs file or inline content, capped at 2000 lines.
+  diff      Unified diff: file vs file or inline content, capped at 4000 lines.
   bench     Benchmark ash vs bash; report token/latency deltas per case.
   test      Run Go tests; return structured per-test results.
   init      Bootstrap a repo for ash: hook, gitignore, CLAUDE.md, registry. Idempotent.

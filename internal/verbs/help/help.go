@@ -348,7 +348,7 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "diff",
-		Description: "Unified diff: file vs file or inline content, capped at 2000 lines.",
+		Description: "Unified diff: file vs file or inline content, capped at 4000 lines.",
 		Args: []ArgSchema{
 			{Name: "path", Type: "string", Required: true,
 				Description: "Before-side file (a)."},
