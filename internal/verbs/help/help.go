@@ -368,11 +368,11 @@ var registry = []VerbSchema{
 			{Name: "path", Type: "string", Required: true,
 				Description: "File to edit."},
 			{Name: "old", Type: "string", Mode: "string", PH: "<text|@file|->",
-				Description: "Exact text to find; pass '-' for stdin or '@PATH' for a file; must appear once unless all=true.",
+				Description: "Exact text to find; must appear once unless all=true.",
 				Long:        "[string mode] Exact text to find (required if range/patch not provided). Must appear exactly once unless all=true. Pass '-' to read from stdin (only one arg per call may use '-'); pass '@PATH' to read from a file on disk — useful when both --old and --new need multi-line content (ASH-119)."},
 
 			{Name: "new", Type: "string", Mode: "string", Default: "", PH: "<text|@file|->",
-				Description: "Replacement text; pass '-' for stdin or '@PATH' for a file; empty string deletes the match.",
+				Description: "Replacement text; empty string deletes the match.",
 				Long:        "[string mode] Replacement text. Empty string deletes the matched text. Pass '-' to read from stdin (only one arg per call may use '-'); pass '@PATH' to read from a file on disk — useful when both --old and --new need multi-line content (ASH-119)."},
 
 			{Name: "all", Type: "bool", Mode: "string", Default: "false",
@@ -382,7 +382,7 @@ var registry = []VerbSchema{
 				Description: "start:end line range to replace, 1-based inclusive.",
 				Long:        "[range mode] Line range to replace, formatted as start:end, 1-based inclusive (required if old/patch not provided)."},
 			{Name: "new", Type: "string", Mode: "range", Default: "", PH: "<text|@file|->",
-				Description: "Replacement lines; pass '-' for stdin or '@PATH' for a file; empty string deletes the range.",
+				Description: "Replacement lines; empty string deletes the range.",
 				Long:        "[range mode] Replacement text for the specified lines. Empty string deletes the lines. Pass '-' to read from stdin; pass '@PATH' to read from a file on disk (ASH-119)."},
 
 			{Name: "patch", Type: "string", Mode: "patch", PH: "<diff|->",
@@ -617,6 +617,12 @@ func writeArg(b *strings.Builder, a ArgSchema, verbose bool) {
 		sig += "!"
 	} else if a.Default != "" {
 		sig += "=" + a.Default
+	}
+	// Surface the user-visible placeholder (e.g. <text|@file|->) immediately
+	// after the type so multi-form args don't hide their @PATH / stdin / inline
+	// shapes inside prose. ASH-143.
+	if a.PH != "" {
+		sig += " " + a.PH
 	}
 	desc := a.Description
 	if verbose && a.Long != "" {
