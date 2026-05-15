@@ -78,11 +78,15 @@ func run() error {
 		if !ok || !readSideVerbs[verb] {
 			continue
 		}
-		srv.AddTool(&mcp.Tool{
+		tool := &mcp.Tool{
 			Name:        t.Name,
 			Description: t.Description,
 			InputSchema: json.RawMessage(t.InputSchema),
-		}, makeHandler(verb))
+		}
+		if len(t.OutputSchema) > 0 {
+			tool.OutputSchema = json.RawMessage(t.OutputSchema)
+		}
+		srv.AddTool(tool, makeHandler(verb))
 		registered++
 	}
 	if registered == 0 {
@@ -95,13 +99,16 @@ func run() error {
 	return srv.Run(ctx, &mcp.StdioTransport{})
 }
 
-// embeddedTool is the on-disk shape of one entry in tools.json. InputSchema
-// is captured as a raw JSON message so we hand the bytes straight to
-// mcp.Tool.InputSchema without re-marshaling.
+// embeddedTool is the on-disk shape of one entry in tools.json. The
+// schemas ride as raw JSON so we hand the bytes straight to mcp.Tool
+// without re-marshaling. OutputSchema is optional — older artifacts
+// without it (or verbs that genuinely have no structured output) leave
+// the field zero and the server advertises input-only.
 type embeddedTool struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	InputSchema json.RawMessage `json:"inputSchema"`
+	Name         string          `json:"name"`
+	Description  string          `json:"description"`
+	InputSchema  json.RawMessage `json:"inputSchema"`
+	OutputSchema json.RawMessage `json:"outputSchema,omitempty"`
 }
 
 type embeddedToolList struct {

@@ -96,7 +96,14 @@ func writeArtifact(dir string, body []byte) error {
 }
 
 func generate() ([]byte, error) {
-	tl, err := mcpschema.Generate(help.Registry())
+	// repoRoot anchors the AST walker for OutputSchema generation
+	// (ASH-124). Both 'make schema' and 'make schema-check' invoke this
+	// binary from the repo root, so os.Getwd() is the canonical anchor.
+	root, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("getwd: %w", err)
+	}
+	tl, err := mcpschema.Generate(root, help.Registry())
 	if err != nil {
 		return nil, fmt.Errorf("mcpschema.Generate: %w", err)
 	}

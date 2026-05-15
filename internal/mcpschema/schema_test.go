@@ -2,18 +2,32 @@ package mcpschema
 
 import (
 	"encoding/json"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/stazelabs/ash/internal/verbs/help"
 )
 
+// testRepoRoot resolves the repo root from this test file's path so
+// Generate can find verb source packages regardless of where 'go test'
+// is invoked from. internal/mcpschema/schema_test.go → ../..
+func testRepoRoot(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	return filepath.Join(filepath.Dir(file), "..", "..")
+}
+
 // TestGenerateLiveRegistry exercises Generate against the real help
 // registry and asserts the basic invariants — every verb maps to a tool,
 // names are namespaced, and each tool carries a valid object schema with
 // MCP's required dialect URI.
 func TestGenerateLiveRegistry(t *testing.T) {
-	tl, err := Generate(help.Registry())
+	tl, err := Generate(testRepoRoot(t), help.Registry())
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -51,7 +65,7 @@ func TestGenerateLiveRegistry(t *testing.T) {
 // registry produces required[] entries on the JSON Schema, and that
 // stringly-typed defaults coerce to proper JSON types.
 func TestGenerateRequiredAndDefaults(t *testing.T) {
-	tl, err := Generate(help.Registry())
+	tl, err := Generate(testRepoRoot(t), help.Registry())
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -84,7 +98,7 @@ func TestGenerateRequiredAndDefaults(t *testing.T) {
 // twice in the registry, once per mode) collapses to a single JSON Schema
 // property whose description preserves both senses.
 func TestGenerateEditCoalescesNew(t *testing.T) {
-	tl, err := Generate(help.Registry())
+	tl, err := Generate(testRepoRoot(t), help.Registry())
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -115,7 +129,7 @@ func TestGenerateEditCoalescesNew(t *testing.T) {
 // TestGenerateEnums verifies enum lists make the round trip — picking
 // read's --unit (lines|bytes) and git's --op as the witnesses.
 func TestGenerateEnums(t *testing.T) {
-	tl, err := Generate(help.Registry())
+	tl, err := Generate(testRepoRoot(t), help.Registry())
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -137,7 +151,7 @@ func TestGenerateEnums(t *testing.T) {
 // across two consecutive Marshal calls, and parsable back into the same
 // shape. CI lint diffs the bytes byte-for-byte so determinism matters.
 func TestMarshalRoundtrip(t *testing.T) {
-	tl, err := Generate(help.Registry())
+	tl, err := Generate(testRepoRoot(t), help.Registry())
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}

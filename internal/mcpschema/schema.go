@@ -36,11 +36,13 @@ const ToolNamePrefix = "ash_"
 const GeneratedBy = "cmd/ashschema (ASH-105)"
 
 // Tool is one MCP tool definition. JSON shape matches MCP's tools/list
-// response entries exactly.
+// response entries exactly. OutputSchema is optional — emitted when the
+// verb's Result struct could be resolved from source (ASH-124).
 type Tool struct {
-	Name        string      `json:"name"`
-	Description string      `json:"description"`
-	InputSchema InputSchema `json:"inputSchema"`
+	Name         string        `json:"name"`
+	Description  string        `json:"description"`
+	InputSchema  InputSchema   `json:"inputSchema"`
+	OutputSchema *OutputSchema `json:"outputSchema,omitempty"`
 }
 
 // InputSchema is the JSON Schema for a tool's input arguments. The
@@ -77,8 +79,12 @@ type ToolList struct {
 
 // Generate builds the MCP tool list from the help registry. Verbs are
 // emitted in registry order so the artifact is stable across runs (the
-// registry itself is a hand-ordered slice).
-func Generate(reg []help.VerbSchema) (*ToolList, error) {
+// registry itself is a hand-ordered slice). When repoRoot is non-empty,
+// every verb's OutputSchema is derived by AST-parsing its package's
+// Result struct (ASH-124). When repoRoot is empty (tests that don't
+// have source access) OutputSchema is left nil and the artifact carries
+// input schemas only.
+func Generate(repoRoot string, reg []help.VerbSchema) (*ToolList, error) {
 	out := &ToolList{
 		GeneratedBy: GeneratedBy,
 		Dialect:     Dialect,
@@ -88,6 +94,13 @@ func Generate(reg []help.VerbSchema) (*ToolList, error) {
 		t, err := toolForVerb(vs)
 		if err != nil {
 			return nil, fmt.Errorf("verb %s: %w", vs.Verb, err)
+		}
+		if repoRoot != "" {
+			osch, oerr := generateOutputSchema(repoRoot, vs.Verb)
+			if oerr != nil {
+				return nil, fmt.Errorf("verb %s: output schema: %w", vs.Verb, oerr)
+			}
+			t.OutputSchema = osch
 		}
 		out.Tools = append(out.Tools, t)
 	}

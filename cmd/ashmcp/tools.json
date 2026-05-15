@@ -46,6 +46,71 @@
           "path"
         ],
         "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "encoding": {
+            "type": "string",
+            "description": "\"utf-8\" or \"base64\""
+          },
+          "lines": {
+            "type": "integer"
+          },
+          "mtime": {
+            "type": "integer",
+            "description": "unix nanos"
+          },
+          "path": {
+            "type": "string"
+          },
+          "range_returned": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "description": "size of the file on disk"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "truncation_hint": {
+            "type": "object",
+            "description": "Truncation hint: how many records were dropped and the caps that triggered the drop.",
+            "properties": {
+              "limit": {
+                "type": "integer",
+                "description": "Cap that triggered truncation."
+              },
+              "max": {
+                "type": "integer",
+                "description": "Hard cap (max possible value of limit)."
+              },
+              "trunc": {
+                "type": "integer",
+                "description": "Number of records dropped."
+              }
+            },
+            "required": [
+              "limit",
+              "max",
+              "trunc"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "content",
+          "encoding",
+          "mtime",
+          "path",
+          "size"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -112,6 +177,76 @@
         },
         "required": [
           "path"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "records": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "mtime": {
+                  "type": "integer",
+                  "description": "unix nanos"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer",
+                  "description": "bytes; omitted for dirs and symlinks"
+                },
+                "type": {
+                  "type": "string",
+                  "description": "\"file\" | \"dir\" | \"symlink\""
+                }
+              },
+              "required": [
+                "mtime",
+                "path",
+                "type"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "truncation_hint": {
+            "type": "object",
+            "description": "Truncation hint: how many records were dropped and the caps that triggered the drop.",
+            "properties": {
+              "limit": {
+                "type": "integer",
+                "description": "Cap that triggered truncation."
+              },
+              "max": {
+                "type": "integer",
+                "description": "Hard cap (max possible value of limit)."
+              },
+              "trunc": {
+                "type": "integer",
+                "description": "Number of records dropped."
+              }
+            },
+            "required": [
+              "limit",
+              "max",
+              "trunc"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "count",
+          "records"
         ],
         "additionalProperties": false
       }
@@ -212,6 +347,108 @@
           "pattern"
         ],
         "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "description": "number of records (matches+context, or files)"
+          },
+          "file_count": {
+            "type": "integer",
+            "description": "distinct files with at least one match"
+          },
+          "files": {
+            "type": "array",
+            "description": "populated only when FilesOnly",
+            "items": {
+              "type": "string"
+            }
+          },
+          "files_scanned": {
+            "type": "integer",
+            "description": "files actually opened and content-searched"
+          },
+          "files_skipped_binary": {
+            "type": "integer"
+          },
+          "files_skipped_large": {
+            "type": "integer"
+          },
+          "match_count": {
+            "type": "integer",
+            "description": "number of \"match\" records (excludes context)"
+          },
+          "matches": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "col": {
+                  "type": "integer",
+                  "description": "1-indexed byte column of the first match start; only on match records"
+                },
+                "kind": {
+                  "type": "string",
+                  "description": "\"\" (= match) | \"before\" | \"after\""
+                },
+                "line": {
+                  "type": "integer",
+                  "description": "1-indexed line number"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string",
+                  "description": "line content, possibly truncated"
+                }
+              },
+              "required": [
+                "line",
+                "path",
+                "text"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "truncation_hint": {
+            "type": "object",
+            "description": "Truncation hint: how many records were dropped and the caps that triggered the drop.",
+            "properties": {
+              "limit": {
+                "type": "integer",
+                "description": "Cap that triggered truncation."
+              },
+              "max": {
+                "type": "integer",
+                "description": "Hard cap (max possible value of limit)."
+              },
+              "trunc": {
+                "type": "integer",
+                "description": "Number of records dropped."
+              }
+            },
+            "required": [
+              "limit",
+              "max",
+              "trunc"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "count",
+          "file_count",
+          "files_scanned",
+          "match_count"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -300,6 +537,434 @@
           "op"
         ],
         "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "diff": {
+            "type": "object",
+            "properties": {
+              "files": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "additions": {
+                      "type": "integer"
+                    },
+                    "binary": {
+                      "type": "boolean"
+                    },
+                    "deletions": {
+                      "type": "integer"
+                    },
+                    "old_path": {
+                      "type": "string",
+                      "description": "set for renames and copies"
+                    },
+                    "patch": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "description": "A/D/M/R/C; empty in stat-only mode"
+                    }
+                  },
+                  "required": [
+                    "additions",
+                    "deletions",
+                    "path",
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "stat_only": {
+                "type": "boolean"
+              },
+              "total_additions": {
+                "type": "integer"
+              },
+              "total_deletions": {
+                "type": "integer"
+              },
+              "truncated": {
+                "type": "boolean"
+              },
+              "truncation_hint": {
+                "type": "object",
+                "description": "Truncation hint: how many records were dropped and the caps that triggered the drop.",
+                "properties": {
+                  "limit": {
+                    "type": "integer",
+                    "description": "Cap that triggered truncation."
+                  },
+                  "max": {
+                    "type": "integer",
+                    "description": "Hard cap (max possible value of limit)."
+                  },
+                  "trunc": {
+                    "type": "integer",
+                    "description": "Number of records dropped."
+                  }
+                },
+                "required": [
+                  "limit",
+                  "max",
+                  "trunc"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "total_additions",
+              "total_deletions"
+            ],
+            "additionalProperties": false
+          },
+          "log": {
+            "type": "object",
+            "properties": {
+              "commits": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "author_email": {
+                      "type": "string"
+                    },
+                    "author_name": {
+                      "type": "string"
+                    },
+                    "author_time": {
+                      "type": "integer"
+                    },
+                    "body": {
+                      "type": "string"
+                    },
+                    "committer_email": {
+                      "type": "string"
+                    },
+                    "committer_name": {
+                      "type": "string"
+                    },
+                    "committer_time": {
+                      "type": "integer"
+                    },
+                    "parents": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "sha": {
+                      "type": "string"
+                    },
+                    "short_sha": {
+                      "type": "string"
+                    },
+                    "subject": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "author_email",
+                    "author_name",
+                    "author_time",
+                    "sha",
+                    "short_sha",
+                    "subject"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "count": {
+                "type": "integer"
+              },
+              "truncated": {
+                "type": "boolean"
+              },
+              "truncation_hint": {
+                "type": "object",
+                "description": "Truncation hint: how many records were dropped and the caps that triggered the drop.",
+                "properties": {
+                  "limit": {
+                    "type": "integer",
+                    "description": "Cap that triggered truncation."
+                  },
+                  "max": {
+                    "type": "integer",
+                    "description": "Hard cap (max possible value of limit)."
+                  },
+                  "trunc": {
+                    "type": "integer",
+                    "description": "Number of records dropped."
+                  }
+                },
+                "required": [
+                  "limit",
+                  "max",
+                  "trunc"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "count"
+            ],
+            "additionalProperties": false
+          },
+          "op": {
+            "type": "string"
+          },
+          "show": {
+            "type": "object",
+            "properties": {
+              "commit": {
+                "type": "object",
+                "properties": {
+                  "author_email": {
+                    "type": "string"
+                  },
+                  "author_name": {
+                    "type": "string"
+                  },
+                  "author_time": {
+                    "type": "integer"
+                  },
+                  "body": {
+                    "type": "string"
+                  },
+                  "committer_email": {
+                    "type": "string"
+                  },
+                  "committer_name": {
+                    "type": "string"
+                  },
+                  "committer_time": {
+                    "type": "integer"
+                  },
+                  "parents": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "sha": {
+                    "type": "string"
+                  },
+                  "short_sha": {
+                    "type": "string"
+                  },
+                  "subject": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "author_email",
+                  "author_name",
+                  "author_time",
+                  "sha",
+                  "short_sha",
+                  "subject"
+                ],
+                "additionalProperties": false
+              },
+              "diff": {
+                "type": "object",
+                "properties": {
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "additions": {
+                          "type": "integer"
+                        },
+                        "binary": {
+                          "type": "boolean"
+                        },
+                        "deletions": {
+                          "type": "integer"
+                        },
+                        "old_path": {
+                          "type": "string",
+                          "description": "set for renames and copies"
+                        },
+                        "patch": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "description": "A/D/M/R/C; empty in stat-only mode"
+                        }
+                      },
+                      "required": [
+                        "additions",
+                        "deletions",
+                        "path",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "stat_only": {
+                    "type": "boolean"
+                  },
+                  "total_additions": {
+                    "type": "integer"
+                  },
+                  "total_deletions": {
+                    "type": "integer"
+                  },
+                  "truncated": {
+                    "type": "boolean"
+                  },
+                  "truncation_hint": {
+                    "type": "object",
+                    "description": "Truncation hint: how many records were dropped and the caps that triggered the drop.",
+                    "properties": {
+                      "limit": {
+                        "type": "integer",
+                        "description": "Cap that triggered truncation."
+                      },
+                      "max": {
+                        "type": "integer",
+                        "description": "Hard cap (max possible value of limit)."
+                      },
+                      "trunc": {
+                        "type": "integer",
+                        "description": "Number of records dropped."
+                      }
+                    },
+                    "required": [
+                      "limit",
+                      "max",
+                      "trunc"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "total_additions",
+                  "total_deletions"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "commit",
+              "diff"
+            ],
+            "additionalProperties": false
+          },
+          "status": {
+            "type": "object",
+            "properties": {
+              "ahead": {
+                "type": "integer"
+              },
+              "behind": {
+                "type": "integer"
+              },
+              "branch": {
+                "type": "string"
+              },
+              "clean": {
+                "type": "boolean"
+              },
+              "conflicts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "detached": {
+                "type": "boolean"
+              },
+              "head": {
+                "type": "string"
+              },
+              "ignored": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "initial": {
+                "type": "boolean"
+              },
+              "staged": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "old_path": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "unstaged": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "old_path": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "untracked": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "upstream": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "clean"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -347,6 +1012,28 @@
           "path"
         ],
         "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "bytes_written": {
+            "type": "integer"
+          },
+          "created": {
+            "type": "boolean",
+            "description": "true if file did not exist before the write"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "bytes_written",
+          "created",
+          "path"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -366,6 +1053,91 @@
             "description": "Filter to calls for a specific verb."
           }
         },
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "bytes_in": {
+                  "type": "integer"
+                },
+                "bytes_out": {
+                  "type": "integer"
+                },
+                "bytes_out_emit": {
+                  "type": "integer"
+                },
+                "err_code": {
+                  "type": "string"
+                },
+                "io_us": {
+                  "type": "integer"
+                },
+                "latency_dispatch_us": {
+                  "type": "integer"
+                },
+                "latency_exec_us": {
+                  "type": "integer"
+                },
+                "ok": {
+                  "type": "boolean"
+                },
+                "regex_compile_us": {
+                  "type": "integer"
+                },
+                "regex_us": {
+                  "type": "integer"
+                },
+                "tokens_in": {
+                  "type": "integer"
+                },
+                "tokens_out": {
+                  "type": "integer"
+                },
+                "tokens_out_emit": {
+                  "type": "integer",
+                  "description": "ASH-123 MCP-transport emit accounting. Non-zero only for rows\nwhere the request arrived via `ashmcp`; the JSON `tools/call`\nemit is the cost the harness actually paid."
+                },
+                "truncated": {
+                  "type": "boolean"
+                },
+                "ts": {
+                  "type": "integer"
+                },
+                "verb": {
+                  "type": "string"
+                },
+                "walk_us": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "bytes_in",
+                "bytes_out",
+                "latency_exec_us",
+                "ok",
+                "tokens_in",
+                "tokens_out",
+                "ts",
+                "verb"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "count",
+          "rows"
+        ],
         "additionalProperties": false
       }
     },
@@ -414,6 +1186,309 @@
           }
         },
         "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "arg_distributions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "args": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string"
+                      },
+                      "values": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "count": {
+                              "type": "integer"
+                            },
+                            "value": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "count",
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "values"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "verb": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "args",
+                "verb"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "by_root": {
+            "type": "array",
+            "description": "ByRoot is populated only by --all-roots: per-ledger contribution\ncounts, in registry order. Empty for single-root reports.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "calls": {
+                  "type": "integer"
+                },
+                "exec_sum_us": {
+                  "type": "integer"
+                },
+                "ok": {
+                  "type": "integer"
+                },
+                "open_error": {
+                  "type": "string"
+                },
+                "root": {
+                  "type": "string"
+                },
+                "tokens_out": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "calls",
+                "exec_sum_us",
+                "ok",
+                "root",
+                "tokens_out"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "by_verb": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "n": {
+                  "type": "integer"
+                },
+                "ok_count": {
+                  "type": "integer"
+                },
+                "ok_pct": {
+                  "type": "number"
+                },
+                "p50_exec_us": {
+                  "type": "integer"
+                },
+                "p50_tokens_out": {
+                  "type": "integer"
+                },
+                "p95_exec_us": {
+                  "type": "integer"
+                },
+                "p95_tokens_out": {
+                  "type": "integer"
+                },
+                "sub_phases": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "pct": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "pct"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "tok_per_kib": {
+                  "type": "number",
+                  "description": "tokens_out / (bytes_out/1024)"
+                },
+                "tokens_out_no_prefix_sum": {
+                  "type": "integer"
+                },
+                "tokens_out_sum": {
+                  "type": "integer"
+                },
+                "truncated_n": {
+                  "type": "integer"
+                },
+                "truncated_pct": {
+                  "type": "number"
+                },
+                "verb": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "n",
+                "ok_count",
+                "ok_pct",
+                "p50_exec_us",
+                "p50_tokens_out",
+                "p95_exec_us",
+                "p95_tokens_out",
+                "truncated_n",
+                "truncated_pct",
+                "verb"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "err_histogram": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer"
+                },
+                "sample_msg": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "count",
+                "sample_msg"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "scope": {
+            "type": "object",
+            "properties": {
+              "last": {
+                "type": "integer"
+              },
+              "root": {
+                "type": "string",
+                "description": "Root is the project root whose ledger was queried. Empty when the\ndaemons own ledger is in use; populated for --root and --all-roots\n(in --all-roots, set to a sentinel \"ALL\" value)."
+              },
+              "roots": {
+                "type": "array",
+                "description": "Roots is the per-root list when --all-roots is in effect. One entry\nper ledger that was successfully opened, in registry order.",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "session": {
+                "type": "string"
+              },
+              "since": {
+                "type": "string"
+              },
+              "verb": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "session"
+            ],
+            "additionalProperties": false
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "bytes_out_emit": {
+                "type": "integer"
+              },
+              "calls": {
+                "type": "integer"
+              },
+              "errors": {
+                "type": "integer"
+              },
+              "exec_sum_us": {
+                "type": "integer"
+              },
+              "mcp_calls": {
+                "type": "integer",
+                "description": "MCPCalls counts how many of Calls arrived over `ashmcp` (i.e.\nrows with non-zero bytes_out_emit). When equal to Calls the\nsession is MCP-only; when 0 the emit columns stay hidden."
+              },
+              "ok": {
+                "type": "integer"
+              },
+              "tokens_in": {
+                "type": "integer"
+              },
+              "tokens_out": {
+                "type": "integer"
+              },
+              "tokens_out_emit": {
+                "type": "integer",
+                "description": "TokensOutEmit / BytesOutEmit are the MCP-envelope accounting from\nASH-123: what the harness actually consumed for rows where the\nrequest arrived over `ashmcp`. Both are 0 for CLI-only sessions\nand PrettyResponse hides them in that case."
+              },
+              "tokens_out_no_prefix": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "calls",
+              "errors",
+              "exec_sum_us",
+              "ok",
+              "tokens_in",
+              "tokens_out",
+              "tokens_out_no_prefix"
+            ],
+            "additionalProperties": false
+          },
+          "trunc_hotspots": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "count": {
+                  "type": "integer"
+                },
+                "sample_args": {
+                  "type": "string",
+                  "description": "decoded from first truncated call's args_msgpack"
+                },
+                "verb": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "count",
+                "verb"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "by_verb",
+          "scope",
+          "totals"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -433,6 +1508,92 @@
             "default": false
           }
         },
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "verbs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "args": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "default": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "mode": {
+                        "type": "string",
+                        "description": "[edit] which mode (string/range/patch); empty = all modes"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "ops": {
+                        "type": "array",
+                        "description": "[git] which ops this arg applies to; empty = global",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "ph": {
+                        "type": "string",
+                        "description": "placeholder override for usage rendering"
+                      },
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "type": {
+                        "type": "string",
+                        "description": "\"string\" | \"int\" | \"bool\""
+                      },
+                      "values": {
+                        "type": "array",
+                        "description": "valid enum values",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "description",
+                      "name",
+                      "type"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "description": {
+                  "type": "string"
+                },
+                "verb": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "args",
+                "description",
+                "verb"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "count",
+          "verbs"
+        ],
         "additionalProperties": false
       }
     },
@@ -481,6 +1642,36 @@
           }
         },
         "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "description": "\"allow\" | \"deny\""
+          },
+          "matched_rule": {
+            "type": "string",
+            "description": "e.g. \"Grep\", \"Bash:grep\", \"Read:.png-allow\""
+          },
+          "reason": {
+            "type": "string",
+            "description": "human-readable deny reason (matches what Claude shows)"
+          },
+          "suggested": {
+            "type": "string",
+            "description": "the ash invocation, when denied"
+          },
+          "tool_name": {
+            "type": "string",
+            "description": "echoed for ledger queryability"
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -509,6 +1700,63 @@
             "description": "Comma-separated paths to inspect; one of --paths or --path required."
           }
         },
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string",
+                  "description": "\"not_found\" | \"permission\" | \"stat\""
+                },
+                "link_target": {
+                  "type": "string",
+                  "description": "readlink output; only for symlinks"
+                },
+                "mode": {
+                  "type": "string",
+                  "description": "e.g. \"0644\""
+                },
+                "mtime": {
+                  "type": "integer",
+                  "description": "unix nanos"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer",
+                  "description": "bytes; only for files"
+                },
+                "type": {
+                  "type": "string",
+                  "description": "\"file\" | \"dir\" | \"symlink\""
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "errors": {
+            "type": "integer",
+            "description": "entries with a non-empty Error field"
+          }
+        },
+        "required": [
+          "count",
+          "entries"
+        ],
         "additionalProperties": false
       }
     },
@@ -559,6 +1807,39 @@
           "path"
         ],
         "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "bytes_written": {
+            "type": "integer"
+          },
+          "dry_run": {
+            "type": "boolean"
+          },
+          "lines_total": {
+            "type": "integer"
+          },
+          "occurrences": {
+            "type": "integer",
+            "description": "replacements made; hunk count in patch mode"
+          },
+          "patch": {
+            "type": "string",
+            "description": "unified diff when dry_run=true"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "bytes_written",
+          "lines_total",
+          "occurrences",
+          "path"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -598,6 +1879,39 @@
         },
         "required": [
           "path"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "additions": {
+            "type": "integer"
+          },
+          "deletions": {
+            "type": "integer"
+          },
+          "patch": {
+            "type": "string"
+          },
+          "path_a": {
+            "type": "string"
+          },
+          "path_b": {
+            "type": "string"
+          },
+          "unchanged": {
+            "type": "boolean",
+            "description": "true when the two sides are identical"
+          }
+        },
+        "required": [
+          "additions",
+          "deletions",
+          "patch",
+          "path_a",
+          "path_b"
         ],
         "additionalProperties": false
       }
@@ -701,6 +2015,179 @@
           }
         },
         "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "by_verb": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ash_latency_us_total": {
+                  "type": "integer"
+                },
+                "ash_tokens_total": {
+                  "type": "integer"
+                },
+                "bash_latency_us_total": {
+                  "type": "integer"
+                },
+                "bash_tokens_total": {
+                  "type": "integer"
+                },
+                "cases": {
+                  "type": "integer"
+                },
+                "verb": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "ash_latency_us_total",
+                "ash_tokens_total",
+                "bash_latency_us_total",
+                "bash_tokens_total",
+                "cases",
+                "verb"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "cases": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ash_bytes": {
+                  "type": "integer"
+                },
+                "ash_err": {
+                  "type": "string"
+                },
+                "ash_latency_us": {
+                  "type": "integer",
+                  "description": "alias for AshLatencyUsP50"
+                },
+                "ash_latency_us_min": {
+                  "type": "integer"
+                },
+                "ash_latency_us_p50": {
+                  "type": "integer"
+                },
+                "ash_ok": {
+                  "type": "boolean"
+                },
+                "ash_tokens": {
+                  "type": "integer"
+                },
+                "bash_bytes": {
+                  "type": "integer"
+                },
+                "bash_cmd": {
+                  "type": "string"
+                },
+                "bash_exit": {
+                  "type": "integer"
+                },
+                "bash_latency_us": {
+                  "type": "integer"
+                },
+                "bash_latency_us_min": {
+                  "type": "integer"
+                },
+                "bash_latency_us_p50": {
+                  "type": "integer"
+                },
+                "bash_run_err": {
+                  "type": "string"
+                },
+                "bash_tokens": {
+                  "type": "integer"
+                },
+                "bash_truncated": {
+                  "type": "boolean"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "verb": {
+                  "type": "string"
+                },
+                "why": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "ash_bytes",
+                "ash_latency_us",
+                "ash_ok",
+                "ash_tokens",
+                "bash_bytes",
+                "bash_cmd",
+                "bash_exit",
+                "bash_latency_us",
+                "bash_tokens",
+                "name",
+                "verb"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "not_run": {
+            "type": "array",
+            "description": "case names skipped (e.g. translation gap)",
+            "items": {
+              "type": "string"
+            }
+          },
+          "not_run_why": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "overall": {
+            "type": "object",
+            "properties": {
+              "ash_latency_us_total": {
+                "type": "integer"
+              },
+              "ash_tokens_total": {
+                "type": "integer"
+              },
+              "bash_latency_us_total": {
+                "type": "integer"
+              },
+              "bash_tokens_total": {
+                "type": "integer"
+              },
+              "cases": {
+                "type": "integer"
+              },
+              "verb": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "ash_latency_us_total",
+              "ash_tokens_total",
+              "bash_latency_us_total",
+              "bash_tokens_total",
+              "cases",
+              "verb"
+            ],
+            "additionalProperties": false
+          },
+          "run_uuid": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "by_verb",
+          "cases",
+          "overall"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -759,6 +2246,131 @@
           }
         },
         "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "elapsed": {
+            "type": "number"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "packages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "bench_output": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "build_output": {
+                  "type": "string"
+                },
+                "counts": {
+                  "type": "object",
+                  "properties": {
+                    "fail": {
+                      "type": "integer"
+                    },
+                    "pass": {
+                      "type": "integer"
+                    },
+                    "skip": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "fail",
+                    "pass",
+                    "skip"
+                  ],
+                  "additionalProperties": false
+                },
+                "elapsed": {
+                  "type": "number"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "tests": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "elapsed": {
+                        "type": "number"
+                      },
+                      "file": {
+                        "type": "string"
+                      },
+                      "line": {
+                        "type": "integer"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "output": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string",
+                        "description": "pass | fail | skip"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "status"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "counts",
+                "path",
+                "status"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "total": {
+            "type": "object",
+            "properties": {
+              "fail": {
+                "type": "integer"
+              },
+              "pass": {
+                "type": "integer"
+              },
+              "skip": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "fail",
+              "pass",
+              "skip"
+            ],
+            "additionalProperties": false
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "elapsed",
+          "ok",
+          "total"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -785,6 +2397,46 @@
           }
         },
         "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "already_installed": {
+            "type": "boolean"
+          },
+          "gitignore_updated": {
+            "type": "boolean"
+          },
+          "guidance_path": {
+            "type": "string"
+          },
+          "guidance_written": {
+            "type": "boolean"
+          },
+          "path": {
+            "type": "string"
+          },
+          "registry_updated": {
+            "type": "boolean"
+          },
+          "settings_written": {
+            "type": "boolean"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "gitignore_updated",
+          "path",
+          "registry_updated",
+          "settings_written"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -806,6 +2458,46 @@
           }
         },
         "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "gitignore_updated": {
+            "type": "boolean"
+          },
+          "guidance_path": {
+            "type": "string"
+          },
+          "guidance_updated": {
+            "type": "boolean"
+          },
+          "not_installed": {
+            "type": "boolean"
+          },
+          "path": {
+            "type": "string"
+          },
+          "registry_updated": {
+            "type": "boolean"
+          },
+          "settings_written": {
+            "type": "boolean"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "gitignore_updated",
+          "path",
+          "registry_updated",
+          "settings_written"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -815,6 +2507,36 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {},
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "elapsed_ms": {
+            "type": "integer"
+          },
+          "exited_within_grace": {
+            "type": "boolean"
+          },
+          "pid": {
+            "type": "integer"
+          },
+          "signal_sent": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "description": "\"stopped\" | \"already_stopped\" | \"timeout\""
+          }
+        },
+        "required": [
+          "elapsed_ms",
+          "exited_within_grace",
+          "pid",
+          "signal_sent",
+          "status"
+        ],
         "additionalProperties": false
       }
     }

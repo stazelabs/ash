@@ -223,24 +223,46 @@ func streamingRoundtrip(ctx context.Context, conn net.Conn, ss *mcp.ServerSessio
 
 // toolResult shapes the ashd response as an MCP tool result. Verb-level
 // failures (rsp.OK == false) become IsError=true tool results carrying the
-// proto.Error payload as JSON, not protocol errors — the harness should
-// see them as "the tool ran and reported an error", not "the transport
-// blew up". The success path emits the decoded Data as one TextContent
-// block of JSON. The Metrics envelope rides along on both paths so the
-// agent can see token / latency cost without a separate report call.
+// proto.Error payload as TextContent — the harness sees "the tool ran
+// and reported an error", not "the transport blew up".
+//
+// On success (ASH-124) the response is dual-emitted: the decoded data
+// rides as both StructuredContent (for harnesses that validate against
+// the tool's outputSchema and skip the parse) and a TextContent
+// fallback carrying the same JSON bytes (for harnesses that ignore
+// structuredContent). The bytes in both places are byte-identical to
+// what proto.MCPEnvelope produces, so ashd's tokens_out_emit
+// accounting models exactly what the harness consumes.
+//
+// Metrics move out of the body into MCP _meta — it's protocol-reserved
+// metadata, not part of the tool's output contract, so harnesses don't
+// pay for it in tokens.
 func toolResult(rsp *proto.Response) (*mcp.CallToolResult, error) {
-	// Envelope shape lives in proto.MCPEnvelope so the daemon can
-	// compute it identically for ledger accounting (ASH-123). Changes
-	// to the wire shape — adding _meta, StructuredContent, etc. —
-	// happen there, not here.
-	out, err := proto.MCPEnvelope(rsp)
+	body, err := proto.MCPEnvelope(rsp)
 	if err != nil {
 		return nil, fmt.Errorf("marshal tool result: %w", err)
 	}
-	return &mcp.CallToolResult{
+	out := &mcp.CallToolResult{
 		IsError: !rsp.OK,
-		Content: []mcp.Content{&mcp.TextContent{Text: string(out)}},
-	}, nil
+		Content: []mcp.Content{&mcp.TextContent{Text: string(body)}},
+	}
+	if rsp.OK {
+		data, derr := proto.MCPStructuredData(rsp)
+		if derr == nil {
+			// MCP requires StructuredContent to marshal to a JSON
+			// object. Every verb Result type in ash decodes to a
+			// top-level map; non-object payloads are dropped from
+			// structured emission and the TextContent fallback
+			// continues to carry them.
+			if m, ok := data.(map[string]any); ok {
+				out.StructuredContent = m
+			}
+		}
+	}
+	if rsp.Metrics != nil {
+		out.Meta = mcp.Meta{"ash": map[string]any{"metrics": rsp.Metrics}}
+	}
+	return out, nil
 }
 
 func newID() uint64 {
