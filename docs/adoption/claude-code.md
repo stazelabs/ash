@@ -55,6 +55,27 @@ Use an absolute path — Claude Code launches MCP servers without inheriting you
 
 `ashmcp` takes no flags. It speaks MCP over stdio, resolves the project root from the current working directory on every tool call, and auto-starts `ashd` if it isn't already running for that project.
 
+### Option C — project-scope `.mcp.json` (per-repo install)
+
+To scope `ash` to a single repository — for dogfooding inside `ash` itself, or installing per-project on a multi-checkout machine — write a `.mcp.json` at the repo root:
+
+```json
+{
+  "mcpServers": {
+    "ash": {
+      "command": "/absolute/path/to/bin/ashmcp",
+      "args": []
+    }
+  }
+}
+```
+
+`claude mcp add --scope project ash "$(which ashmcp)"` generates this idempotently — the absolute path is captured at config time. Hand-editing the file works the same way.
+
+**Env vars are not expanded in `command`.** Claude Code does *not* substitute `${CLAUDE_PROJECT_DIR}`, `$HOME`, or any other variable in MCP `command` fields. A snippet like `"command": "${CLAUDE_PROJECT_DIR}/bin/ashmcp"` fails at session bootstrap with `ENOENT: posix_spawn '${CLAUDE_PROJECT_DIR}/bin/ashmcp'`. `${CLAUDE_PROJECT_DIR}` in particular is a hook-context-only variable injected by the PreToolUse runtime — it never reaches MCP server spawn. Use the absolute path.
+
+**`.mcp.json` is per-checkout-machine.** Because `command` must be a literal absolute path, a checked-in `.mcp.json` would point at one author's install prefix and break for everyone else. In the `ash` repo `.mcp.json` is gitignored for exactly this reason — each contributor's copy points at their own `bin/ashmcp`.
+
 ## Verify
 
 In a fresh shell:
@@ -118,6 +139,7 @@ Each `tools/call` result is the same envelope `ash` itself emits — `ok`, `data
 
 ## Troubleshooting
 
+- **`ENOENT: posix_spawn '${CLAUDE_PROJECT_DIR}/bin/ashmcp'` at session start.** A project-scope `.mcp.json` is using `${CLAUDE_PROJECT_DIR}` (or another env var) in the `command` field. Claude Code does not expand env vars there — replace with the absolute path. See [Option C](#option-c--project-scope-mcpjson-per-repo-install).
 - **`claude mcp list` shows `ash: ... - ✗ Failed to connect`.** Check `ashmcp` is executable and on `$PATH` for non-interactive shells. Try the absolute path in `~/.claude.json` instead of `which ashmcp`'s output.
 - **Tool calls error with `dial daemon`.** `ashmcp` couldn't reach `ashd` for the project root. Run `ash help` in the target project once to confirm the daemon starts; check `.ash/ashd.log` for crashes.
 - **`ash_*` tools don't appear in the model's tool list.** Restart the Claude Code session — MCP server registration happens at session start, not on `~/.claude.json` save.
