@@ -185,7 +185,12 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 type goDriver struct{}
 
 func (goDriver) run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
-	ctx, cancel := context.WithTimeout(context.Background(), a.Timeout)
+	// ASH-106: derive the timeout context from the tracer's parent so
+	// mid-stream cancellation from ashd's watcher (client closed conn or
+	// sent KindCancel) propagates straight to exec.CommandContext, which
+	// kills the go test subprocess. Non-streaming callers see
+	// tr.Context() == context.Background(), so behavior is unchanged.
+	ctx, cancel := context.WithTimeout(tr.Context(), a.Timeout)
 	defer cancel()
 
 	args := []string{"test", "-json"}
@@ -245,7 +250,19 @@ func (goDriver) run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		return nil, &proto.Error{Code: "go_failed", Msg: "start: " + err.Error()}
 	}
 
-	events, scanErr, truncated := scanEvents(stdout, maxOutputBytes)
+	// ASH-106 streaming: emit a Package chunk (path/status/elapsed) when
+	// each package finalizes. The streaming preview is intentionally
+	// lighter than the cumulative Result.Packages — agents care about
+	// 'this package passed/failed', not the full Test list per package
+	// (the Final has that). nil-safe via Tracer.Emit.
+	onPackage := func(ev testEvent) {
+		tr.Emit(Package{
+			Path:    ev.Package,
+			Status:  ev.Action,
+			Elapsed: ev.Elapsed,
+		})
+	}
+	events, scanErr, truncated := scanEvents(stdout, maxOutputBytes, onPackage)
 	waitErr := cmd.Wait()
 	elapsed := time.Since(start)
 	if tr != nil {
@@ -298,8 +315,11 @@ func (goDriver) run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 }
 
 // scanEvents reads JSON-lines from r until EOF or the byte cap. truncated
-// is true iff we hit the cap.
-func scanEvents(r io.Reader, cap int) ([]testEvent, error, bool) {
+// is true iff we hit the cap. onPackage, when non-nil, is invoked for
+// every pkg-level pass/fail/skip event as it arrives — the streaming
+// hook (ASH-106). The hook fires inline so emit ordering matches the
+// event stream order.
+func scanEvents(r io.Reader, cap int, onPackage func(testEvent)) ([]testEvent, error, bool) {
 	var events []testEvent
 	limited := &io.LimitedReader{R: r, N: int64(cap) + 1}
 	scanner := bufio.NewScanner(limited)
@@ -324,6 +344,9 @@ func scanEvents(r io.Reader, cap int) ([]testEvent, error, bool) {
 			continue
 		}
 		events = append(events, ev)
+		if onPackage != nil && ev.Test == "" && (ev.Action == "pass" || ev.Action == "fail" || ev.Action == "skip") {
+			onPackage(ev)
+		}
 	}
 	if truncated {
 		// Drain the rest so the producer doesn't block on a full pipe.

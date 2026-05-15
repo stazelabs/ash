@@ -136,6 +136,10 @@ Hard-won wisdom from real session friction. Read these once; they save tuition.
 
 - **Hook redirects `cat`/`echo`/`printf`/`tee` + `>` to `ash write`.** Bare output-redirection write idioms (`cat > FILE << EOF`, `echo "x" > FILE`, `printf '...' > FILE`, `tee >> FILE`) deny under rule `Bash:redirect-write` and suggest `ash write --path FILE --content - << 'EOF'` (ASH-69). Skip the temp-file dance: pipe heredocs directly into `ash write --content -`.
 
+- **Streaming responses live behind `Request.Stream=true` (ASH-106).** `grep`, `find`, and `test` emit kind-tagged Chunk frames + a Final frame when the client opts in; non-streaming requests get a single legacy Response frame, byte-identical to v1. ashmcp sets Stream=true only when the MCP client supplies a `progressToken` — without one, the daemon takes the cumulative path. Chunk batching is hardcoded at 64 items or 50ms; `test` emits per-package as each pkg-level pass/fail/skip lands, so time-to-first-chunk for `test` is gated by the first package's compile+run time, not the first individual test.
+
+- **Mid-stream cancellation is wire-level.** Closing the conn during a streaming response is honored: the daemon's per-request watcher reads EOF, cancels ctx, and the streaming verb aborts at its next walker / scanEvents checkpoint. A KindCancel frame works the same way. The Final frame the client receives carries `Err.Code="cancelled"` whenever ctx was cancelled before the verb finished — even if the verb produced a partial Result, that Result is discarded to keep the cancelled-vs-completed distinction sharp.
+
 ## Session feedback ritual
 
 This is the most important habit in this repo. The whole point of building `ash` recursively is that real session experience drives design. If we lose the feedback loop, the project loses its edge over top-down spec work.

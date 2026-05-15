@@ -199,7 +199,7 @@
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 243
+            "line": 248
           }
         ]
       },
@@ -553,15 +553,15 @@
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 235
+            "line": 240
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 245
+            "line": 250
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 269
+            "line": 286
           }
         ]
       },
@@ -629,11 +629,11 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 289
+            "line": 306
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 291
+            "line": 308
           }
         ]
       },
@@ -1177,7 +1177,7 @@
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 281
+            "line": 298
           }
         ]
       },
@@ -1303,7 +1303,7 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 263
+            "line": 280
           }
         ]
       },
@@ -1313,7 +1313,7 @@
         "sites": [
           {
             "file": "internal/verbs/find/find.go",
-            "line": 176
+            "line": 183
           },
           {
             "file": "internal/verbs/grep/grep.go",
@@ -1942,7 +1942,7 @@
         "sites": [
           {
             "file": "internal/verbs/find/find.go",
-            "line": 263
+            "line": 270
           }
         ]
       },
@@ -2024,7 +2024,7 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 623
+            "line": 646
           }
         ]
       },
@@ -2066,7 +2066,7 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 263
+            "line": 280
           }
         ]
       },
@@ -2154,7 +2154,7 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 235
+            "line": 240
           }
         ]
       },
@@ -2324,7 +2324,7 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 245
+            "line": 250
           }
         ]
       },
@@ -2364,7 +2364,7 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 269
+            "line": 286
           }
         ]
       },

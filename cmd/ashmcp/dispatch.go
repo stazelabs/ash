@@ -22,8 +22,14 @@ import (
 // streaming response shape when the MCP client supplies a progressToken.
 // Adding a verb here is sufficient to wire it up — daemon-side support
 // follows from the same Request.Stream flag.
+//
+// Note: 'test' is NOT in v1 readSideVerbs so this entry is presently
+// dormant. It's listed here so when test joins the MCP surface (deferred
+// per ASH-104) streaming comes online with no extra wiring.
 var streamingVerbs = map[string]bool{
 	"grep": true,
+	"find": true,
+	"test": true,
 }
 
 // dialDeadline caps the time a single tool call may spend establishing a

@@ -139,6 +139,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	res := &Result{Records: make([]Record, 0, 32)}
 	limitHit := false
 
+	ctx := tr.Context()
 	walkStart := time.Now()
 	walkErr := walker.Walk(a.Path, walker.Options{
 		Glob:             a.Glob,
@@ -148,6 +149,11 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		RespectGitignore: a.RespectGitignore,
 		WantInfo:         true,
 	}, func(e walker.Entry) (walker.Action, error) {
+		// ASH-106: honor mid-stream cancellation. Non-streaming callers
+		// see ctx == context.Background() and never trigger this path.
+		if ctx.Err() != nil {
+			return walker.Stop, nil
+		}
 		if !typeMatches(a.Type, e.Type) {
 			return walker.Continue, nil
 		}
@@ -165,6 +171,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 			rec.Size = e.Info.Size()
 		}
 		res.Records = append(res.Records, rec)
+		tr.Emit(rec)
 		if len(res.Records) >= a.Limit {
 			limitHit = true
 			return walker.Stop, nil
