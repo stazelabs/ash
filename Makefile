@@ -1,4 +1,4 @@
-.PHONY: all clean restart install uninstall bench bench-baseline vocab vocab-check validate validate-check
+.PHONY: all clean restart install uninstall bench bench-baseline vocab vocab-check schema schema-check validate validate-check
 
 PREFIX ?= $(HOME)/.local/bin
 
@@ -59,6 +59,20 @@ vocab: bin/ashvocab
 
 vocab-check: bin/ashvocab
 	./bin/ashvocab check
+
+# schema: regenerate docs/mcp/tools.json — the MCP tool-schema artifact
+# (JSON Schema draft 2020-12) derived from internal/verbs/help.Registry().
+# Run after editing a verb schema (same trigger as vocab). ASH-104
+# (ashmcp) embeds this artifact via //go:embed; schema-check is the
+# drift gate paired with vocab-check.
+bin/ashschema: $(shell find cmd/ashschema internal -name '*.go')
+	go build -o bin/ashschema ./cmd/ashschema
+
+schema: bin/ashschema
+	./bin/ashschema gen
+
+schema-check: bin/ashschema
+	./bin/ashschema check
 
 # bin/encexplore: corpus/substitution/validate harness for token-shape work.
 # Built on demand by `make validate`; not part of the default `all` target.
