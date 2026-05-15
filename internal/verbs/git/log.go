@@ -179,13 +179,13 @@ func logTruncHint(ti *proto.TruncInfo) string {
 	}
 	if ti.Limit >= ti.Max {
 		return fmt.Sprintf(
-			"hit hard cap of %d commits. narrow with --range/--author/--since/--pathspec — --limit cannot go higher.",
+			"hit hard cap of %d commits. --range/--author/--since/--pathspec — --limit cannot go higher.",
 			ti.Max,
 		)
 	}
 	return fmt.Sprintf(
-		"hit limit of %d commits. narrow with --range/--author/--since/--pathspec, or raise --limit (max %d).",
-		ti.Limit, ti.Max,
+		"hit limit of %d commits. --range/--author/--since/--pathspec/--limit.",
+		ti.Limit,
 	)
 }
 

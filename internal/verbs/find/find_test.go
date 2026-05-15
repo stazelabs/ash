@@ -278,8 +278,8 @@ func TestRun_TruncationHintAtHardCap(t *testing.T) {
 	if !strings.Contains(hint, "hard cap") {
 		t.Errorf("hint at hard cap should mention the cap: %q", hint)
 	}
-	if !strings.Contains(hint, "narrow") {
-		t.Errorf("hint at hard cap should suggest narrowing: %q", hint)
+	if !strings.Contains(hint, "--glob") {
+		t.Errorf("hint at hard cap should list narrowing flags: %q", hint)
 	}
 }
 

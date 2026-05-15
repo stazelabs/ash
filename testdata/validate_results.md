@@ -47,9 +47,9 @@
 | git-log | errors_ascii | +0 | +0.00% | +0 | +0.00% | — |
 | git-log | metrics_short_ascii | +0 | +0.00% | +0 | +0.00% | — |
 | git-log | metrics_no_equals | +0 | +0.00% | +0 | +0.00% | — |
-| git-log | headers_compact | +2 | +0.27% | +4 | +0.49% | ✓ |
-| git-log | truncation_compact | +6 | +0.80% | +4 | +0.49% | ✓ |
-| git-log | combined_aggressive | +8 | +1.07% | +8 | +0.98% | ✓ |
+| git-log | headers_compact | +2 | +0.27% | +4 | +0.50% | ✓ |
+| git-log | truncation_compact | +6 | +0.81% | +4 | +0.50% | ✓ |
+| git-log | combined_aggressive | +8 | +1.08% | +8 | +0.99% | ✓ |
 | git-status | errors_ascii | +0 | +0.00% | +0 | +0.00% | — |
 | git-status | metrics_short_ascii | +0 | +0.00% | +0 | +0.00% | — |
 | git-status | metrics_no_equals | +0 | +0.00% | +0 | +0.00% | — |
@@ -103,9 +103,9 @@
 
 | sub-set | cl before | cl after | cl Δ% | claude before | claude after | claude Δ% |
 |---|---:|---:|---:|---:|---:|---:|
-| errors_ascii | 18040 | 18035 | +0.03% | 21557 | 21548 | +0.04% |
-| metrics_short_ascii | 18040 | 18040 | +0.00% | 21557 | 21557 | +0.00% |
-| metrics_no_equals | 18040 | 18034 | +0.03% | 21557 | 21547 | +0.05% |
-| headers_compact | 18040 | 18038 | +0.01% | 21557 | 21553 | +0.02% |
-| truncation_compact | 18040 | 18028 | +0.07% | 21557 | 21549 | +0.04% |
-| combined_aggressive | 18040 | 18015 | +0.14% | 21557 | 21526 | +0.14% |
+| errors_ascii | 18019 | 18014 | +0.03% | 21538 | 21529 | +0.04% |
+| metrics_short_ascii | 18019 | 18019 | +0.00% | 21538 | 21538 | +0.00% |
+| metrics_no_equals | 18019 | 18013 | +0.03% | 21538 | 21528 | +0.05% |
+| headers_compact | 18019 | 18017 | +0.01% | 21538 | 21534 | +0.02% |
+| truncation_compact | 18019 | 18007 | +0.07% | 21538 | 21530 | +0.04% |
+| combined_aggressive | 18019 | 17994 | +0.14% | 21538 | 21507 | +0.14% |

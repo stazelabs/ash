@@ -457,8 +457,8 @@ func TestRun_TruncationHintAtHardCap(t *testing.T) {
 		if strings.Contains(hint, "raise --max_matches") {
 			t.Errorf("hint at cap must not suggest raising: %q", hint)
 		}
-		if !strings.Contains(hint, "hard cap") || !strings.Contains(hint, "narrow") {
-			t.Errorf("hint at cap should mention the cap and suggest narrowing: %q", hint)
+		if !strings.Contains(hint, "hard cap") || !strings.Contains(hint, "--glob") {
+			t.Errorf("hint at cap should mention the cap and list narrowing flags: %q", hint)
 		}
 	})
 	t.Run("files_only mode", func(t *testing.T) {

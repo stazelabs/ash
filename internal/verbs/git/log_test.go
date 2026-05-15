@@ -175,8 +175,8 @@ func TestLogTruncationHint_AtHardCap(t *testing.T) {
 	if strings.Contains(hint, "raise --limit") {
 		t.Errorf("hint at cap must not suggest raising: %q", hint)
 	}
-	if !strings.Contains(hint, "hard cap") || !strings.Contains(hint, "narrow") {
-		t.Errorf("hint at cap should mention cap and suggest narrowing: %q", hint)
+	if !strings.Contains(hint, "hard cap") || !strings.Contains(hint, "--range") {
+		t.Errorf("hint at cap should mention cap and list narrowing flags: %q", hint)
 	}
 }
 

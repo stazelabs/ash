@@ -32,6 +32,8 @@ func main() {
 		runValidate(os.Args[2:])
 	case "glyphsweep":
 		runGlyphSweep(os.Args[2:])
+	case "truncbody":
+		runTruncBody(os.Args[2:])
 	case "help", "-h", "--help":
 		usage()
 	default:

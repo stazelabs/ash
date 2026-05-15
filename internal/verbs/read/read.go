@@ -306,9 +306,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if r.Truncated && r.TruncInfo != nil {
 		b.WriteString("\n\n[truncation: bytes=")
 		b.WriteString(strconv.Itoa(r.TruncInfo.Limit))
-		b.WriteString(" hit. narrow with --range or raise --bytes (max ")
-		b.WriteString(strconv.Itoa(r.TruncInfo.Max))
-		b.WriteString(")]")
+		b.WriteString(" hit. --range/--bytes.]")
 	}
 	return b.String()
 }

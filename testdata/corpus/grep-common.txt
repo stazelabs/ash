@@ -272,4 +272,4 @@ internal/verbs/git/diff.go (8 matches)
   259: func diffTruncHint(ti *proto.TruncInfo) string {
   269: func prettyDiff(d *DiffResult) string {
 
-[truncation: hit max=256. narrow with --glob, --mpf, --exclude, or raise --max (max 4096).]
+[truncation: hit max=256. --glob/--mpf/--exclude/--max.]

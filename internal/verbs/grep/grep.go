@@ -292,24 +292,24 @@ func grepTruncHint(ti *proto.TruncInfo, filesOnly bool) string {
 	if ti.Limit >= ti.Max {
 		if filesOnly {
 			return fmt.Sprintf(
-				"hit hard cap of %d distinct files. narrow with --glob or --exclude — --max cannot go higher.",
+				"hit hard cap of %d distinct files. --glob/--exclude — --max cannot go higher.",
 				ti.Max,
 			)
 		}
 		return fmt.Sprintf(
-			"hit hard cap of %d match records. narrow with --glob, --mpf, or --exclude — --max cannot go higher.",
+			"hit hard cap of %d match records. --glob/--mpf/--exclude — --max cannot go higher.",
 			ti.Max,
 		)
 	}
 	if filesOnly {
 		return fmt.Sprintf(
-			"hit max=%d distinct files. narrow with --glob, --exclude, or raise --max (max %d).",
-			ti.Limit, ti.Max,
+			"hit max=%d distinct files. --glob/--exclude/--max.",
+			ti.Limit,
 		)
 	}
 	return fmt.Sprintf(
-		"hit max=%d. narrow with --glob, --mpf, --exclude, or raise --max (max %d).",
-		ti.Limit, ti.Max,
+		"hit max=%d. --glob/--mpf/--exclude/--max.",
+		ti.Limit,
 	)
 }
 

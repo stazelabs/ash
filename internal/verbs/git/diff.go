@@ -261,8 +261,8 @@ func diffTruncHint(ti *proto.TruncInfo) string {
 		return ""
 	}
 	return fmt.Sprintf(
-		"patch output exceeded %d bytes. narrow with --pathspec, use --stat true for a summary, or raise --limit_bytes (max %d).",
-		ti.Limit, ti.Max,
+		"patch output exceeded %d bytes. --pathspec/--stat/--limit_bytes.",
+		ti.Limit,
 	)
 }
 

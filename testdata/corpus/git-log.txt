@@ -20,4 +20,4 @@ aca08ac  2026-05-11  cstaszak  ASH-85: prefix aliasing for jail.allow_paths in p
 968f580  2026-05-11  cstaszak  ASH-92: ash bench --micro/--record-micro/--diff-micro for Go microbenchmarks
 70e36b8  2026-05-10  cstaszak  ASH-90: ash test --bench/--benchmem/--benchtime flags for microbenchmark runs
 
-[truncation: hit limit of 20 commits. narrow with --range/--author/--since/--pathspec, or raise --limit (max 200).]
+[truncation: hit limit of 20 commits. --range/--author/--since/--pathspec/--limit.]

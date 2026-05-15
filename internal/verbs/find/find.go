@@ -207,13 +207,13 @@ func findTruncHint(ti *proto.TruncInfo) string {
 	}
 	if ti.Limit >= ti.Max {
 		return fmt.Sprintf(
-		"hit hard cap of %d records. narrow with --glob, --type, --depth, or --exclude — --limit cannot go higher.",
+			"hit hard cap of %d records. --glob/--type/--depth/--exclude — --limit cannot go higher.",
 			ti.Max,
 		)
 	}
 	return fmt.Sprintf(
-		"hit limit of %d records. narrow with --glob, --type, --depth, or --exclude; or raise --limit (max %d).",
-		ti.Limit, ti.Max,
+		"hit limit of %d records. --glob/--type/--depth/--exclude/--limit.",
+		ti.Limit,
 	)
 }
 
