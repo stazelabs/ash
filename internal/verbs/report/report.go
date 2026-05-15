@@ -83,7 +83,17 @@ type Totals struct {
 	TokensIn          int64 `msgpack:"tokens_in"`
 	TokensOut         int64 `msgpack:"tokens_out"`
 	TokensOutNoPrefix int64 `msgpack:"tokens_out_no_prefix"`
-	ExecSumUs         int64 `msgpack:"exec_sum_us"`
+	// TokensOutEmit / BytesOutEmit are the MCP-envelope accounting from
+	// ASH-123: what the harness actually consumed for rows where the
+	// request arrived over `ashmcp`. Both are 0 for CLI-only sessions
+	// and PrettyResponse hides them in that case.
+	TokensOutEmit int64 `msgpack:"tokens_out_emit,omitempty"`
+	BytesOutEmit  int64 `msgpack:"bytes_out_emit,omitempty"`
+	// MCPCalls counts how many of Calls arrived over `ashmcp` (i.e.
+	// rows with non-zero bytes_out_emit). When equal to Calls the
+	// session is MCP-only; when 0 the emit columns stay hidden.
+	MCPCalls int `msgpack:"mcp_calls,omitempty"`
+	ExecSumUs int64 `msgpack:"exec_sum_us"`
 }
 
 // VerbSubPhase holds the percentage of exec_us attributed to one named phase.
@@ -390,6 +400,11 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 		totals.TokensIn += int64(c.TokensIn)
 		totals.TokensOut += int64(c.TokensOut)
 		totals.TokensOutNoPrefix += int64(c.TokensOutNoPrefix)
+		totals.TokensOutEmit += int64(c.TokensOutEmit)
+		totals.BytesOutEmit += int64(c.BytesOutEmit)
+		if c.BytesOutEmit > 0 {
+			totals.MCPCalls++
+		}
 		totals.ExecSumUs += c.LatencyExecUs
 		if c.OK {
 			totals.OK++
@@ -658,6 +673,17 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		tax := r.Totals.TokensOut - r.Totals.TokensOutNoPrefix
 		taxPct := float64(tax) / float64(r.Totals.TokensOut) * 100
 		fmt.Fprintf(&b, "path-prefix tax: %d tokens (%.0f%% of out)\n", tax, taxPct)
+	}
+
+	// ASH-123: MCP-transport emit accounting. tokens_out above counts
+	// the daemon-pretty-rendered text — what a CLI client sees. For
+	// rows where the request arrived via `ashmcp`, the harness instead
+	// consumes a JSON envelope; tokens_out_emit is the cost of that.
+	// Shown only when at least one call had MCP transport, so CLI-only
+	// sessions are unchanged.
+	if r.Totals.MCPCalls > 0 && r.Totals.TokensOutEmit > 0 {
+		fmt.Fprintf(&b, "mcp emit: %d calls, tokens_out_emit=%d, bytes_out_emit=%d\n",
+			r.Totals.MCPCalls, r.Totals.TokensOutEmit, r.Totals.BytesOutEmit)
 	}
 
 	if len(r.ByVerb) == 0 {

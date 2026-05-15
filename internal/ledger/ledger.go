@@ -56,7 +56,9 @@ CREATE TABLE IF NOT EXISTS calls (
 	latency_dispatch_us INTEGER NOT NULL DEFAULT 0,
 	streaming INTEGER NOT NULL DEFAULT 0,
 	chunks_out INTEGER NOT NULL DEFAULT 0,
-	time_to_first_chunk_us INTEGER NOT NULL DEFAULT 0
+	time_to_first_chunk_us INTEGER NOT NULL DEFAULT 0,
+	tokens_out_emit INTEGER NOT NULL DEFAULT 0,
+	bytes_out_emit INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_calls_session ON calls(session_id);
 CREATE INDEX IF NOT EXISTS idx_calls_verb ON calls(verb);
@@ -144,6 +146,16 @@ func Open(path, projectRoot, clientInfo string) (*Ledger, error) {
 	_, _ = db.Exec(`ALTER TABLE calls ADD COLUMN streaming INTEGER NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`ALTER TABLE calls ADD COLUMN chunks_out INTEGER NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`ALTER TABLE calls ADD COLUMN time_to_first_chunk_us INTEGER NOT NULL DEFAULT 0`)
+	// ASH-123: MCP-transport emit accounting. tokens_out (above) counts
+	// the daemon-pretty-rendered text — what a CLI client sees. When the
+	// request arrives over `ashmcp` (Request.Transport == "mcp"), the
+	// daemon also tokenizes the JSON envelope ashmcp will re-wrap the
+	// response into before emitting as TextContent, and records those
+	// numbers here. CLI rows leave both at zero; report/metrics surface
+	// them only when non-zero so existing pretty output is unchanged for
+	// CLI-only sessions.
+	_, _ = db.Exec(`ALTER TABLE calls ADD COLUMN tokens_out_emit INTEGER NOT NULL DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE calls ADD COLUMN bytes_out_emit INTEGER NOT NULL DEFAULT 0`)
 	var migDone string
 	_ = db.QueryRow(`SELECT value FROM meta WHERE key='mig_bench_platform'`).Scan(&migDone)
 	if migDone != "1" {
@@ -219,6 +231,12 @@ type Call struct {
 	Streaming          bool
 	ChunksOut          int
 	TimeToFirstChunkUs int64
+	// ASH-123 MCP-transport emit accounting. Populated by the daemon
+	// only for requests with Transport == "mcp"; the bytes/tokens here
+	// correspond to the JSON envelope the harness actually consumes,
+	// which differs from the daemon-pretty-rendered TokensOut.
+	TokensOutEmit int
+	BytesOutEmit  int
 }
 
 // QueryOpts filters for QueryWindow.
@@ -276,6 +294,7 @@ func (l *Ledger) QueryWindow(opts QueryOpts) ([]Call, error) {
 		       tokens_in, tokens_out, tokens_out_no_prefix, tokens_method,
 		       bytes_in, bytes_out, truncated,
 		       walk_us, io_us, regex_us, regex_compile_us, latency_dispatch_us,
+		       tokens_out_emit, bytes_out_emit,
 		       args_msgpack
 		FROM calls `+clause+`ORDER BY id DESC LIMIT ?`, args...)
 	if err != nil {
@@ -294,6 +313,7 @@ func (l *Ledger) QueryWindow(opts QueryOpts) ([]Call, error) {
 			&c.TokensIn, &c.TokensOut, &c.TokensOutNoPrefix, &c.TokensMethod,
 			&c.BytesIn, &c.BytesOut, &truncInt,
 			&c.WalkUs, &c.IOUs, &c.RegexUs, &c.RegexCompileUs, &c.LatencyDispatchUs,
+			&c.TokensOutEmit, &c.BytesOutEmit,
 			&c.ArgsMsgpack,
 		); err != nil {
 			return nil, err
@@ -319,7 +339,8 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 			       latency_parse_us, latency_exec_us, latency_serialize_us,
 			       tokens_in, tokens_out, tokens_out_no_prefix, tokens_method,
 			       bytes_in, bytes_out, truncated,
-			       walk_us, io_us, regex_us, regex_compile_us, latency_dispatch_us
+			       walk_us, io_us, regex_us, regex_compile_us, latency_dispatch_us,
+			       tokens_out_emit, bytes_out_emit
 			FROM calls WHERE verb = ?
 			ORDER BY id DESC LIMIT ?`, verbFilter, n)
 	} else {
@@ -328,7 +349,8 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 			       latency_parse_us, latency_exec_us, latency_serialize_us,
 			       tokens_in, tokens_out, tokens_out_no_prefix, tokens_method,
 			       bytes_in, bytes_out, truncated,
-			       walk_us, io_us, regex_us, regex_compile_us, latency_dispatch_us
+			       walk_us, io_us, regex_us, regex_compile_us, latency_dispatch_us,
+			       tokens_out_emit, bytes_out_emit
 			FROM calls ORDER BY id DESC LIMIT ?`, n)
 	}
 	if err != nil {
@@ -347,6 +369,7 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 			&c.TokensIn, &c.TokensOut, &c.TokensOutNoPrefix, &c.TokensMethod,
 			&c.BytesIn, &c.BytesOut, &truncInt,
 			&c.WalkUs, &c.IOUs, &c.RegexUs, &c.RegexCompileUs, &c.LatencyDispatchUs,
+			&c.TokensOutEmit, &c.BytesOutEmit,
 		); err != nil {
 			return nil, err
 		}
@@ -366,8 +389,9 @@ func (l *Ledger) Record(c *Call) (int64, error) {
 		tokens_in, tokens_out, tokens_out_no_prefix, tokens_method,
 		bytes_in, bytes_out, truncated,
 		walk_us, io_us, regex_us, regex_compile_us, latency_dispatch_us,
-		streaming, chunks_out, time_to_first_chunk_us
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		streaming, chunks_out, time_to_first_chunk_us,
+		tokens_out_emit, bytes_out_emit
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		l.sessionID, int64(c.RequestID), c.Timestamp.UnixNano(), c.Verb, c.ArgsMsgpack,
 		boolToInt(c.OK), c.ErrCode, c.ErrMsg,
 		c.LatencyParseUs, c.LatencyExecUs, c.LatencySerializeUs,
@@ -375,6 +399,7 @@ func (l *Ledger) Record(c *Call) (int64, error) {
 		c.BytesIn, c.BytesOut, boolToInt(c.Truncated),
 		c.WalkUs, c.IOUs, c.RegexUs, c.RegexCompileUs, c.LatencyDispatchUs,
 		boolToInt(c.Streaming), c.ChunksOut, c.TimeToFirstChunkUs,
+		c.TokensOutEmit, c.BytesOutEmit,
 	)
 	if err != nil {
 		return 0, err
@@ -453,6 +478,20 @@ func (l *Ledger) UpdateSerializeStats(rowID int64, bytesOut int, serializeUs int
 	_, err := l.db.Exec(
 		`UPDATE calls SET bytes_out = ?, latency_serialize_us = ? WHERE id = ?`,
 		bytesOut, serializeUs, rowID,
+	)
+	return err
+}
+
+// UpdateMCPEmit patches the MCP-envelope emit accounting onto a row that
+// has already been Record()ed. The daemon calls this only for requests
+// with Transport == "mcp" — once the response is encoded and bytes_out is
+// known, it builds the JSON envelope ashmcp would emit (proto.MCPEnvelope),
+// tokenizes those bytes, and writes the result here. CLI rows leave both
+// columns at zero.
+func (l *Ledger) UpdateMCPEmit(rowID int64, bytesEmit, tokensEmit int) error {
+	_, err := l.db.Exec(
+		`UPDATE calls SET bytes_out_emit = ?, tokens_out_emit = ? WHERE id = ?`,
+		bytesEmit, tokensEmit, rowID,
 	)
 	return err
 }

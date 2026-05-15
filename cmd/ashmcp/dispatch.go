@@ -106,10 +106,11 @@ func resolveRoot() (string, error) {
 // pattern in cmd/ash.
 func roundtrip(conn net.Conn, verb string, args map[string]any) (*proto.Response, error) {
 	req := &proto.Request{
-		V:    proto.ProtocolVersion,
-		ID:   newID(),
-		Verb: verb,
-		Args: args,
+		V:         proto.ProtocolVersion,
+		ID:        newID(),
+		Verb:      verb,
+		Args:      args,
+		Transport: proto.TransportMCP,
 	}
 	encoded, err := proto.EncodeRequest(req)
 	if err != nil {
@@ -145,11 +146,12 @@ func roundtrip(conn net.Conn, verb string, args map[string]any) (*proto.Response
 // its own ctx, and the streaming verb aborts at its next checkpoint.
 func streamingRoundtrip(ctx context.Context, conn net.Conn, ss *mcp.ServerSession, progressToken any, verb string, args map[string]any) (*proto.Response, error) {
 	req := &proto.Request{
-		V:      proto.ProtocolVersion,
-		ID:     newID(),
-		Verb:   verb,
-		Args:   args,
-		Stream: true,
+		V:         proto.ProtocolVersion,
+		ID:        newID(),
+		Verb:      verb,
+		Args:      args,
+		Stream:    true,
+		Transport: proto.TransportMCP,
 	}
 	encoded, err := proto.EncodeRequest(req)
 	if err != nil {
@@ -227,23 +229,11 @@ func streamingRoundtrip(ctx context.Context, conn net.Conn, ss *mcp.ServerSessio
 // block of JSON. The Metrics envelope rides along on both paths so the
 // agent can see token / latency cost without a separate report call.
 func toolResult(rsp *proto.Response) (*mcp.CallToolResult, error) {
-	body := map[string]any{
-		"ok": rsp.OK,
-	}
-	if rsp.Err != nil {
-		body["err"] = rsp.Err
-	}
-	if rsp.Metrics != nil {
-		body["metrics"] = rsp.Metrics
-	}
-	if len(rsp.Data) > 0 {
-		var data any
-		if err := proto.UnmarshalData(rsp, &data); err != nil {
-			return nil, fmt.Errorf("decode response data: %w", err)
-		}
-		body["data"] = data
-	}
-	out, err := json.Marshal(body)
+	// Envelope shape lives in proto.MCPEnvelope so the daemon can
+	// compute it identically for ledger accounting (ASH-123). Changes
+	// to the wire shape — adding _meta, StructuredContent, etc. —
+	// happen there, not here.
+	out, err := proto.MCPEnvelope(rsp)
 	if err != nil {
 		return nil, fmt.Errorf("marshal tool result: %w", err)
 	}

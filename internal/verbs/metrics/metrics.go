@@ -45,6 +45,11 @@ type Row struct {
 	RegexUs           int64  `msgpack:"regex_us,omitempty"`
 	RegexCompileUs    int64  `msgpack:"regex_compile_us,omitempty"`
 	LatencyDispatchUs int64  `msgpack:"latency_dispatch_us,omitempty"`
+	// ASH-123 MCP-transport emit accounting. Non-zero only for rows
+	// where the request arrived via `ashmcp`; the JSON `tools/call`
+	// emit is the cost the harness actually paid.
+	TokensOutEmit int `msgpack:"tokens_out_emit,omitempty"`
+	BytesOutEmit  int `msgpack:"bytes_out_emit,omitempty"`
 }
 
 type Result struct {
@@ -94,6 +99,8 @@ func ResultFromCalls(calls []ledger.Call) *Result {
 			RegexUs:           c.RegexUs,
 			RegexCompileUs:    c.RegexCompileUs,
 			LatencyDispatchUs: c.LatencyDispatchUs,
+			TokensOutEmit:     c.TokensOutEmit,
+			BytesOutEmit:      c.BytesOutEmit,
 		})
 	}
 	return &Result{Rows: rows, Count: len(rows)}
@@ -128,6 +135,9 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 // so we only widen the table when there is something to put there.
 type colSet struct {
 	walk, io, regex, regexCompile, dispatch bool
+	// ASH-123: emit accounting for MCP-transport rows. Hidden in
+	// CLI-only sessions so the existing table shape is preserved.
+	emit bool
 }
 
 func pickColumns(rows []Row) colSet {
@@ -147,6 +157,9 @@ func pickColumns(rows []Row) colSet {
 		}
 		if r.LatencyDispatchUs > 0 {
 			cs.dispatch = true
+		}
+		if r.BytesOutEmit > 0 {
+			cs.emit = true
 		}
 	}
 	return cs
@@ -174,6 +187,9 @@ func writeHeader(b *strings.Builder, cs colSet) {
 	if cs.dispatch {
 		fmt.Fprintf(b, "  %-5s", "d")
 	}
+	if cs.emit {
+		fmt.Fprintf(b, "  %-6s", "oE")
+	}
 	b.WriteString("  flags\n")
 }
 
@@ -199,6 +215,9 @@ func writeRow(b *strings.Builder, r Row, cs colSet) {
 	}
 	if cs.dispatch {
 		writeOptInt(b, r.LatencyDispatchUs, 5)
+	}
+	if cs.emit {
+		writeOptInt(b, int64(r.TokensOutEmit), 6)
 	}
 	var flags []string
 	if r.ErrCode != "" {
@@ -246,7 +265,7 @@ func CompactResponse(rsp *proto.Response) (any, error) {
 		return nil, err
 	}
 	cd := proto.CompactData{
-		K: []string{"ts", "verb", "ok", "err", "ti", "to", "ex_us", "bi", "bo", "trunc", "walk", "io", "re", "recp", "disp"},
+		K: []string{"ts", "verb", "ok", "err", "ti", "to", "ex_us", "bi", "bo", "trunc", "walk", "io", "re", "recp", "disp", "toE", "boE"},
 		R: make([][]any, len(r.Rows)),
 	}
 	for i, row := range r.Rows {
@@ -255,6 +274,7 @@ func CompactResponse(rsp *proto.Response) (any, error) {
 			row.TokensIn, row.TokensOut, row.LatencyExecUs,
 			row.BytesIn, row.BytesOut, row.Truncated,
 			row.WalkUs, row.IOUs, row.RegexUs, row.RegexCompileUs, row.LatencyDispatchUs,
+			row.TokensOutEmit, row.BytesOutEmit,
 		}
 	}
 	return cd, nil

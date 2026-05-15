@@ -420,6 +420,31 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 			if err := led.UpdateSerializeStats(rowID, len(final), serUs); err != nil {
 				log.Printf("ashd: ledger update serialize: %v", err)
 			}
+			// ASH-123: MCP-transport emit accounting. For requests
+			// that arrived via ashmcp, the bytes the harness actually
+			// consumes are the JSON envelope ashmcp re-wraps the
+			// response into — not the pretty-rendered text that
+			// drives tokens_out. Recompute the envelope here using
+			// the same helper ashmcp will call. We mirror exactly the
+			// one mutation ashmcp performs on rsp before emit —
+			// rsp.Metrics.BytesOut = len(frame_payload) — so the two
+			// envelopes are byte-identical by construction.
+			// LatencySerializeUs and other post-encode stats stay 0
+			// in both places: ashmcp never sees serUs, so neither do
+			// we when modeling its emit.
+			if req.Transport == proto.TransportMCP {
+				if metrics != nil {
+					metrics.BytesOut = len(final)
+				}
+				if env, eerr := proto.MCPEnvelope(rsp); eerr == nil {
+					emitTokens := led.Counter().Count(string(env))
+					if err := led.UpdateMCPEmit(rowID, len(env), emitTokens); err != nil {
+						log.Printf("ashd: ledger update mcp emit: %v", err)
+					}
+				} else {
+					log.Printf("ashd: mcp envelope: %v", eerr)
+				}
+			}
 		}
 
 		// Streaming runs write Final under the kind-tag scheme so the

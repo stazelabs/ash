@@ -55,7 +55,19 @@ type Request struct {
 	// returns a single legacy Response frame with no kind tag — v1 clients
 	// continue to work unchanged.
 	Stream bool `msgpack:"stream,omitempty" json:"stream,omitempty"`
+	// Transport identifies how the client will surface the response to its
+	// end user. Empty (default) means CLI: the daemon's pretty-rendered
+	// text is what the agent will pay for, so tokens_out reflects that.
+	// "mcp" means an MCP adapter (ashmcp) will re-wrap the structured
+	// Response into a JSON envelope and emit that as TextContent; the
+	// daemon then also tokenizes the MCP envelope shape and records it as
+	// tokens_out_emit / bytes_out_emit so the ledger reports what the
+	// harness actually consumed (ASH-123). Unknown values fall back to CLI
+	// accounting — a server seeing a future transport it doesn't model
+	// just leaves the _emit columns at zero.
+	Transport string `msgpack:"transport,omitempty" json:"transport,omitempty"`
 }
+
 
 // Chunk is one batch of intermediate results emitted during a streaming
 // response. Data is the msgpack-encoded verb-specific chunk payload (e.g.
