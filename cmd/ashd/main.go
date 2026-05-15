@@ -412,6 +412,17 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 			metrics.LedgerError = recordErr.Error()
 		}
 
+		// ASH-110 session-graph linking. Best-effort: a failed link
+		// insert does not propagate back to the client (the verb
+		// itself succeeded). The link write is sub-millisecond on
+		// typical sessions because Link bounds the lookback to the
+		// last 16 calls within a 5-minute window.
+		if recordErr == nil && rowID > 0 {
+			if err := led.Link(rowID, req.Args); err != nil {
+				log.Printf("ashd: ledger link: %v", err)
+			}
+		}
+
 		rsp.Metrics = metrics
 		serStart := time.Now()
 		final, err := proto.EncodeResponse(rsp)

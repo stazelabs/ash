@@ -262,6 +262,30 @@ var registry = []VerbSchema{
 		},
 	},
 	{
+		Verb:        "recap",
+		Description: "Compact session summary: files touched, patterns searched, edits made.",
+		Args: []ArgSchema{
+			{Name: "since", Type: "string", Default: "1h",
+				Description: "Time window (e.g. 15m, 1h, 24h); supports Go duration + d.",
+				Long:        "Time window over which to aggregate the session. Supports Go duration syntax plus 'd' for days. Hard cap 7d."},
+			{Name: "top", Type: "int", Default: "10",
+				Description: "Cap entries per section; max 100.",
+				Long:        "Cap on entries shown per section (files, patterns, edits). The result is sized to render in roughly 200-500 tokens regardless of session length."},
+		},
+	},
+	{
+		Verb:        "workspace",
+		Description: "Re-orientation snapshot: relevant files, recent searches, branch + status, last error.",
+		Args: []ArgSchema{
+			{Name: "since", Type: "string", Default: "30m",
+				Description: "Time window for relevance, default 30m; max 24h.",
+				Long:        "Time window used to gather recently-touched files and recent searches. Supports Go duration syntax plus 'd' for days. Hard cap 24h."},
+			{Name: "recent", Type: "int", Default: "10",
+				Description: "Cap on file/search lists; max 50.",
+				Long:        "Cap on the recent-files and recent-searches lists. Designed to keep the response small enough for a single post-compaction re-orientation call."},
+		},
+	},
+	{
 		Verb:        "replay",
 		Description: "Re-run prior ledger calls; report per-verb token deltas vs originals.",
 		Args: []ArgSchema{
@@ -609,7 +633,7 @@ func writeArg(b *strings.Builder, a ArgSchema, verbose bool) {
 var verbDisplayOrder = []string{
 	"read", "write", "edit", "diff",
 	"find", "grep", "git",
-	"metrics", "report", "replay", "stat", "bench", "test",
+	"metrics", "report", "recap", "workspace", "replay", "stat", "bench", "test",
 	"help", "hook", "init", "uninit", "stop",
 }
 

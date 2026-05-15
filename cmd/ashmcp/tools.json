@@ -1509,6 +1509,286 @@
       }
     },
     {
+      "name": "ash_recap",
+      "description": "Compact session summary: files touched, patterns searched, edits made.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "since": {
+            "type": "string",
+            "description": "Time window (e.g. 15m, 1h, 24h); supports Go duration + d.",
+            "default": "1h"
+          },
+          "top": {
+            "type": "integer",
+            "description": "Cap entries per section; max 100.",
+            "default": 10
+          }
+        },
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "edits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "ts": {
+                  "type": "integer"
+                },
+                "verb": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "ts",
+                "verb"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "edits": {
+                  "type": "integer",
+                  "description": "write+edit calls (any mutation)"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "reads": {
+                  "type": "integer"
+                },
+                "searches": {
+                  "type": "integer",
+                  "description": "grep/find calls whose --path matched"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "patterns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "calls": {
+                  "type": "integer"
+                },
+                "pattern": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "calls",
+                "pattern"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "scope": {
+            "type": "object",
+            "properties": {
+              "since": {
+                "type": "string"
+              },
+              "top": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "since",
+              "top"
+            ],
+            "additionalProperties": false
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "calls": {
+                "type": "integer"
+              },
+              "errors": {
+                "type": "integer"
+              },
+              "ok": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "calls",
+              "errors",
+              "ok"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "scope",
+          "totals"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ash_workspace",
+      "description": "Re-orientation snapshot: relevant files, recent searches, branch + status, last error.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "recent": {
+            "type": "integer",
+            "description": "Cap on file/search lists; max 50.",
+            "default": 10
+          },
+          "since": {
+            "type": "string",
+            "description": "Time window for relevance, default 30m; max 24h.",
+            "default": "30m"
+          }
+        },
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "calls": {
+            "type": "integer"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "last_ts": {
+                  "type": "integer",
+                  "description": "LastTs is the most recent touch time (UnixNano)."
+                },
+                "last_verb": {
+                  "type": "string",
+                  "description": "LastVerb is the most recent verb that touched the file (read,\nedit, write, grep, etc.); useful for the agent to decide what\nit was doing."
+                },
+                "path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "last_ts",
+                "last_verb",
+                "path"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "git": {
+            "type": "object",
+            "properties": {
+              "available": {
+                "type": "boolean",
+                "description": "Available is false when no git repo was detected; the rest of\nthe struct is then meaningless and PrettyResponse skips the line."
+              },
+              "branch": {
+                "type": "string"
+              },
+              "clean": {
+                "type": "boolean"
+              },
+              "error": {
+                "type": "string"
+              },
+              "head": {
+                "type": "string"
+              },
+              "staged": {
+                "type": "integer"
+              },
+              "unstaged": {
+                "type": "integer"
+              },
+              "untracked": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "available",
+              "clean"
+            ],
+            "additionalProperties": false
+          },
+          "last_err": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "msg": {
+                "type": "string"
+              },
+              "ts": {
+                "type": "integer"
+              },
+              "verb": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "ts",
+              "verb"
+            ],
+            "additionalProperties": false
+          },
+          "searches": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "hits": {
+                  "type": "integer",
+                  "description": "Hits is the number of grep matches reported by the call (-1 if\nunknown — we read it from the call's tokens_out histogram)."
+                },
+                "path": {
+                  "type": "string"
+                },
+                "pattern": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "pattern"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "since": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "calls",
+          "git",
+          "since"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "ash_replay",
       "description": "Re-run prior ledger calls; report per-verb token deltas vs originals.",
       "inputSchema": {

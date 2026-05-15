@@ -230,6 +230,8 @@ var ExemptVerbs = map[string]string{
 	"bench":   "recursive",
 	"test":    "no honest bash equivalent at the verb level",
 	"replay":  "reads ledger and re-dispatches verbs; no honest bash equivalent",
+	"recap":     "reads ledger; session-graph summary, no honest bash equivalent",
+	"workspace": "reads ledger + git status; re-orientation snapshot, no honest bash equivalent",
 }
 
 // BenchTmpDir is the working directory cases use for write/edit

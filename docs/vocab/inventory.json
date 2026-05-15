@@ -384,11 +384,11 @@
         "sites": [
           {
             "file": "internal/verbs/verbs.go",
-            "line": 142
+            "line": 148
           },
           {
             "file": "internal/verbs/verbs.go",
-            "line": 173
+            "line": 179
           }
         ]
       },
@@ -738,7 +738,7 @@
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 546
+            "line": 570
           },
           {
             "file": "internal/verbs/initverb/initverb.go",
@@ -1001,6 +1001,10 @@
             "line": 172
           },
           {
+            "file": "internal/verbs/recap/recap.go",
+            "line": 91
+          },
+          {
             "file": "internal/verbs/replay/replay.go",
             "line": 150
           },
@@ -1035,6 +1039,10 @@
           {
             "file": "internal/verbs/uninit/uninit.go",
             "line": 71
+          },
+          {
+            "file": "internal/verbs/workspace/workspace.go",
+            "line": 98
           },
           {
             "file": "internal/verbs/write/write.go",
@@ -1167,6 +1175,10 @@
             "line": 83
           },
           {
+            "file": "internal/verbs/recap/recap.go",
+            "line": 113
+          },
+          {
             "file": "internal/verbs/replay/replay.go",
             "line": 194
           },
@@ -1177,6 +1189,10 @@
           {
             "file": "internal/verbs/report/report.go",
             "line": 382
+          },
+          {
+            "file": "internal/verbs/workspace/workspace.go",
+            "line": 122
           }
         ]
       },
@@ -1694,6 +1710,11 @@
         "context": "edit,git,read"
       },
       {
+        "literal": "--recent",
+        "cl100k_tokens": 2,
+        "context": "workspace"
+      },
+      {
         "literal": "--ref",
         "cl100k_tokens": 2,
         "context": "git"
@@ -1726,7 +1747,7 @@
       {
         "literal": "--since",
         "cl100k_tokens": 2,
-        "context": "git,replay,report"
+        "context": "git,recap,replay,report,workspace"
       },
       {
         "literal": "--stat",
@@ -1746,7 +1767,7 @@
       {
         "literal": "--top",
         "cl100k_tokens": 2,
-        "context": "replay,report"
+        "context": "recap,replay,report"
       },
       {
         "literal": "--type",
@@ -1916,6 +1937,16 @@
         ]
       },
       {
+        "literal": "§recap:",
+        "cl100k_tokens": 4,
+        "sites": [
+          {
+            "file": "internal/verbs/recap/recap.go",
+            "line": 248
+          }
+        ]
+      },
+      {
         "literal": "§uninit:",
         "cl100k_tokens": 4,
         "sites": [
@@ -1997,11 +2028,11 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 570
+            "line": 594
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 576
+            "line": 600
           }
         ]
       },
@@ -2056,6 +2087,16 @@
           {
             "file": "internal/verbs/test/test.go",
             "line": 646
+          }
+        ]
+      },
+      {
+        "literal": "§workspace:",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/workspace/workspace.go",
+            "line": 270
           }
         ]
       },
@@ -2180,6 +2221,16 @@
         ]
       },
       {
+        "literal": "last error:",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/workspace/workspace.go",
+            "line": 318
+          }
+        ]
+      },
+      {
         "literal": "skipped:",
         "cl100k_tokens": 3,
         "sites": [
@@ -2277,7 +2328,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 835
+            "line": 859
           }
         ]
       },
@@ -2389,7 +2440,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 581
+            "line": 605
           }
         ]
       },
@@ -2527,6 +2578,10 @@
     ],
     "verbs": [
       {
+        "literal": "recap",
+        "cl100k_tokens": 2
+      },
+      {
         "literal": "replay",
         "cl100k_tokens": 2
       },
@@ -2592,6 +2647,10 @@
       },
       {
         "literal": "test",
+        "cl100k_tokens": 1
+      },
+      {
+        "literal": "workspace",
         "cl100k_tokens": 1
       },
       {

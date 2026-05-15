@@ -24,12 +24,14 @@ import (
 	"github.com/stazelabs/ash/internal/verbs/initverb"
 	"github.com/stazelabs/ash/internal/verbs/metrics"
 	"github.com/stazelabs/ash/internal/verbs/read"
+	"github.com/stazelabs/ash/internal/verbs/recap"
 	"github.com/stazelabs/ash/internal/verbs/replay"
 	"github.com/stazelabs/ash/internal/verbs/report"
 	"github.com/stazelabs/ash/internal/verbs/stat"
 	"github.com/stazelabs/ash/internal/verbs/test"
 	"github.com/stazelabs/ash/internal/verbs/stop"
 	"github.com/stazelabs/ash/internal/verbs/uninit"
+	"github.com/stazelabs/ash/internal/verbs/workspace"
 	"github.com/stazelabs/ash/internal/verbs/write"
 )
 
@@ -62,10 +64,12 @@ func PrettyHandlers() map[string]Pretty {
 		"find":    find.PrettyResponse,
 		"grep":    grep.PrettyResponse,
 		"git":     git.PrettyResponse,
-		"metrics": metrics.PrettyResponse,
-		"report":  report.PrettyResponse,
-		"replay":  replay.PrettyResponse,
-		"help":    help.PrettyResponse,
+		"metrics":   metrics.PrettyResponse,
+		"report":    report.PrettyResponse,
+		"recap":     recap.PrettyResponse,
+		"workspace": workspace.PrettyResponse,
+		"replay":    replay.PrettyResponse,
+		"help":      help.PrettyResponse,
 		"hook":    hook.PrettyResponse,
 		"stat":    stat.PrettyResponse,
 		"write":   write.PrettyResponse,
@@ -115,8 +119,10 @@ func Runners(led *ledger.Ledger, cfg *config.Config, daemonStart time.Time, proj
 		"find":    wrap(find.ParseArgs, find.Run, func(r *find.Result) bool { return r.Truncated }),
 		"grep":    wrap(grep.ParseArgs, grep.Run, func(r *grep.Result) bool { return r.Truncated }),
 		"git":     wrap(git.ParseArgs, git.Run, nil),
-		"metrics": wrapLedger(led, metrics.ParseArgs, metrics.RunWithLedger),
-		"report":  wrapLedger(led, report.ParseArgs, report.RunWithLedger),
+		"metrics":   wrapLedger(led, metrics.ParseArgs, metrics.RunWithLedger),
+		"report":    wrapLedger(led, report.ParseArgs, report.RunWithLedger),
+		"recap":     wrapLedger(led, recap.ParseArgs, recap.RunWithLedger),
+		"workspace": wrapLedger(led, workspace.ParseArgs, workspace.RunWithLedger),
 		"help":    wrap(help.ParseArgs, help.Run, nil),
 		"hook":    wrap(hook.ParseArgs, hook.Run, nil),
 		"stat":    wrap(stat.ParseArgs, stat.Run, nil),

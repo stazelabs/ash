@@ -43,14 +43,16 @@ var toolsJSON []byte
 // deliberately omitted from v1 — they roll out after stdio MCP behavior
 // is observed on real sessions.
 var readSideVerbs = map[string]bool{
-	"read":    true,
-	"find":    true,
-	"grep":    true,
-	"stat":    true,
-	"git":     true,
-	"report":  true,
-	"metrics": true,
-	"help":    true,
+	"read":      true,
+	"find":      true,
+	"grep":      true,
+	"stat":      true,
+	"git":       true,
+	"report":    true,
+	"metrics":   true,
+	"help":      true,
+	"recap":     true,
+	"workspace": true,
 }
 
 func main() {

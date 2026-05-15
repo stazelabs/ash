@@ -4,6 +4,7 @@
 package ledger
 
 import (
+	"bytes"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vmihailenco/msgpack/v5"
 	_ "modernc.org/sqlite"
 )
 
@@ -65,6 +67,19 @@ CREATE TABLE IF NOT EXISTS calls (
 CREATE INDEX IF NOT EXISTS idx_calls_session ON calls(session_id);
 CREATE INDEX IF NOT EXISTS idx_calls_verb ON calls(verb);
 CREATE INDEX IF NOT EXISTS idx_calls_ts ON calls(ts);
+
+CREATE TABLE IF NOT EXISTS session_links (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	session_id TEXT NOT NULL REFERENCES sessions(id),
+	parent_id  INTEGER NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
+	child_id   INTEGER NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
+	kind       TEXT NOT NULL,
+	reason     TEXT,
+	ts         INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_session_links_session ON session_links(session_id);
+CREATE INDEX IF NOT EXISTS idx_session_links_child ON session_links(child_id);
+CREATE INDEX IF NOT EXISTS idx_session_links_parent ON session_links(parent_id);
 
 CREATE TABLE IF NOT EXISTS bench_runs (
 	id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -210,6 +225,11 @@ func OpenReadOnly(path string) (*Ledger, error) {
 }
 
 type Call struct {
+	// RowID is the autoincrement primary key from the calls table.
+	// Zero on uninserted Call values (the field is read-only output of
+	// Query* and the return of Record); it is what session_links rows
+	// reference as parent_id / child_id.
+	RowID              int64
 	RequestID          uint64
 	Timestamp          time.Time
 	Verb               string
@@ -306,7 +326,7 @@ func (l *Ledger) QueryWindow(opts QueryOpts) ([]Call, error) {
 	}
 
 	rows, err := l.db.Query(`
-		SELECT ts, verb, ok, err_code, err_msg,
+		SELECT id, ts, verb, ok, err_code, err_msg,
 		       latency_parse_us, latency_exec_us, latency_serialize_us,
 		       tokens_in, tokens_out, tokens_out_no_prefix, tokens_method,
 		       bytes_in, bytes_out, truncated,
@@ -326,7 +346,7 @@ func (l *Ledger) QueryWindow(opts QueryOpts) ([]Call, error) {
 		var ts int64
 		var okInt, truncInt int
 		if err := rows.Scan(
-			&ts, &c.Verb, &okInt, &c.ErrCode, &c.ErrMsg,
+			&c.RowID, &ts, &c.Verb, &okInt, &c.ErrCode, &c.ErrMsg,
 			&c.LatencyParseUs, &c.LatencyExecUs, &c.LatencySerializeUs,
 			&c.TokensIn, &c.TokensOut, &c.TokensOutNoPrefix, &c.TokensMethod,
 			&c.BytesIn, &c.BytesOut, &truncInt,
@@ -354,7 +374,7 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 	)
 	if verbFilter != "" {
 		rows, err = l.db.Query(`
-			SELECT ts, verb, ok, err_code, err_msg,
+			SELECT id, ts, verb, ok, err_code, err_msg,
 			       latency_parse_us, latency_exec_us, latency_serialize_us,
 			       tokens_in, tokens_out, tokens_out_no_prefix, tokens_method,
 			       bytes_in, bytes_out, truncated,
@@ -365,7 +385,7 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 			ORDER BY id DESC LIMIT ?`, verbFilter, n)
 	} else {
 		rows, err = l.db.Query(`
-			SELECT ts, verb, ok, err_code, err_msg,
+			SELECT id, ts, verb, ok, err_code, err_msg,
 			       latency_parse_us, latency_exec_us, latency_serialize_us,
 			       tokens_in, tokens_out, tokens_out_no_prefix, tokens_method,
 			       bytes_in, bytes_out, truncated,
@@ -385,7 +405,7 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 		var ts int64
 		var okInt, truncInt int
 		if err := rows.Scan(
-			&ts, &c.Verb, &okInt, &c.ErrCode, &c.ErrMsg,
+			&c.RowID, &ts, &c.Verb, &okInt, &c.ErrCode, &c.ErrMsg,
 			&c.LatencyParseUs, &c.LatencyExecUs, &c.LatencySerializeUs,
 			&c.TokensIn, &c.TokensOut, &c.TokensOutNoPrefix, &c.TokensMethod,
 			&c.BytesIn, &c.BytesOut, &truncInt,
@@ -518,6 +538,203 @@ func (l *Ledger) UpdateMCPEmit(rowID int64, bytesEmit, tokensEmit int) error {
 		bytesEmit, tokensEmit, rowID,
 	)
 	return err
+}
+
+// SessionLink is one edge in the per-session call graph. Edges are
+// directional: parent_id is an earlier call whose work the child_id call
+// extended (re-read same path, narrowed a previous grep, etc.). Kind
+// names the heuristic that produced the link; reason carries a short
+// human-readable detail (typically the shared path) that the recap and
+// workspace verbs surface verbatim. ASH-110.
+type SessionLink struct {
+	ID        int64
+	SessionID string
+	ParentID  int64
+	ChildID   int64
+	Kind      string
+	Reason    string
+	Timestamp time.Time
+}
+
+// LinkWindow is the lookback horizon for arg-overlap linking. Calls
+// outside this window aren't candidates regardless of arg overlap — the
+// agent's attention has moved on. 5 minutes covers the typical
+// edit/test/grep cycle without flooding session_links with stale edges.
+const LinkWindow = 5 * time.Minute
+
+// linkLookback caps the number of recent same-session calls Link
+// inspects per call. Bounded so the link insert stays sub-millisecond
+// even on hot sessions; arg-overlap chains beyond ~16 hops are noisy.
+const linkLookback = 16
+
+// Link materializes session_links rows for a freshly-Record()ed call.
+// Heuristic: walk the most recent linkLookback calls in the same
+// session within LinkWindow; for each, write a parent→child link when
+// the child's arg paths overlap the parent's arg paths
+// (kind="path_share"). Reason is the shared path. Errors are non-fatal
+// at the daemon level.
+func (l *Ledger) Link(childID int64, childArgs map[string]any) error {
+	if childID == 0 || len(childArgs) == 0 {
+		return nil
+	}
+	childPaths := extractPaths(childArgs)
+	if len(childPaths) == 0 {
+		return nil
+	}
+	cutoff := time.Now().Add(-LinkWindow).UnixNano()
+	rows, err := l.db.Query(`
+		SELECT id, args_msgpack FROM calls
+		WHERE session_id = ? AND id < ? AND ts >= ?
+		ORDER BY id DESC LIMIT ?`,
+		l.sessionID, childID, cutoff, linkLookback)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	type cand struct {
+		id   int64
+		blob []byte
+	}
+	var cands []cand
+	for rows.Next() {
+		var c cand
+		if err := rows.Scan(&c.id, &c.blob); err != nil {
+			return err
+		}
+		cands = append(cands, c)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	now := time.Now().UnixNano()
+	for _, c := range cands {
+		parentArgs := decodeArgsMap(c.blob)
+		if len(parentArgs) == 0 {
+			continue
+		}
+		parentPaths := extractPaths(parentArgs)
+		shared := firstShared(childPaths, parentPaths)
+		if shared == "" {
+			continue
+		}
+		if _, err := l.db.Exec(
+			`INSERT INTO session_links (session_id, parent_id, child_id, kind, reason, ts) VALUES (?, ?, ?, ?, ?, ?)`,
+			l.sessionID, c.id, childID, "path_share", shared, now,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// QuerySessionLinks returns links for a session in chronological order.
+// sessionID == "current" resolves to the daemon's own session; empty
+// means no session filter.
+func (l *Ledger) QuerySessionLinks(sessionID string, since time.Time, limit int) ([]SessionLink, error) {
+	if sessionID == "current" {
+		sessionID = l.sessionID
+	}
+	if limit <= 0 {
+		limit = 1000
+	}
+	args := []any{}
+	where := []string{}
+	if sessionID != "" {
+		where = append(where, "session_id = ?")
+		args = append(args, sessionID)
+	}
+	if !since.IsZero() {
+		where = append(where, "ts >= ?")
+		args = append(args, since.UnixNano())
+	}
+	args = append(args, limit)
+	clause := ""
+	if len(where) > 0 {
+		clause = "WHERE " + strings.Join(where, " AND ") + " "
+	}
+	rows, err := l.db.Query(`
+		SELECT id, session_id, parent_id, child_id, kind, reason, ts
+		FROM session_links `+clause+`ORDER BY id ASC LIMIT ?`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []SessionLink
+	for rows.Next() {
+		var sl SessionLink
+		var ts int64
+		var reason sql.NullString
+		if err := rows.Scan(&sl.ID, &sl.SessionID, &sl.ParentID, &sl.ChildID, &sl.Kind, &reason, &ts); err != nil {
+			return nil, err
+		}
+		if reason.Valid {
+			sl.Reason = reason.String
+		}
+		sl.Timestamp = time.Unix(0, ts)
+		out = append(out, sl)
+	}
+	return out, rows.Err()
+}
+
+// extractPaths pulls path-shaped arg values from a verb's args map.
+// Recognises the wire keys every path-bearing verb uses (path, paths,
+// other, file, packages). String values are split on "," so verbs
+// like stat that accept --paths a,b,c contribute every entry. The "."
+// sentinel is skipped — it points at the project root and would link
+// every call to every other call.
+func extractPaths(args map[string]any) []string {
+	if len(args) == 0 {
+		return nil
+	}
+	keys := []string{"path", "paths", "other", "file", "packages"}
+	var out []string
+	for _, k := range keys {
+		v, ok := args[k]
+		if !ok {
+			continue
+		}
+		s, ok := v.(string)
+		if !ok || s == "" {
+			continue
+		}
+		for _, part := range strings.Split(s, ",") {
+			part = strings.TrimSpace(part)
+			if part == "" || part == "." {
+				continue
+			}
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
+func firstShared(a, b []string) string {
+	for _, x := range a {
+		for _, y := range b {
+			if x == y {
+				return x
+			}
+		}
+	}
+	return ""
+}
+
+// decodeArgsMap decodes the ledger's args_msgpack blob into a loose
+// map. Duplicated locally so the ledger package does not import any
+// verb package.
+func decodeArgsMap(blob []byte) map[string]any {
+	if len(blob) == 0 {
+		return nil
+	}
+	dec := msgpack.NewDecoder(bytes.NewReader(blob))
+	dec.UseLooseInterfaceDecoding(true)
+	var m map[string]any
+	if err := dec.Decode(&m); err != nil {
+		return nil
+	}
+	return m
 }
 
 func newSessionID() string {

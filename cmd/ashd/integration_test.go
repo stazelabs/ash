@@ -133,6 +133,8 @@ func TestIntegration_AllVerbs(t *testing.T) {
 		{"diff", map[string]any{"path": goMod, "content": "different", "stat": "true"}, ""},
 		{"metrics", map[string]any{}, ""},
 		{"report", map[string]any{}, ""},
+		{"recap", map[string]any{}, ""},
+		{"workspace", map[string]any{}, ""},
 		// replay queries the same ledger this test created; with no
 		// prior calls the result is just empty/zero (no skipped, no
 		// replayed). Exercises the in-process dispatch closure.
