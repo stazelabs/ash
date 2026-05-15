@@ -134,7 +134,13 @@ Hard-won wisdom from real session friction. Read these once; they save tuition.
 
 - **`ash read --range` end is clamped, start is not.** Out-of-bounds end clamps silently to file length (the result reports actual bytes returned); out-of-bounds start returns `range_out_of_bounds` (ASH-57 made the start-side strict so an obviously wrong call fails loudly instead of returning empty).
 
-- **Hook redirects `cat`/`echo`/`printf`/`tee` + `>` to `ash write`.** Bare output-redirection write idioms (`cat > FILE << EOF`, `echo "x" > FILE`, `printf '...' > FILE`, `tee >> FILE`) deny under rule `Bash:redirect-write` and suggest `ash write --path FILE --content - << 'EOF'` (ASH-69). Skip the temp-file dance: pipe heredocs directly into `ash write --content -`.
+- **Hook redirects `cat`/`echo`/`printf`/`tee` + `>` to `ash write`.** Bare output-redirection write idioms (`cat > FILE << EOF`, `echo "x" > FILE`, `printf '...' > FILE`, `tee >> FILE`) deny under rule `Bash:redirect-write` and suggest `ash write --path FILE --content - << 'EOF'` (ASH-69). Skip the `cat`-pipe dance: feed the heredoc directly into `ash write` instead of through `cat` (`cat <<EOF | ash write` denies as `Bash:cat`):
+
+```sh
+ash write --path FILE --content - << 'EOF'
+...content...
+EOF
+```
 
 - **Streaming responses live behind `Request.Stream=true` (ASH-106).** `grep`, `find`, and `test` emit kind-tagged Chunk frames + a Final frame when the client opts in; non-streaming requests get a single legacy Response frame, byte-identical to v1. ashmcp sets Stream=true only when the MCP client supplies a `progressToken` — without one, the daemon takes the cumulative path. Chunk batching is hardcoded at 64 items or 50ms; `test` emits per-package as each pkg-level pass/fail/skip lands, so time-to-first-chunk for `test` is gated by the first package's compile+run time, not the first individual test.
 
