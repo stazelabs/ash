@@ -133,6 +133,10 @@ func TestIntegration_AllVerbs(t *testing.T) {
 		{"diff", map[string]any{"path": goMod, "content": "different", "stat": "true"}, ""},
 		{"metrics", map[string]any{}, ""},
 		{"report", map[string]any{}, ""},
+		// replay queries the same ledger this test created; with no
+		// prior calls the result is just empty/zero (no skipped, no
+		// replayed). Exercises the in-process dispatch closure.
+		{"replay", map[string]any{"session": "all"}, ""},
 		{"hook", map[string]any{"tool": "Bash", "command": "grep foo bar.txt"}, ""},
 		{"bench", map[string]any{"limit": "1"}, ""},
 		// init/uninit pass no_registry=true so the integration test does not

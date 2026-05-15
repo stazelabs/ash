@@ -6,6 +6,11 @@
       {
         "literal": "\u003cid\u003e",
         "cl100k_tokens": 3,
+        "context": "replay:--session"
+      },
+      {
+        "literal": "\u003cid\u003e",
+        "cl100k_tokens": 3,
         "context": "report:--session"
       },
       {
@@ -36,6 +41,11 @@
       {
         "literal": "all",
         "cl100k_tokens": 1,
+        "context": "replay:--session"
+      },
+      {
+        "literal": "all",
+        "cl100k_tokens": 1,
         "context": "report:--session"
       },
       {
@@ -47,6 +57,11 @@
         "literal": "bytes",
         "cl100k_tokens": 1,
         "context": "read:--unit"
+      },
+      {
+        "literal": "current",
+        "cl100k_tokens": 1,
+        "context": "replay:--session"
       },
       {
         "literal": "current",
@@ -369,7 +384,11 @@
         "sites": [
           {
             "file": "internal/verbs/verbs.go",
-            "line": 140
+            "line": 142
+          },
+          {
+            "file": "internal/verbs/verbs.go",
+            "line": 173
           }
         ]
       },
@@ -719,7 +738,7 @@
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 520
+            "line": 543
           },
           {
             "file": "internal/verbs/initverb/initverb.go",
@@ -982,6 +1001,10 @@
             "line": 172
           },
           {
+            "file": "internal/verbs/replay/replay.go",
+            "line": 150
+          },
+          {
             "file": "internal/verbs/report/report.go",
             "line": 179
           },
@@ -1054,6 +1077,10 @@
           {
             "file": "internal/verbs/bench/trend.go",
             "line": 113
+          },
+          {
+            "file": "internal/verbs/replay/replay.go",
+            "line": 177
           }
         ]
       },
@@ -1138,6 +1165,10 @@
           {
             "file": "internal/verbs/metrics/metrics.go",
             "line": 78
+          },
+          {
+            "file": "internal/verbs/replay/replay.go",
+            "line": 194
           },
           {
             "file": "internal/verbs/report/report.go",
@@ -1360,7 +1391,7 @@
       {
         "literal": "--regress_tokens",
         "cl100k_tokens": 4,
-        "context": "bench"
+        "context": "bench,replay"
       },
       {
         "literal": "--benchmem",
@@ -1575,7 +1606,7 @@
       {
         "literal": "--limit",
         "cl100k_tokens": 2,
-        "context": "bench,find,git"
+        "context": "bench,find,git,replay"
       },
       {
         "literal": "--list",
@@ -1685,7 +1716,7 @@
       {
         "literal": "--session",
         "cl100k_tokens": 2,
-        "context": "report"
+        "context": "replay,report"
       },
       {
         "literal": "--short",
@@ -1695,7 +1726,7 @@
       {
         "literal": "--since",
         "cl100k_tokens": 2,
-        "context": "git,report"
+        "context": "git,replay,report"
       },
       {
         "literal": "--stat",
@@ -1715,7 +1746,7 @@
       {
         "literal": "--top",
         "cl100k_tokens": 2,
-        "context": "report"
+        "context": "replay,report"
       },
       {
         "literal": "--type",
@@ -1735,7 +1766,7 @@
       {
         "literal": "--verb",
         "cl100k_tokens": 2,
-        "context": "bench,help,metrics,report"
+        "context": "bench,help,metrics,replay,report"
       },
       {
         "literal": "--verbose",
@@ -1966,11 +1997,11 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 544
+            "line": 567
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 550
+            "line": 573
           }
         ]
       },
@@ -2149,6 +2180,16 @@
         ]
       },
       {
+        "literal": "skipped:",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/replay/replay.go",
+            "line": 498
+          }
+        ]
+      },
+      {
         "literal": "stdout pipe:",
         "cl100k_tokens": 3,
         "sites": [
@@ -2232,7 +2273,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 809
+            "line": 832
           }
         ]
       },
@@ -2344,7 +2385,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 555
+            "line": 578
           }
         ]
       },
@@ -2481,6 +2522,10 @@
       }
     ],
     "verbs": [
+      {
+        "literal": "replay",
+        "cl100k_tokens": 2
+      },
       {
         "literal": "uninit",
         "cl100k_tokens": 2

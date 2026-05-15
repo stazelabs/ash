@@ -1492,6 +1492,276 @@
       }
     },
     {
+      "name": "ash_replay",
+      "description": "Re-run prior ledger calls; report per-verb token deltas vs originals.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Cap on calls replayed; 0 is no cap, hard ceiling 5000.",
+            "default": 0
+          },
+          "regress_tokens": {
+            "type": "integer",
+            "description": "Δtokens% threshold for tagging a row as a regression.",
+            "default": 10
+          },
+          "session": {
+            "type": "string",
+            "description": "Session scope: current, all, or explicit session ID.",
+            "enum": [
+              "current",
+              "all",
+              "\u003cid\u003e"
+            ],
+            "default": "current"
+          },
+          "since": {
+            "type": "string",
+            "description": "Time window (e.g. 1h, 7d); supports Go duration + d."
+          },
+          "top": {
+            "type": "integer",
+            "description": "Max rows in the top-regressors section.",
+            "default": 10
+          },
+          "verb": {
+            "type": "string",
+            "description": "Restrict to calls for a specific verb."
+          }
+        },
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "by_verb": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "d_tok_sum": {
+                  "type": "integer"
+                },
+                "n": {
+                  "type": "integer"
+                },
+                "new_tok_sum": {
+                  "type": "integer"
+                },
+                "ok_mismatch": {
+                  "type": "integer"
+                },
+                "orig_tok_sum": {
+                  "type": "integer"
+                },
+                "regressions": {
+                  "type": "integer"
+                },
+                "verb": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "d_tok_sum",
+                "n",
+                "new_tok_sum",
+                "ok_mismatch",
+                "orig_tok_sum",
+                "regressions",
+                "verb"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "ok_mismatches": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "args": {
+                  "type": "string"
+                },
+                "d_pct": {
+                  "type": "number"
+                },
+                "d_tok": {
+                  "type": "integer"
+                },
+                "new_err": {
+                  "type": "string"
+                },
+                "new_ok": {
+                  "type": "boolean"
+                },
+                "new_tok": {
+                  "type": "integer"
+                },
+                "orig_err": {
+                  "type": "string"
+                },
+                "orig_ok": {
+                  "type": "boolean"
+                },
+                "orig_tok": {
+                  "type": "integer"
+                },
+                "regress": {
+                  "type": "boolean"
+                },
+                "verb": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "args",
+                "d_tok",
+                "new_ok",
+                "new_tok",
+                "orig_ok",
+                "orig_tok",
+                "verb"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "overall": {
+            "type": "object",
+            "properties": {
+              "d_tok_sum": {
+                "type": "integer"
+              },
+              "n": {
+                "type": "integer"
+              },
+              "new_tok_sum": {
+                "type": "integer"
+              },
+              "ok_mismatch": {
+                "type": "integer"
+              },
+              "orig_tok_sum": {
+                "type": "integer"
+              },
+              "regressions": {
+                "type": "integer"
+              },
+              "verb": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "d_tok_sum",
+              "n",
+              "new_tok_sum",
+              "ok_mismatch",
+              "orig_tok_sum",
+              "regressions",
+              "verb"
+            ],
+            "additionalProperties": false
+          },
+          "replayed": {
+            "type": "integer"
+          },
+          "scope": {
+            "type": "object",
+            "properties": {
+              "limit": {
+                "type": "integer"
+              },
+              "regress_tokens": {
+                "type": "integer"
+              },
+              "session": {
+                "type": "string"
+              },
+              "since": {
+                "type": "string"
+              },
+              "verb": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "regress_tokens",
+              "session"
+            ],
+            "additionalProperties": false
+          },
+          "skip_by_reason": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "skipped": {
+            "type": "integer"
+          },
+          "top_regressors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "args": {
+                  "type": "string"
+                },
+                "d_pct": {
+                  "type": "number"
+                },
+                "d_tok": {
+                  "type": "integer"
+                },
+                "new_err": {
+                  "type": "string"
+                },
+                "new_ok": {
+                  "type": "boolean"
+                },
+                "new_tok": {
+                  "type": "integer"
+                },
+                "orig_err": {
+                  "type": "string"
+                },
+                "orig_ok": {
+                  "type": "boolean"
+                },
+                "orig_tok": {
+                  "type": "integer"
+                },
+                "regress": {
+                  "type": "boolean"
+                },
+                "verb": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "args",
+                "d_tok",
+                "new_ok",
+                "new_tok",
+                "orig_ok",
+                "orig_tok",
+                "verb"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "by_verb",
+          "overall",
+          "replayed",
+          "scope",
+          "skipped"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "ash_help",
       "description": "Return argument schema for one verb or all verbs.",
       "inputSchema": {

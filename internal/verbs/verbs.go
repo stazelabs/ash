@@ -24,6 +24,7 @@ import (
 	"github.com/stazelabs/ash/internal/verbs/initverb"
 	"github.com/stazelabs/ash/internal/verbs/metrics"
 	"github.com/stazelabs/ash/internal/verbs/read"
+	"github.com/stazelabs/ash/internal/verbs/replay"
 	"github.com/stazelabs/ash/internal/verbs/report"
 	"github.com/stazelabs/ash/internal/verbs/stat"
 	"github.com/stazelabs/ash/internal/verbs/test"
@@ -63,6 +64,7 @@ func PrettyHandlers() map[string]Pretty {
 		"git":     git.PrettyResponse,
 		"metrics": metrics.PrettyResponse,
 		"report":  report.PrettyResponse,
+		"replay":  replay.PrettyResponse,
 		"help":    help.PrettyResponse,
 		"hook":    hook.PrettyResponse,
 		"stat":    stat.PrettyResponse,
@@ -154,6 +156,32 @@ func Runners(led *ledger.Ledger, cfg *config.Config, daemonStart time.Time, proj
 				ProjectRoot: projectRoot,
 			}
 			return bench.RunWithDeps(deps, a)
+		},
+	}
+	runners["replay"] = Runner{
+		Run: func(args map[string]any, _ *proto.Tracer) (any, *proto.Error) {
+			a, perr := replay.ParseArgs(args)
+			if perr != nil {
+				return nil, perr
+			}
+			deps := replay.Deps{
+				Counter: led.Counter(),
+				Ledger:  led,
+				Run: func(verb string, vargs map[string]any) (any, *proto.Error) {
+					r, ok := runners[verb]
+					if !ok {
+						return nil, &proto.Error{Code: "unknown_verb", Msg: "unknown verb: " + verb}
+					}
+					return r.Run(vargs, &proto.Tracer{})
+				},
+				Pretty: func(verb string, req *proto.Request, rsp *proto.Response) string {
+					if p, ok := pretty[verb]; ok {
+						return p(req, rsp)
+					}
+					return proto.PrettyResponseHeader(rsp)
+				},
+			}
+			return replay.RunWithDeps(deps, a)
 		},
 	}
 	return runners

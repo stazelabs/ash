@@ -262,6 +262,29 @@ var registry = []VerbSchema{
 		},
 	},
 	{
+		Verb:        "replay",
+		Description: "Re-run prior ledger calls; report per-verb token deltas vs originals.",
+		Args: []ArgSchema{
+			{Name: "session", Type: "string", Default: "current", Values: []string{"current", "all", "<id>"},
+				Description: "Session scope: current, all, or explicit session ID.",
+				Long:        "Session scope: current (this daemon session), all (every recorded session), or an explicit session ID. Mutating/heavyweight verbs (write/edit/init/uninit/stop/test/bench) and replay itself are skipped unconditionally."},
+			{Name: "since", Type: "string", Default: "",
+				Description: "Time window (e.g. 1h, 7d); supports Go duration + d.",
+				Long:        "Additional time-window filter, e.g. 15m, 1h, 7d. Applied on top of --session."},
+			{Name: "verb", Type: "string", Default: "",
+				Description: "Restrict to calls for a specific verb."},
+			{Name: "limit", Type: "int", Default: "0",
+				Description: "Cap on calls replayed; 0 is no cap, hard ceiling 5000.",
+				Long:        "Maximum number of ledger calls to replay after session/since/verb filters. 0 means no cap. Hard ceiling is 5000 to bound the per-call cost of the replay sweep."},
+			{Name: "regress_tokens", Type: "int", Default: "10",
+				Description: "Δtokens% threshold for tagging a row as a regression.",
+				Long:        "Per-call Δtokens% above which a row is flagged as a regression (and counted in the regressions column). Matches the bench --regress-tokens contract."},
+			{Name: "top", Type: "int", Default: "10",
+				Description: "Max rows in the top-regressors section.",
+				Long:        "Cap on the top-regressors section in pretty output. Sorted by |Δtokens| descending. The wire result is uncapped; this only shapes the rendered table."},
+		},
+	},
+	{
 		Verb:        "help",
 		Description: "Return argument schema for one verb or all verbs.",
 		Args: []ArgSchema{
@@ -583,7 +606,7 @@ func writeArg(b *strings.Builder, a ArgSchema, verbose bool) {
 var verbDisplayOrder = []string{
 	"read", "write", "edit", "diff",
 	"find", "grep", "git",
-	"metrics", "report", "stat", "bench", "test",
+	"metrics", "report", "replay", "stat", "bench", "test",
 	"help", "hook", "init", "uninit", "stop",
 }
 

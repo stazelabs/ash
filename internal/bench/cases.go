@@ -229,6 +229,7 @@ var ExemptVerbs = map[string]string{
 	"hook":    "the redirector under test; circular",
 	"bench":   "recursive",
 	"test":    "no honest bash equivalent at the verb level",
+	"replay":  "reads ledger and re-dispatches verbs; no honest bash equivalent",
 }
 
 // BenchTmpDir is the working directory cases use for write/edit

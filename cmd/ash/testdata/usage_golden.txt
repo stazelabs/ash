@@ -29,6 +29,8 @@ verbs (phase 2):
   metrics [--last N] [--verb <verb>]
   report  [--session current|all|<id>] [--since <dur>] [--last N] [--verb <verb>] [--top N]
           [--root <p>] [--all true|false]
+  replay  [--session current|all|<id>] [--since <dur>] [--verb <verb>] [--limit N]
+          [--regress_tokens N] [--top N]
   stat    [--paths <p1>[,<p2>...]] [--path <p>] [--follow true|false] [--absolute true|false]
   bench   [--verb <verb>] [--case <case>] [--limit N] [--repeat N] [--warmup N] [--list true|false]
           [--list_limit N] [--compare <A,B>] [--baseline <dur>] [--regress_tokens N]
