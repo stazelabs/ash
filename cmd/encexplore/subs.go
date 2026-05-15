@@ -126,13 +126,31 @@ var subSets = []subSet{
 		},
 	},
 
-	// ─── Truncation-hint compaction (dropped, ASH-117) ───────────────────
-	// Was: TRUNCATED→✂, [truncation:→[✂, truncated→✂. The cl100k proxy
-	// claimed +3 tokens saved on grep-common, but the Anthropic count_tokens
-	// endpoint reported +0 — the substitution does not pay off on Claude.
-	// Removed from subSets so combined_aggressive no longer drags this row
-	// into validate_results.md as a sign-disagreement (✗).
+	// ─── Truncation-hint compaction (re-introduced, ASH-120) ─────────────
+	// ASH-117 dropped this set after the original `✂` glyph proved to save
+	// cl100k tokens but zero Claude tokens. ASH-120 ran encexplore glyphsweep
+	// against the Anthropic count_tokens endpoint over an 18-glyph candidate
+	// set; `…` (U+2026) was the clear winner — saves +4 Claude tokens per
+	// truncated call on both grep-common and git-log, and is already the
+	// in-line truncation marker used by grep/bench/workspace pretty
+	// renderers, so the verb-level hint reuses the same semantic glyph.
+	//
+	// Rules:
+	//   TRUNCATED   → …     (verb-header trailing sentinel)
+	//   [truncation:→ […    (open-bracket truncation-detail prefix)
+	//
+	// The lowercase `truncated` rule from the original ASH-117 set is
+	// omitted — it had zero occurrences on every corpus, and a
+	// non-firing rule earns no place.
+	{
+		Name: "truncation_compact", Surface: "truncation",
+		Pairs: [][2]string{
+			{"TRUNCATED", "…"},      // header sentinel
+			{"[truncation:", "[…"}, // detail-prefix
+		},
+	},
 }
+
 // combinedSubs returns a synthetic "combined aggressive" set that applies
 // every substitution above in order (longest first within each set).
 func combinedSubs() subSet {

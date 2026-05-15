@@ -30,6 +30,8 @@ func main() {
 		runMeasure(os.Args[2:])
 	case "validate":
 		runValidate(os.Args[2:])
+	case "glyphsweep":
+		runGlyphSweep(os.Args[2:])
 	case "help", "-h", "--help":
 		usage()
 	default:
@@ -40,5 +42,5 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: encexplore <atlas|probe|corpus|measure> [args...]")
+	fmt.Fprintln(os.Stderr, "usage: encexplore <atlas|probe|corpus|measure|validate|glyphsweep> [args...]")
 }

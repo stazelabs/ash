@@ -25,7 +25,7 @@ func runValidate(args []string) {
 	corpusDir := fs.String("corpus", "testdata/corpus", "corpus directory")
 	out := fs.String("out", "testdata/validate_results.md", "markdown output")
 	model := fs.String("model", "claude-sonnet-4-5", "Claude model for count_tokens")
-	setsCSV := fs.String("sets", "metrics_no_equals,metrics_short_ascii,headers_compact,errors_ascii,combined_aggressive",
+	setsCSV := fs.String("sets", "metrics_no_equals,metrics_short_ascii,headers_compact,errors_ascii,truncation_compact,combined_aggressive",
 		"comma-separated sub-set names to validate")
 	_ = fs.Parse(args)
 
