@@ -97,13 +97,25 @@ type Cancel struct {
 // struct on the client side via msgpack.Unmarshal — no per-verb
 // hand-rolled `map[string]any` walker. Use MustData / UnmarshalData to
 // move between typed values and RawMessage.
+//
+// Field order is load-bearing for the Anthropic prompt-cache (ASH-108).
+// Encoders that preserve struct order (msgpack/v5 and encoding/json both
+// do) place the cache-stable prefix — V, OK, Data, Err — at the head of
+// the encoded bytes, and the volatile suffix — ID (random per request),
+// Metrics (timing / token counts) — at the tail. A consumer that
+// tokenizes the encoded form for cache-prefix matching gets a long
+// matching head for identical-input calls, with the only diverging bytes
+// at the end of the envelope. Reordering this struct silently breaks
+// the cache contract; see docs/cache-shape.md.
 type Response struct {
-	V       int                `msgpack:"v"                 json:"v"`
-	ID      uint64             `msgpack:"id"                json:"id"`
-	OK      bool               `msgpack:"ok"                json:"ok"`
-	Data    msgpack.RawMessage `msgpack:"data,omitempty"    json:"data,omitempty"`
-	Err     *Error             `msgpack:"err,omitempty"     json:"err,omitempty"`
-	Metrics *Metrics           `msgpack:"metrics,omitempty" json:"metrics,omitempty"`
+	// Cache-stable prefix: identical for two calls with identical inputs.
+	V    int                `msgpack:"v"              json:"v"`
+	OK   bool               `msgpack:"ok"             json:"ok"`
+	Data msgpack.RawMessage `msgpack:"data,omitempty" json:"data,omitempty"`
+	Err  *Error             `msgpack:"err,omitempty"  json:"err,omitempty"`
+	// Volatile suffix: differs per call even when inputs match.
+	ID      uint64   `msgpack:"id"                json:"id"`
+	Metrics *Metrics `msgpack:"metrics,omitempty" json:"metrics,omitempty"`
 }
 
 type Error struct {
@@ -143,6 +155,15 @@ type Metrics struct {
 	// Tracer. Optional; a verb that doesn't instrument anything leaves it
 	// nil and the field omits from the wire entirely.
 	Phases *Phases `msgpack:"ph,omitempty" json:"ph,omitempty"`
+	// Cache telemetry (ASH-108). Populated only when the caller has a
+	// privileged view of Anthropic prompt-cache accounting for this call
+	// — today that is the harness via MCP `_meta` passthrough, not the
+	// daemon itself, so daemon-originated rows leave both at zero. The
+	// fields ride here so a future feedback path (e.g. `ash usage` or a
+	// MCP-side annotation verb) can record per-call cache hits/misses
+	// without a schema migration. See docs/cache-shape.md.
+	CacheReadTokens     int `msgpack:"crt,omitempty" json:"crt,omitempty"`
+	CacheCreationTokens int `msgpack:"cct,omitempty" json:"cct,omitempty"`
 }
 
 // Phases breaks LatencyExecUs into named subsystems. Fields are

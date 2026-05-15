@@ -58,7 +58,9 @@ CREATE TABLE IF NOT EXISTS calls (
 	chunks_out INTEGER NOT NULL DEFAULT 0,
 	time_to_first_chunk_us INTEGER NOT NULL DEFAULT 0,
 	tokens_out_emit INTEGER NOT NULL DEFAULT 0,
-	bytes_out_emit INTEGER NOT NULL DEFAULT 0
+	bytes_out_emit INTEGER NOT NULL DEFAULT 0,
+	tokens_cache_hit INTEGER NOT NULL DEFAULT 0,
+	tokens_cache_miss INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_calls_session ON calls(session_id);
 CREATE INDEX IF NOT EXISTS idx_calls_verb ON calls(verb);
@@ -156,6 +158,14 @@ func Open(path, projectRoot, clientInfo string) (*Ledger, error) {
 	// CLI-only sessions.
 	_, _ = db.Exec(`ALTER TABLE calls ADD COLUMN tokens_out_emit INTEGER NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`ALTER TABLE calls ADD COLUMN bytes_out_emit INTEGER NOT NULL DEFAULT 0`)
+	// ASH-108: cache-aware response envelope. tokens_cache_hit /
+	// tokens_cache_miss record per-call Anthropic prompt-cache
+	// accounting reported back by the harness via MCP _meta (or a
+	// future `ash usage` verb). Daemon-originated rows leave both at
+	// zero — no verb populates these directly today; the columns ride
+	// the ledger schema so the wire path can land without a migration.
+	_, _ = db.Exec(`ALTER TABLE calls ADD COLUMN tokens_cache_hit INTEGER NOT NULL DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE calls ADD COLUMN tokens_cache_miss INTEGER NOT NULL DEFAULT 0`)
 	var migDone string
 	_ = db.QueryRow(`SELECT value FROM meta WHERE key='mig_bench_platform'`).Scan(&migDone)
 	if migDone != "1" {
@@ -237,6 +247,13 @@ type Call struct {
 	// which differs from the daemon-pretty-rendered TokensOut.
 	TokensOutEmit int
 	BytesOutEmit  int
+	// ASH-108 cache-aware envelope. Per-call Anthropic prompt-cache
+	// accounting. Populated only when the harness (or a future
+	// feedback verb) reports cache_read_input_tokens /
+	// cache_creation_input_tokens back to ash; both stay zero for
+	// daemon-originated rows today.
+	TokensCacheHit  int
+	TokensCacheMiss int
 }
 
 // QueryOpts filters for QueryWindow.
@@ -295,6 +312,7 @@ func (l *Ledger) QueryWindow(opts QueryOpts) ([]Call, error) {
 		       bytes_in, bytes_out, truncated,
 		       walk_us, io_us, regex_us, regex_compile_us, latency_dispatch_us,
 		       tokens_out_emit, bytes_out_emit,
+		       tokens_cache_hit, tokens_cache_miss,
 		       args_msgpack
 		FROM calls `+clause+`ORDER BY id DESC LIMIT ?`, args...)
 	if err != nil {
@@ -314,6 +332,7 @@ func (l *Ledger) QueryWindow(opts QueryOpts) ([]Call, error) {
 			&c.BytesIn, &c.BytesOut, &truncInt,
 			&c.WalkUs, &c.IOUs, &c.RegexUs, &c.RegexCompileUs, &c.LatencyDispatchUs,
 			&c.TokensOutEmit, &c.BytesOutEmit,
+			&c.TokensCacheHit, &c.TokensCacheMiss,
 			&c.ArgsMsgpack,
 		); err != nil {
 			return nil, err
@@ -340,7 +359,8 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 			       tokens_in, tokens_out, tokens_out_no_prefix, tokens_method,
 			       bytes_in, bytes_out, truncated,
 			       walk_us, io_us, regex_us, regex_compile_us, latency_dispatch_us,
-			       tokens_out_emit, bytes_out_emit
+			       tokens_out_emit, bytes_out_emit,
+			       tokens_cache_hit, tokens_cache_miss
 			FROM calls WHERE verb = ?
 			ORDER BY id DESC LIMIT ?`, verbFilter, n)
 	} else {
@@ -350,7 +370,8 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 			       tokens_in, tokens_out, tokens_out_no_prefix, tokens_method,
 			       bytes_in, bytes_out, truncated,
 			       walk_us, io_us, regex_us, regex_compile_us, latency_dispatch_us,
-			       tokens_out_emit, bytes_out_emit
+			       tokens_out_emit, bytes_out_emit,
+			       tokens_cache_hit, tokens_cache_miss
 			FROM calls ORDER BY id DESC LIMIT ?`, n)
 	}
 	if err != nil {
@@ -370,6 +391,7 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 			&c.BytesIn, &c.BytesOut, &truncInt,
 			&c.WalkUs, &c.IOUs, &c.RegexUs, &c.RegexCompileUs, &c.LatencyDispatchUs,
 			&c.TokensOutEmit, &c.BytesOutEmit,
+			&c.TokensCacheHit, &c.TokensCacheMiss,
 		); err != nil {
 			return nil, err
 		}
@@ -390,8 +412,9 @@ func (l *Ledger) Record(c *Call) (int64, error) {
 		bytes_in, bytes_out, truncated,
 		walk_us, io_us, regex_us, regex_compile_us, latency_dispatch_us,
 		streaming, chunks_out, time_to_first_chunk_us,
-		tokens_out_emit, bytes_out_emit
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		tokens_out_emit, bytes_out_emit,
+		tokens_cache_hit, tokens_cache_miss
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		l.sessionID, int64(c.RequestID), c.Timestamp.UnixNano(), c.Verb, c.ArgsMsgpack,
 		boolToInt(c.OK), c.ErrCode, c.ErrMsg,
 		c.LatencyParseUs, c.LatencyExecUs, c.LatencySerializeUs,
@@ -400,6 +423,7 @@ func (l *Ledger) Record(c *Call) (int64, error) {
 		c.WalkUs, c.IOUs, c.RegexUs, c.RegexCompileUs, c.LatencyDispatchUs,
 		boolToInt(c.Streaming), c.ChunksOut, c.TimeToFirstChunkUs,
 		c.TokensOutEmit, c.BytesOutEmit,
+		c.TokensCacheHit, c.TokensCacheMiss,
 	)
 	if err != nil {
 		return 0, err

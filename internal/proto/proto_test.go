@@ -2,6 +2,7 @@ package proto
 
 import (
 	"bytes"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -418,5 +419,96 @@ func TestReadKindedEmptyFrame(t *testing.T) {
 	_, _, err := ReadKinded(&buf)
 	if err == nil {
 		t.Fatal("expected error on empty kinded frame, got nil")
+	}
+}
+
+// TestResponse_CacheStableWirePrefix is the cache-shape invariant
+// (ASH-108). Two Response values that differ only in their volatile
+// suffix (ID, Metrics) must share a long common prefix of the encoded
+// bytes — that is what lets Anthropic prompt-cache latch onto repeated
+// identical-input calls. The Response struct lists stable fields (V,
+// OK, Data, Err) first by convention; this test enforces that the
+// encoder honours that order in practice. If a future edit moves a
+// volatile field into the middle of the struct, the matching prefix
+// shrinks and this test fails.
+func TestResponse_CacheStableWirePrefix(t *testing.T) {
+	type sample struct {
+		Path string `msgpack:"path"`
+		Body string `msgpack:"body"`
+	}
+	data := MustData(sample{Path: "internal/proto/proto.go", Body: "// hello, world"})
+
+	// Two responses with identical stable parts and different volatile parts.
+	a := &Response{
+		V: ProtocolVersion, OK: true, Data: data,
+		ID: 0x1111111111111111,
+		Metrics: &Metrics{
+			LatencyExecUs: 100, LatencyParseUs: 10,
+			TokensIn: 50, TokensOut: 200, BytesIn: 80, BytesOut: 400,
+		},
+	}
+	b := &Response{
+		V: ProtocolVersion, OK: true, Data: data,
+		ID: 0x9999999999999999,
+		Metrics: &Metrics{
+			LatencyExecUs: 222, LatencyParseUs: 7,
+			TokensIn: 50, TokensOut: 200, BytesIn: 80, BytesOut: 401,
+		},
+	}
+	ea, err := EncodeResponse(a)
+	if err != nil {
+		t.Fatalf("encode a: %v", err)
+	}
+	eb, err := EncodeResponse(b)
+	if err != nil {
+		t.Fatalf("encode b: %v", err)
+	}
+
+	prefix := 0
+	for prefix < len(ea) && prefix < len(eb) && ea[prefix] == eb[prefix] {
+		prefix++
+	}
+	// Empirically the stable prefix is the V/OK/Data/Err portion of the
+	// envelope; the only diverging bytes should be inside the ID +
+	// Metrics tail. With the sample payload above, the stable prefix
+	// is comfortably over 40 bytes. Pick a floor that catches a struct-
+	// field reordering (which collapses the matching prefix to a handful
+	// of bytes) while tolerating per-encoder length variations.
+	const minStablePrefix = 40
+	if prefix < minStablePrefix {
+		t.Errorf("encoded responses share only %d-byte prefix, want >= %d\n  a=%x\n  b=%x",
+			prefix, minStablePrefix, ea, eb)
+	}
+
+	// And: the divergence must appear strictly after the stable Data
+	// payload. Verify the diverging byte is not in the first half of
+	// the encoded message — the volatile suffix is the tail, not the
+	// middle.
+	if prefix < len(ea)/2 {
+		t.Errorf("cache prefix ends in first half of envelope (prefix=%d, total=%d) — volatile field has migrated forward",
+			prefix, len(ea))
+	}
+}
+
+// TestResponse_VolatileSuffixOrdering pins struct field order so a
+// future edit cannot silently push ID or Metrics earlier than Data /
+// Err without tripping the test. Uses reflection on the Response type;
+// failing here points the reader at ASH-108 / docs/cache-shape.md.
+func TestResponse_VolatileSuffixOrdering(t *testing.T) {
+	var rsp Response
+	rt := reflect.TypeOf(rsp)
+	pos := map[string]int{}
+	for i := 0; i < rt.NumField(); i++ {
+		pos[rt.Field(i).Name] = i
+	}
+	cases := [][2]string{
+		{"V", "ID"}, {"OK", "ID"}, {"Data", "ID"}, {"Err", "ID"},
+		{"V", "Metrics"}, {"OK", "Metrics"}, {"Data", "Metrics"}, {"Err", "Metrics"},
+	}
+	for _, c := range cases {
+		if pos[c[0]] >= pos[c[1]] {
+			t.Errorf("ASH-108 cache contract: field %q must precede %q in proto.Response — see docs/cache-shape.md",
+				c[0], c[1])
+		}
 	}
 }

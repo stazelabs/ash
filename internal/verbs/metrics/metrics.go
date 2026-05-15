@@ -50,6 +50,11 @@ type Row struct {
 	// emit is the cost the harness actually paid.
 	TokensOutEmit int `msgpack:"tokens_out_emit,omitempty"`
 	BytesOutEmit  int `msgpack:"bytes_out_emit,omitempty"`
+	// ASH-108 prompt-cache accounting reported back by the harness.
+	// Zero for daemon-originated rows; populated only when the call
+	// carried Anthropic cache_read_input_tokens telemetry.
+	TokensCacheHit  int `msgpack:"tokens_cache_hit,omitempty"`
+	TokensCacheMiss int `msgpack:"tokens_cache_miss,omitempty"`
 }
 
 type Result struct {
@@ -101,6 +106,8 @@ func ResultFromCalls(calls []ledger.Call) *Result {
 			LatencyDispatchUs: c.LatencyDispatchUs,
 			TokensOutEmit:     c.TokensOutEmit,
 			BytesOutEmit:      c.BytesOutEmit,
+			TokensCacheHit:    c.TokensCacheHit,
+			TokensCacheMiss:   c.TokensCacheMiss,
 		})
 	}
 	return &Result{Rows: rows, Count: len(rows)}
@@ -138,6 +145,9 @@ type colSet struct {
 	// ASH-123: emit accounting for MCP-transport rows. Hidden in
 	// CLI-only sessions so the existing table shape is preserved.
 	emit bool
+	// ASH-108: prompt-cache accounting. Hidden when no row has
+	// reported cache telemetry — daemon-originated rows leave it 0.
+	cache bool
 }
 
 func pickColumns(rows []Row) colSet {
@@ -160,6 +170,9 @@ func pickColumns(rows []Row) colSet {
 		}
 		if r.BytesOutEmit > 0 {
 			cs.emit = true
+		}
+		if r.TokensCacheHit > 0 || r.TokensCacheMiss > 0 {
+			cs.cache = true
 		}
 	}
 	return cs
@@ -190,6 +203,9 @@ func writeHeader(b *strings.Builder, cs colSet) {
 	if cs.emit {
 		fmt.Fprintf(b, "  %-6s", "oE")
 	}
+	if cs.cache {
+		fmt.Fprintf(b, "  %-7s  %-7s", "ch", "cm")
+	}
 	b.WriteString("  flags\n")
 }
 
@@ -218,6 +234,10 @@ func writeRow(b *strings.Builder, r Row, cs colSet) {
 	}
 	if cs.emit {
 		writeOptInt(b, int64(r.TokensOutEmit), 6)
+	}
+	if cs.cache {
+		writeOptInt(b, int64(r.TokensCacheHit), 7)
+		writeOptInt(b, int64(r.TokensCacheMiss), 7)
 	}
 	var flags []string
 	if r.ErrCode != "" {
@@ -265,7 +285,7 @@ func CompactResponse(rsp *proto.Response) (any, error) {
 		return nil, err
 	}
 	cd := proto.CompactData{
-		K: []string{"ts", "verb", "ok", "err", "ti", "to", "ex_us", "bi", "bo", "trunc", "walk", "io", "re", "recp", "disp", "toE", "boE"},
+		K: []string{"ts", "verb", "ok", "err", "ti", "to", "ex_us", "bi", "bo", "trunc", "walk", "io", "re", "recp", "disp", "toE", "boE", "ch", "cm"},
 		R: make([][]any, len(r.Rows)),
 	}
 	for i, row := range r.Rows {
@@ -275,6 +295,7 @@ func CompactResponse(rsp *proto.Response) (any, error) {
 			row.BytesIn, row.BytesOut, row.Truncated,
 			row.WalkUs, row.IOUs, row.RegexUs, row.RegexCompileUs, row.LatencyDispatchUs,
 			row.TokensOutEmit, row.BytesOutEmit,
+			row.TokensCacheHit, row.TokensCacheMiss,
 		}
 	}
 	return cd, nil

@@ -677,12 +677,17 @@ func newID() uint64 {
 
 // jsonResponse mirrors proto.Response but uses `any` for Data so the
 // msgpack payload is emitted as decoded JSON rather than base64 bytes.
+//
+// Field order mirrors proto.Response (ASH-108): the cache-stable prefix
+// (V, OK, Data, Err) precedes the volatile suffix (ID, Metrics) so
+// `--format json` output of two identical calls shares a long prefix
+// suitable for Anthropic prompt caching. See docs/cache-shape.md.
 type jsonResponse struct {
 	V       int            `json:"v"`
-	ID      uint64         `json:"id"`
 	OK      bool           `json:"ok"`
 	Data    any            `json:"data,omitempty"`
 	Err     *proto.Error   `json:"err,omitempty"`
+	ID      uint64         `json:"id"`
 	Metrics *proto.Metrics `json:"metrics,omitempty"`
 }
 

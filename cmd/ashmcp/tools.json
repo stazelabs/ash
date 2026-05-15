@@ -1097,6 +1097,13 @@
                 "regex_us": {
                   "type": "integer"
                 },
+                "tokens_cache_hit": {
+                  "type": "integer",
+                  "description": "ASH-108 prompt-cache accounting reported back by the harness.\nZero for daemon-originated rows; populated only when the call\ncarried Anthropic cache_read_input_tokens telemetry."
+                },
+                "tokens_cache_miss": {
+                  "type": "integer"
+                },
                 "tokens_in": {
                   "type": "integer"
                 },
@@ -1418,6 +1425,9 @@
               "bytes_out_emit": {
                 "type": "integer"
               },
+              "cache_calls": {
+                "type": "integer"
+              },
               "calls": {
                 "type": "integer"
               },
@@ -1432,6 +1442,13 @@
                 "description": "MCPCalls counts how many of Calls arrived over `ashmcp` (i.e.\nrows with non-zero bytes_out_emit). When equal to Calls the\nsession is MCP-only; when 0 the emit columns stay hidden."
               },
               "ok": {
+                "type": "integer"
+              },
+              "tokens_cache_hit": {
+                "type": "integer",
+                "description": "ASH-108 cache-aware envelope. TokensCacheHit / TokensCacheMiss\naggregate per-call Anthropic prompt-cache accounting when the\nharness reports it back. CacheCalls counts how many rows in the\nwindow carried non-zero cache numbers — used to decide whether\nPrettyResponse renders the cache line at all (hidden when 0 so\nCLI-only sessions are byte-identical to today's output)."
+              },
+              "tokens_cache_miss": {
                 "type": "integer"
               },
               "tokens_in": {

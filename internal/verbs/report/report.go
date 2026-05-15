@@ -93,6 +93,15 @@ type Totals struct {
 	// rows with non-zero bytes_out_emit). When equal to Calls the
 	// session is MCP-only; when 0 the emit columns stay hidden.
 	MCPCalls int `msgpack:"mcp_calls,omitempty"`
+	// ASH-108 cache-aware envelope. TokensCacheHit / TokensCacheMiss
+	// aggregate per-call Anthropic prompt-cache accounting when the
+	// harness reports it back. CacheCalls counts how many rows in the
+	// window carried non-zero cache numbers — used to decide whether
+	// PrettyResponse renders the cache line at all (hidden when 0 so
+	// CLI-only sessions are byte-identical to today's output).
+	TokensCacheHit  int64 `msgpack:"tokens_cache_hit,omitempty"`
+	TokensCacheMiss int64 `msgpack:"tokens_cache_miss,omitempty"`
+	CacheCalls      int   `msgpack:"cache_calls,omitempty"`
 	ExecSumUs int64 `msgpack:"exec_sum_us"`
 }
 
@@ -405,6 +414,12 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 		if c.BytesOutEmit > 0 {
 			totals.MCPCalls++
 		}
+		// ASH-108: prompt-cache telemetry per ledger row.
+		totals.TokensCacheHit += int64(c.TokensCacheHit)
+		totals.TokensCacheMiss += int64(c.TokensCacheMiss)
+		if c.TokensCacheHit > 0 || c.TokensCacheMiss > 0 {
+			totals.CacheCalls++
+		}
 		totals.ExecSumUs += c.LatencyExecUs
 		if c.OK {
 			totals.OK++
@@ -684,6 +699,21 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if r.Totals.MCPCalls > 0 && r.Totals.TokensOutEmit > 0 {
 		fmt.Fprintf(&b, "mcp emit: %d calls, tokens_out_emit=%d, bytes_out_emit=%d\n",
 			r.Totals.MCPCalls, r.Totals.TokensOutEmit, r.Totals.BytesOutEmit)
+	}
+
+	// ASH-108: Anthropic prompt-cache accounting (harness-reported).
+	// Shown only when at least one call carried non-zero cache numbers,
+	// so windows without telemetry are byte-identical to today's output.
+	// The cache-hit ratio is the headline number: cached input tokens
+	// charge ~10x less than uncached, so a high ratio is the win.
+	if r.Totals.CacheCalls > 0 && (r.Totals.TokensCacheHit > 0 || r.Totals.TokensCacheMiss > 0) {
+		total := r.Totals.TokensCacheHit + r.Totals.TokensCacheMiss
+		hitPct := float64(0)
+		if total > 0 {
+			hitPct = float64(r.Totals.TokensCacheHit) / float64(total) * 100
+		}
+		fmt.Fprintf(&b, "cache: %d calls, hit=%d miss=%d (%.0f%% hit)\n",
+			r.Totals.CacheCalls, r.Totals.TokensCacheHit, r.Totals.TokensCacheMiss, hitPct)
 	}
 
 	if len(r.ByVerb) == 0 {

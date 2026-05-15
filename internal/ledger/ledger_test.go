@@ -182,3 +182,46 @@ func TestRecord_TokensOutNoPrefix_RoundTrip(t *testing.T) {
 		t.Errorf("QueryRecent: tokens_out_no_prefix=%d (want 40)", recCalls[0].TokensOutNoPrefix)
 	}
 }
+
+// ASH-108: tokens_cache_hit / tokens_cache_miss must survive Record
+// and both query paths. The columns are reserved for harness-reported
+// prompt-cache accounting; daemon code does not populate them today,
+// but the schema, INSERT, and SELECT triple must agree so a future
+// feedback path can write them without a migration.
+func TestRecord_CacheTokens_RoundTrip(t *testing.T) {
+	l := openTestLedger(t)
+	_, err := l.Record(&Call{
+		Timestamp:       time.Now(),
+		Verb:            "grep",
+		OK:              true,
+		TokensCacheHit:  9000,
+		TokensCacheMiss: 100,
+	})
+	if err != nil {
+		t.Fatalf("Record: %v", err)
+	}
+
+	winCalls, err := l.QueryWindow(QueryOpts{})
+	if err != nil {
+		t.Fatalf("QueryWindow: %v", err)
+	}
+	if len(winCalls) != 1 {
+		t.Fatalf("QueryWindow rows: want 1, got %d", len(winCalls))
+	}
+	if winCalls[0].TokensCacheHit != 9000 || winCalls[0].TokensCacheMiss != 100 {
+		t.Errorf("QueryWindow: cache_hit=%d cache_miss=%d (want 9000/100)",
+			winCalls[0].TokensCacheHit, winCalls[0].TokensCacheMiss)
+	}
+
+	recCalls, err := l.QueryRecent(10, "")
+	if err != nil {
+		t.Fatalf("QueryRecent: %v", err)
+	}
+	if len(recCalls) != 1 {
+		t.Fatalf("QueryRecent rows: want 1, got %d", len(recCalls))
+	}
+	if recCalls[0].TokensCacheHit != 9000 || recCalls[0].TokensCacheMiss != 100 {
+		t.Errorf("QueryRecent: cache_hit=%d cache_miss=%d (want 9000/100)",
+			recCalls[0].TokensCacheHit, recCalls[0].TokensCacheMiss)
+	}
+}

@@ -401,6 +401,11 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 			Streaming:          streaming,
 			ChunksOut:          chunksOut,
 			TimeToFirstChunkUs: ttfcUs,
+			// ASH-108 cache-aware envelope: the schema reserves
+			// tokens_cache_hit / tokens_cache_miss for harness-reported
+			// Anthropic prompt-cache accounting. Daemon-originated rows
+			// leave both at zero — no current wire path populates them.
+			// See docs/cache-shape.md.
 		})
 		if recordErr != nil {
 			log.Printf("ashd: ledger record: %v", recordErr)
