@@ -10,8 +10,18 @@ import (
 	"github.com/stazelabs/ash/internal/verbs/help"
 )
 
+// The schema artifact is checked in at two paths:
+//
+//   - docs/mcp/tools.json    — canonical, human-facing artifact
+//   - cmd/ashmcp/tools.json  — //go:embed source for ASH-104 (ashmcp); must
+//     live inside the package directory because Go embed cannot reach across
+//     package boundaries.
+//
+// Both are regenerated together by `make schema` and gated by
+// `make schema-check`, so the duplication cannot silently drift.
 const (
 	defaultOutDir = "docs/mcp"
+	embedOutDir   = "cmd/ashmcp"
 	artifactName  = "tools.json"
 )
 
@@ -25,16 +35,12 @@ func runGen(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
-		fmt.Fprintf(os.Stderr, "mkdir %s: %v\n", outDir, err)
-		return 1
+	for _, d := range outDirs(outDir) {
+		if err := writeArtifact(d, body); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
 	}
-	path := filepath.Join(outDir, artifactName)
-	if err := os.WriteFile(path, body, 0o644); err != nil {
-		fmt.Fprintf(os.Stderr, "write %s: %v\n", path, err)
-		return 1
-	}
-	fmt.Fprintf(os.Stderr, "wrote %s\n", path)
 	return 0
 }
 
@@ -48,20 +54,45 @@ func runCheck(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	path := filepath.Join(outDir, artifactName)
-	got, err := os.ReadFile(path)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "schema check: %s missing or unreadable: %v\n", path, err)
-		fmt.Fprintln(os.Stderr, "fix: run `make schema` and commit the result.")
-		return 1
-	}
-	if !bytes.Equal(body, got) {
-		fmt.Fprintf(os.Stderr, "schema check: %s is out of date\n", path)
-		fmt.Fprintln(os.Stderr, "fix: run `make schema` and commit the result.")
-		return 1
+	for _, d := range outDirs(outDir) {
+		path := filepath.Join(d, artifactName)
+		got, err := os.ReadFile(path)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "schema check: %s missing or unreadable: %v\n", path, err)
+			fmt.Fprintln(os.Stderr, "fix: run `make schema` and commit the result.")
+			return 1
+		}
+		if !bytes.Equal(body, got) {
+			fmt.Fprintf(os.Stderr, "schema check: %s is out of date\n", path)
+			fmt.Fprintln(os.Stderr, "fix: run `make schema` and commit the result.")
+			return 1
+		}
 	}
 	fmt.Fprintln(os.Stderr, "schema check: ok")
 	return 0
+}
+
+// outDirs returns every directory the artifact must be written to. When the
+// caller overrides the canonical out-dir (test fixture, ad-hoc run) we
+// honor that and skip the embed sibling — the override path is for one-off
+// inspection, not for replacing the build-time embed source.
+func outDirs(canonical string) []string {
+	if canonical != defaultOutDir {
+		return []string{canonical}
+	}
+	return []string{defaultOutDir, embedOutDir}
+}
+
+func writeArtifact(dir string, body []byte) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("mkdir %s: %w", dir, err)
+	}
+	path := filepath.Join(dir, artifactName)
+	if err := os.WriteFile(path, body, 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	fmt.Fprintf(os.Stderr, "wrote %s\n", path)
+	return nil
 }
 
 func generate() ([]byte, error) {

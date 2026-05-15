@@ -1,0 +1,822 @@
+{
+  "generated_by": "cmd/ashschema (ASH-105)",
+  "dialect": "https://json-schema.org/draft/2020-12/schema",
+  "tools": [
+    {
+      "name": "ash_read",
+      "description": "Read a file or byte/line range; UTF-8 as-is, binary base64-encoded.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "absolute": {
+            "type": "boolean",
+            "description": "Emit absolute paths instead of repo-root-relative.",
+            "default": false
+          },
+          "bytes": {
+            "type": "integer",
+            "description": "Max bytes to return; hard cap 8 MiB.",
+            "default": 262144
+          },
+          "meta": {
+            "type": "boolean",
+            "description": "Include encoding and mtime in the pretty header.",
+            "default": false
+          },
+          "path": {
+            "type": "string",
+            "description": "File to read."
+          },
+          "range": {
+            "type": "string",
+            "description": "start:end range, 1-based inclusive; end clamped to file length."
+          },
+          "unit": {
+            "type": "string",
+            "description": "Unit for the --range argument.",
+            "enum": [
+              "lines",
+              "bytes"
+            ],
+            "default": "lines"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ash_find",
+      "description": "Walk a directory tree and return matching paths; respects .gitignore.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "absolute": {
+            "type": "boolean",
+            "description": "Emit absolute paths instead of repo-root-relative.",
+            "default": false
+          },
+          "depth": {
+            "type": "integer",
+            "description": "Max depth; 0 is unlimited, 1 is direct children only.",
+            "default": 0
+          },
+          "exclude": {
+            "type": "string",
+            "description": "Doublestar pattern; matching entries are skipped."
+          },
+          "gi": {
+            "type": "boolean",
+            "description": "Apply .gitignore from the walk root.",
+            "default": true
+          },
+          "glob": {
+            "type": "string",
+            "description": "Doublestar glob; matched relative to --path.",
+            "default": "**"
+          },
+          "hidden": {
+            "type": "boolean",
+            "description": "Include directories starting with '.' when true.",
+            "default": false
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Max results; hard cap 4096.",
+            "default": 256
+          },
+          "meta": {
+            "type": "boolean",
+            "description": "Show type, size, and date per row; default is path only.",
+            "default": false
+          },
+          "path": {
+            "type": "string",
+            "description": "Starting directory for the walk."
+          },
+          "type": {
+            "type": "string",
+            "description": "Filter by entry type.",
+            "enum": [
+              "any",
+              "file",
+              "dir",
+              "symlink"
+            ],
+            "default": "any"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ash_grep",
+      "description": "Search files for an RE2 pattern; skips binary and files \u003e16 MiB.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "absolute": {
+            "type": "boolean",
+            "description": "Emit absolute paths instead of repo-root-relative.",
+            "default": false
+          },
+          "ca": {
+            "type": "integer",
+            "description": "Context lines after each match; max 50.",
+            "default": 0
+          },
+          "case": {
+            "type": "string",
+            "description": "Case sensitivity; smart is insensitive unless pattern has uppercase.",
+            "enum": [
+              "smart",
+              "sensitive",
+              "insensitive"
+            ],
+            "default": "smart"
+          },
+          "cb": {
+            "type": "integer",
+            "description": "Context lines before each match; max 50.",
+            "default": 0
+          },
+          "context": {
+            "type": "integer",
+            "description": "Symmetric context; sets both --cb and --ca.",
+            "default": 0
+          },
+          "depth": {
+            "type": "integer",
+            "description": "Max depth; 0 is unlimited.",
+            "default": 0
+          },
+          "fo": {
+            "type": "boolean",
+            "description": "Return only paths of files with at least one match.",
+            "default": false
+          },
+          "gi": {
+            "type": "boolean",
+            "description": "Apply .gitignore from the walk root.",
+            "default": true
+          },
+          "glob": {
+            "type": "string",
+            "description": "Doublestar pattern; scan only matching files.",
+            "default": "**"
+          },
+          "hidden": {
+            "type": "boolean",
+            "description": "Include directories starting with '.' when true.",
+            "default": false
+          },
+          "lit": {
+            "type": "boolean",
+            "description": "Treat pattern as literal text, not a regex.",
+            "default": false
+          },
+          "max": {
+            "type": "integer",
+            "description": "Max total match records; hard cap 4096.",
+            "default": 256
+          },
+          "mpf": {
+            "type": "integer",
+            "description": "Max match records per file; 0 is unlimited.",
+            "default": 0
+          },
+          "no-text": {
+            "type": "boolean",
+            "description": "Omit matched line text; render path:line:col only.",
+            "default": false
+          },
+          "path": {
+            "type": "string",
+            "description": "File or directory to search."
+          },
+          "pattern": {
+            "type": "string",
+            "description": "RE2 regex; literal text when lit=true."
+          }
+        },
+        "required": [
+          "path",
+          "pattern"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ash_git",
+      "description": "Structured git calls via --op discriminator: status, log, diff, show.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "author": {
+            "type": "string",
+            "description": "[op=log] Filter commits by author name or email substring."
+          },
+          "bytes": {
+            "type": "integer",
+            "description": "[op=diff|show] Max patch bytes; omits patch past cap, preserves stats. Max 4 MiB.",
+            "default": 262144
+          },
+          "context": {
+            "type": "integer",
+            "description": "[op=diff|show] Unified diff context lines; max 50.",
+            "default": 3
+          },
+          "ignored": {
+            "type": "boolean",
+            "description": "[op=status] Include gitignored files.",
+            "default": false
+          },
+          "limit": {
+            "type": "integer",
+            "description": "[op=log] Max commits to return; hard cap 200.",
+            "default": 20
+          },
+          "op": {
+            "type": "string",
+            "description": "Subcommand to run.",
+            "enum": [
+              "status",
+              "log",
+              "diff",
+              "show"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "description": "Any path inside the git worktree; output is repo-root-relative.",
+            "default": "."
+          },
+          "pathspec": {
+            "type": "string",
+            "description": "[op=log|diff|show] Restrict to a path, repo-root-relative, passed after --."
+          },
+          "range": {
+            "type": "string",
+            "description": "[op=log|diff] Revision range (e.g. main..feature, HEAD~10..HEAD)."
+          },
+          "ref": {
+            "type": "string",
+            "description": "[op=show] Commit ref for show: SHA, branch, tag, HEAD~1. Required."
+          },
+          "since": {
+            "type": "string",
+            "description": "[op=log] Only commits after this date; accepts git --since formats."
+          },
+          "staged": {
+            "type": "boolean",
+            "description": "[op=diff] Diff index vs HEAD; default diffs worktree vs index.",
+            "default": false
+          },
+          "stat": {
+            "type": "boolean",
+            "description": "[op=diff|show] Return per-file add/delete counts only; no patch text.",
+            "default": false
+          },
+          "until": {
+            "type": "string",
+            "description": "[op=log] Only commits before this date."
+          },
+          "untracked": {
+            "type": "boolean",
+            "description": "[op=status] Include untracked files.",
+            "default": true
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ash_write",
+      "description": "Write a file atomically; creates parent directories by default.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "absolute": {
+            "type": "boolean",
+            "description": "Emit absolute paths instead of repo-root-relative.",
+            "default": false
+          },
+          "content": {
+            "type": "string",
+            "description": "File content; pass '-' to read from stdin."
+          },
+          "encoding": {
+            "type": "string",
+            "description": "Content encoding; use base64 for binary files.",
+            "enum": [
+              "utf-8",
+              "base64"
+            ],
+            "default": "utf-8"
+          },
+          "mkdir": {
+            "type": "boolean",
+            "description": "Create missing parent directories.",
+            "default": true
+          },
+          "no-clobber": {
+            "type": "boolean",
+            "description": "Fail with 'exists' if the file already exists.",
+            "default": false
+          },
+          "path": {
+            "type": "string",
+            "description": "File to write."
+          }
+        },
+        "required": [
+          "content",
+          "path"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ash_metrics",
+      "description": "Query recent call history from the ledger.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "last": {
+            "type": "integer",
+            "description": "Most-recent calls to return; max 200.",
+            "default": 20
+          },
+          "verb": {
+            "type": "string",
+            "description": "Filter to calls for a specific verb."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ash_report",
+      "description": "Per-verb ledger summary: n, ok%, p50/p95 latency, tokens, trunc%.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "all": {
+            "type": "boolean",
+            "description": "Aggregate across every installed repo; includes per-root breakdown.",
+            "default": false
+          },
+          "last": {
+            "type": "integer",
+            "description": "Row cap after session/since filters; max 5000."
+          },
+          "root": {
+            "type": "string",
+            "description": "Project root to query read-only; mutually exclusive with --all."
+          },
+          "session": {
+            "type": "string",
+            "description": "Session scope: current, all, or explicit session ID.",
+            "enum": [
+              "current",
+              "all",
+              "\u003cid\u003e"
+            ],
+            "default": "current"
+          },
+          "since": {
+            "type": "string",
+            "description": "Time window (e.g. 15m, 1h, 7d); supports Go duration + d."
+          },
+          "top": {
+            "type": "integer",
+            "description": "Max entries in truncation and error histogram sections.",
+            "default": 5
+          },
+          "verb": {
+            "type": "string",
+            "description": "Restrict aggregation to calls for a specific verb."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ash_help",
+      "description": "Return argument schema for one verb or all verbs.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "verb": {
+            "type": "string",
+            "description": "Verb name to describe; omit for all verbs."
+          },
+          "verbose": {
+            "type": "boolean",
+            "description": "Show full arg descriptions (default: concise).",
+            "default": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ash_hook",
+      "description": "PreToolUse decision engine; steers harness tools to ash equivalents.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "Bash command line."
+          },
+          "content": {
+            "type": "string",
+            "description": "Write new file content."
+          },
+          "file": {
+            "type": "string",
+            "description": "Read/Edit/Write target file path."
+          },
+          "glob": {
+            "type": "string",
+            "description": "Grep file glob filter."
+          },
+          "new": {
+            "type": "string",
+            "description": "Edit replacement text."
+          },
+          "old": {
+            "type": "string",
+            "description": "Edit text to replace."
+          },
+          "path": {
+            "type": "string",
+            "description": "Grep/Glob search root or Read path."
+          },
+          "pattern": {
+            "type": "string",
+            "description": "Grep regex or Glob pattern."
+          },
+          "tool": {
+            "type": "string",
+            "description": "Harness tool the agent attempted."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ash_stat",
+      "description": "Return lstat metadata for one or more paths.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "absolute": {
+            "type": "boolean",
+            "description": "Emit absolute paths instead of repo-root-relative.",
+            "default": false
+          },
+          "follow": {
+            "type": "boolean",
+            "description": "Resolve symlinks; broken symlinks produce error=broken_symlink per entry.",
+            "default": false
+          },
+          "path": {
+            "type": "string",
+            "description": "Single-path alias for --paths; one of --paths or --path required."
+          },
+          "paths": {
+            "type": "string",
+            "description": "Comma-separated paths to inspect; one of --paths or --path required."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ash_edit",
+      "description": "Atomically edit a file: string-replace, line-range, or patch mode.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "absolute": {
+            "type": "boolean",
+            "description": "Emit absolute paths instead of repo-root-relative.",
+            "default": false
+          },
+          "all": {
+            "type": "boolean",
+            "description": "[mode=string] Replace every occurrence; false errors if old appears multiple times.",
+            "default": false
+          },
+          "dry": {
+            "type": "boolean",
+            "description": "Compute the replacement without writing; result includes unified diff.",
+            "default": false
+          },
+          "new": {
+            "type": "string",
+            "description": "[mode=string] Replacement text; pass '-' to read from stdin; empty string deletes the match. / [mode=range] Replacement lines; pass '-' to read from stdin; empty string deletes the range."
+          },
+          "old": {
+            "type": "string",
+            "description": "[mode=string] Exact text to find; pass '-' to read from stdin; must appear once unless all=true."
+          },
+          "patch": {
+            "type": "string",
+            "description": "[mode=patch] Unified diff to apply; pass '-' to read from stdin."
+          },
+          "path": {
+            "type": "string",
+            "description": "File to edit."
+          },
+          "range": {
+            "type": "string",
+            "description": "[mode=range] start:end line range to replace, 1-based inclusive."
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ash_diff",
+      "description": "Unified diff: file vs file or inline content, capped at 4000 lines.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "absolute": {
+            "type": "boolean",
+            "description": "Emit absolute paths instead of repo-root-relative.",
+            "default": false
+          },
+          "content": {
+            "type": "string",
+            "description": "Inline after-side text; pass '-' to read from stdin."
+          },
+          "context": {
+            "type": "integer",
+            "description": "Context lines per hunk; max 50.",
+            "default": 3
+          },
+          "other": {
+            "type": "string",
+            "description": "After-side file (b); mutually exclusive with --content."
+          },
+          "path": {
+            "type": "string",
+            "description": "Before-side file (a)."
+          },
+          "stat": {
+            "type": "boolean",
+            "description": "Return add/delete/unchanged counts only; no patch text.",
+            "default": false
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ash_bench",
+      "description": "Benchmark ash vs bash; report token/latency deltas per case.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "baseline": {
+            "type": "string",
+            "description": "Run fresh bench, compare against rolling median over the window."
+          },
+          "case": {
+            "type": "string",
+            "description": "Run a single named case; overrides --verb."
+          },
+          "compare": {
+            "type": "string",
+            "description": "Compare two persisted runs; 'latest' resolves to most recent."
+          },
+          "diff_micro": {
+            "type": "boolean",
+            "description": "Run micro bench and compare against bench/microbench.json.",
+            "default": false
+          },
+          "export_md": {
+            "type": "boolean",
+            "description": "Render latest bench run as Markdown.",
+            "default": false
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Cap cases after filters; 0 is no cap.",
+            "default": 0
+          },
+          "list": {
+            "type": "boolean",
+            "description": "List recent persisted bench runs and exit.",
+            "default": false
+          },
+          "list_limit": {
+            "type": "integer",
+            "description": "Cap the --list output.",
+            "default": 20
+          },
+          "micro": {
+            "type": "boolean",
+            "description": "Run Go Benchmark* functions for curated hot-path packages.",
+            "default": false
+          },
+          "micro_benchtime": {
+            "type": "string",
+            "description": "go test -benchtime for --micro mode (e.g. '1s', '3s').",
+            "default": "1s"
+          },
+          "micro_count": {
+            "type": "integer",
+            "description": "go test -count for --micro mode; 1 runs each benchmark once per benchtime window.",
+            "default": 1
+          },
+          "micro_packages": {
+            "type": "string",
+            "description": "Comma-separated package paths for --micro; default: curated hot-path set."
+          },
+          "record_baseline": {
+            "type": "boolean",
+            "description": "Run fresh bench; write baseline.json, baseline.md, latency-snapshot.json.",
+            "default": false
+          },
+          "record_micro": {
+            "type": "boolean",
+            "description": "Run micro bench and write bench/microbench.json + bench/microbench.md.",
+            "default": false
+          },
+          "regress_latency": {
+            "type": "integer",
+            "description": "Latency delta % threshold for regression in --compare.",
+            "default": 20
+          },
+          "regress_tokens": {
+            "type": "integer",
+            "description": "Token delta % threshold for regression in --compare.",
+            "default": 10
+          },
+          "repeat": {
+            "type": "integer",
+            "description": "Measured iterations per case; \u003e1 enables p50 and min latency.",
+            "default": 1
+          },
+          "verb": {
+            "type": "string",
+            "description": "Restrict to cases for one verb."
+          },
+          "warmup": {
+            "type": "integer",
+            "description": "Unmeasured warm-up iterations; defaults to 1 when repeat\u003e1.",
+            "default": 0
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ash_test",
+      "description": "Run Go tests; return structured per-test results.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "bench": {
+            "type": "string",
+            "description": "go test -bench pattern; implies -run=^$ when --run is unset."
+          },
+          "benchmem": {
+            "type": "boolean",
+            "description": "go test -benchmem: report memory allocations.",
+            "default": false
+          },
+          "benchtime": {
+            "type": "string",
+            "description": "go test -benchtime duration (e.g. '1s', '100x')."
+          },
+          "count": {
+            "type": "integer",
+            "description": "go test -count; 1 bypasses cache, 0 uses cache.",
+            "default": 1
+          },
+          "packages": {
+            "type": "string",
+            "description": "Comma-separated package patterns for go test.",
+            "default": "./..."
+          },
+          "race": {
+            "type": "boolean",
+            "description": "Enable the race detector.",
+            "default": false
+          },
+          "run": {
+            "type": "string",
+            "description": "Regex for go test -run; filters tests."
+          },
+          "short": {
+            "type": "boolean",
+            "description": "Enable -short mode.",
+            "default": false
+          },
+          "timeout": {
+            "type": "string",
+            "description": "Timeout; also passed to go test -timeout.",
+            "default": "60s"
+          },
+          "verbose": {
+            "type": "boolean",
+            "description": "Include passing test names per package.",
+            "default": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ash_init",
+      "description": "Bootstrap a repo for ash: hook, gitignore, CLAUDE.md, registry. Idempotent.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "force": {
+            "type": "boolean",
+            "description": "Overwrite conflicting PreToolUse or CLAUDE.md sections.",
+            "default": false
+          },
+          "no-registry": {
+            "type": "boolean",
+            "description": "Skip writing the installed-repos registry.",
+            "default": false
+          },
+          "path": {
+            "type": "string",
+            "description": "Target repo root; default '.' is the daemon's project root.",
+            "default": "."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ash_uninit",
+      "description": "Reverse ash init: remove hook, gitignore entry, CLAUDE.md section, registry.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "no-registry": {
+            "type": "boolean",
+            "description": "Skip the registry removal.",
+            "default": false
+          },
+          "path": {
+            "type": "string",
+            "description": "Target repo root.",
+            "default": "."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ash_stop",
+      "description": "Stop the daemon cleanly (SIGTERM, 7s). Idempotent; next call auto-restarts.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    }
+  ]
+}
