@@ -219,6 +219,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		st.searchOne(a.Path)
 	} else {
 		walkStart := time.Now()
+		ctx := tr.Context()
 		walkErr := walker.Walk(a.Path, walker.Options{
 			Glob:             a.Glob,
 			Exclude:          a.Exclude,
@@ -226,6 +227,12 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 			IncludeHidden:    a.IncludeHidden,
 			RespectGitignore: a.RespectGitignore,
 		}, func(e walker.Entry) (walker.Action, error) {
+			// ASH-106: honor mid-stream cancellation. Non-streaming
+			// callers see ctx == context.Background() and never trigger
+			// this path.
+			if ctx.Err() != nil {
+				return walker.Stop, nil
+			}
 			// grep only searches regular files. Dirs are descended by the
 			// walker; symlinks are never followed.
 			if e.Type != "file" {
@@ -387,8 +394,12 @@ func (s *state) searchBody(path string, body []byte) bool {
 	lastEmittedLine := -1
 
 	// appendRec appends a record and reports whether the global cap was hit.
+	// ASH-106: every appended record is also emitted to the streaming
+	// tracer; non-streaming requests get a no-op Emit because the daemon
+	// never attached an Emitter to the tracer.
 	appendRec := func(rec Match, isMatch bool) bool {
 		s.res.Matches = append(s.res.Matches, rec)
+		s.tr.Emit(rec)
 		if isMatch {
 			s.matchCount++
 		}

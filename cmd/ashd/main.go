@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -231,6 +232,50 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 		// check and pretty rendering. The wire response carries the
 		// already-encoded RawMessage in rsp.Data.
 		var typedData any
+
+		// Streaming surface (ASH-106). The Stream flag opts the request
+		// into kind-tagged Chunk frames + a Final frame; legacy requests
+		// (Stream==false) keep today's single-frame response shape with
+		// no kind tag, so v1 clients are unaffected.
+		streaming := ok && req.Stream
+		var writeMu sync.Mutex
+		var emitter *frameEmitter
+		var ctxCancel context.CancelFunc
+		var watcherDone chan struct{}
+		var verbDone chan struct{}
+		if streaming {
+			var sctx context.Context
+			sctx, ctxCancel = context.WithCancel(context.Background())
+			tracer.SetContext(sctx)
+			emitter = newFrameEmitter(conn, &writeMu, req.ID, execStart)
+			tracer.SetEmitter(emitter)
+			watcherDone = make(chan struct{})
+			verbDone = make(chan struct{})
+			// Watcher: blocks on a single inbound kinded frame. Any frame
+			// (Cancel) OR EOF before the verb signals done cancels ctx.
+			// After the verb finishes we SetReadDeadline to time.Now() to
+			// unblock the pending Read; the watcher then sees verbDone and
+			// exits without cancelling.
+			go func() {
+				defer close(watcherDone)
+				_, _, rerr := proto.ReadKinded(conn)
+				select {
+				case <-verbDone:
+					return
+				default:
+				}
+				if rerr != nil {
+					// EOF / read error mid-stream = client cancellation.
+					ctxCancel()
+					return
+				}
+				// Any kinded frame from the client during a stream means
+				// cancel; only KindCancel is formally defined, but anything
+				// else is unexpected and we err on the side of stopping.
+				ctxCancel()
+			}()
+		}
+
 		if !ok {
 			rsp.OK = false
 			rsp.Err = &proto.Error{Code: "unknown_verb", Msg: "unknown verb: " + req.Verb}
@@ -248,6 +293,29 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 		}
 		execUs := time.Since(execStart).Microseconds()
 		phases := tracer.Snapshot()
+
+		// Streaming cleanup: stop the watcher (no-op if it already exited
+		// because the client closed), flush any trailing chunks, and if
+		// the request was cancelled mid-stream overwrite the response with
+		// a cancelled error. The chunks already on the wire convey what
+		// the verb produced before the abort.
+		if streaming {
+			close(verbDone)
+			// Unblock the watcher's pending ReadKinded so we can join.
+			_ = conn.SetReadDeadline(time.Now())
+			<-watcherDone
+			_ = conn.SetReadDeadline(time.Time{})
+			if err := emitter.Flush(); err != nil {
+				log.Printf("ashd: stream flush: %v", err)
+			}
+			if tracer.Context().Err() != nil {
+				rsp.OK = false
+				rsp.Data = nil
+				rsp.Err = &proto.Error{Code: "cancelled", Msg: "request cancelled"}
+				typedData = nil
+			}
+			ctxCancel()
+		}
 
 		// Pretty-rendered forms drive token counting. Both daemon and client
 		// produce the same canonical text, so tokens_out reflects what the
@@ -301,6 +369,12 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 			errCode = rsp.Err.Code
 			errMsg = rsp.Err.Msg
 		}
+		var chunksOut int
+		var ttfcUs int64
+		if streaming {
+			chunksOut = emitter.ChunkCount()
+			ttfcUs = emitter.FirstChunkLatency().Microseconds()
+		}
 		rowID, recordErr := led.Record(&ledger.Call{
 			RequestID:          req.ID,
 			Timestamp:          time.Now(),
@@ -324,6 +398,9 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 			RegexUs:            phases.RegexUs,
 			RegexCompileUs:     phases.RegexCompileUs,
 			LatencyDispatchUs:  dispatchUs,
+			Streaming:          streaming,
+			ChunksOut:          chunksOut,
+			TimeToFirstChunkUs: ttfcUs,
 		})
 		if recordErr != nil {
 			log.Printf("ashd: ledger record: %v", recordErr)
@@ -345,8 +422,19 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 			}
 		}
 
-		if err := proto.WriteFrame(conn, final); err != nil {
-			log.Printf("ashd: write: %v", err)
+		// Streaming runs write Final under the kind-tag scheme so the
+		// client knows the stream is over; legacy runs write a plain
+		// frame, byte-identical to v1.
+		var werr error
+		if streaming {
+			writeMu.Lock()
+			werr = proto.WriteKinded(conn, proto.KindFinal, final)
+			writeMu.Unlock()
+		} else {
+			werr = proto.WriteFrame(conn, final)
+		}
+		if werr != nil {
+			log.Printf("ashd: write: %v", werr)
 			return
 		}
 	}

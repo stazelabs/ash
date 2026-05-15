@@ -53,7 +53,10 @@ CREATE TABLE IF NOT EXISTS calls (
 	io_us INTEGER NOT NULL DEFAULT 0,
 	regex_us INTEGER NOT NULL DEFAULT 0,
 	regex_compile_us INTEGER NOT NULL DEFAULT 0,
-	latency_dispatch_us INTEGER NOT NULL DEFAULT 0
+	latency_dispatch_us INTEGER NOT NULL DEFAULT 0,
+	streaming INTEGER NOT NULL DEFAULT 0,
+	chunks_out INTEGER NOT NULL DEFAULT 0,
+	time_to_first_chunk_us INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_calls_session ON calls(session_id);
 CREATE INDEX IF NOT EXISTS idx_calls_verb ON calls(verb);
@@ -132,6 +135,15 @@ func Open(path, projectRoot, clientInfo string) (*Ledger, error) {
 	// known path prefixes stripped, so reports can quote the path-prefix
 	// tax. Errors silently on fresh DBs where the column already exists.
 	_, _ = db.Exec(`ALTER TABLE calls ADD COLUMN tokens_out_no_prefix INTEGER NOT NULL DEFAULT 0`)
+	// ASH-106: streaming columns. Same idempotent-ALTER pattern — fresh
+	// DBs already have them from schemaSQL; existing DBs need the migration.
+	// streaming = 1 when the response went out as Chunk frames + Final.
+	// chunks_out counts Chunk frames written (excludes Final).
+	// time_to_first_chunk_us measures the latency from request decode to
+	// the first Chunk flush — the headline streaming metric.
+	_, _ = db.Exec(`ALTER TABLE calls ADD COLUMN streaming INTEGER NOT NULL DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE calls ADD COLUMN chunks_out INTEGER NOT NULL DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE calls ADD COLUMN time_to_first_chunk_us INTEGER NOT NULL DEFAULT 0`)
 	var migDone string
 	_ = db.QueryRow(`SELECT value FROM meta WHERE key='mig_bench_platform'`).Scan(&migDone)
 	if migDone != "1" {
@@ -201,6 +213,12 @@ type Call struct {
 	RegexUs            int64
 	RegexCompileUs     int64
 	LatencyDispatchUs  int64
+	// ASH-106 streaming surface. Streaming is true when the response went
+	// out as Chunk frames + a Final frame; the count and ttfc fields are
+	// only meaningful when Streaming is true.
+	Streaming          bool
+	ChunksOut          int
+	TimeToFirstChunkUs int64
 }
 
 // QueryOpts filters for QueryWindow.
@@ -347,14 +365,16 @@ func (l *Ledger) Record(c *Call) (int64, error) {
 		latency_parse_us, latency_exec_us, latency_serialize_us,
 		tokens_in, tokens_out, tokens_out_no_prefix, tokens_method,
 		bytes_in, bytes_out, truncated,
-		walk_us, io_us, regex_us, regex_compile_us, latency_dispatch_us
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		walk_us, io_us, regex_us, regex_compile_us, latency_dispatch_us,
+		streaming, chunks_out, time_to_first_chunk_us
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		l.sessionID, int64(c.RequestID), c.Timestamp.UnixNano(), c.Verb, c.ArgsMsgpack,
 		boolToInt(c.OK), c.ErrCode, c.ErrMsg,
 		c.LatencyParseUs, c.LatencyExecUs, c.LatencySerializeUs,
 		c.TokensIn, c.TokensOut, c.TokensOutNoPrefix, c.TokensMethod,
 		c.BytesIn, c.BytesOut, boolToInt(c.Truncated),
 		c.WalkUs, c.IOUs, c.RegexUs, c.RegexCompileUs, c.LatencyDispatchUs,
+		boolToInt(c.Streaming), c.ChunksOut, c.TimeToFirstChunkUs,
 	)
 	if err != nil {
 		return 0, err

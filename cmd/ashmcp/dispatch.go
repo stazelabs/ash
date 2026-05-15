@@ -11,11 +11,20 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/vmihailenco/msgpack/v5"
 
 	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/session"
 )
+
+// streamingVerbs is the set of MCP-exposed verbs that opt into the ASH-106
+// streaming response shape when the MCP client supplies a progressToken.
+// Adding a verb here is sufficient to wire it up — daemon-side support
+// follows from the same Request.Stream flag.
+var streamingVerbs = map[string]bool{
+	"grep": true,
+}
 
 // dialDeadline caps the time a single tool call may spend establishing a
 // daemon connection (including auto-start). The daemon itself enforces
@@ -50,7 +59,13 @@ func makeHandler(verb string) mcp.ToolHandler {
 		}
 		defer conn.Close()
 
-		rsp, err := roundtrip(conn, verb, args)
+		var rsp *proto.Response
+		token := req.Params.GetProgressToken()
+		if streamingVerbs[verb] && token != nil {
+			rsp, err = streamingRoundtrip(ctx, conn, req.Session, token, verb, args)
+		} else {
+			rsp, err = roundtrip(conn, verb, args)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("ashd roundtrip: %w", err)
 		}
@@ -109,6 +124,93 @@ func roundtrip(conn net.Conn, verb string, args map[string]any) (*proto.Response
 		rsp.Metrics.BytesOut = len(buf)
 	}
 	return rsp, nil
+}
+
+// streamingRoundtrip writes a Stream=true Request, reads kind-tagged
+// Chunk and Final frames from the daemon, and forwards each Chunk to the
+// MCP client as a progressNotification (ASH-106). The cumulative Final
+// frame is returned to the caller untouched, so the tool result shape is
+// identical to the non-streaming path — clients that ignore progress
+// notifications see today's behavior, clients that subscribe see the
+// streaming preview.
+//
+// ctx cancellation (the agent abandoning the tool call) propagates by
+// closing the conn; the daemon's per-request watcher reads EOF, cancels
+// its own ctx, and the streaming verb aborts at its next checkpoint.
+func streamingRoundtrip(ctx context.Context, conn net.Conn, ss *mcp.ServerSession, progressToken any, verb string, args map[string]any) (*proto.Response, error) {
+	req := &proto.Request{
+		V:      proto.ProtocolVersion,
+		ID:     newID(),
+		Verb:   verb,
+		Args:   args,
+		Stream: true,
+	}
+	encoded, err := proto.EncodeRequest(req)
+	if err != nil {
+		return nil, fmt.Errorf("encode: %w", err)
+	}
+	if err := proto.WriteFrame(conn, encoded); err != nil {
+		return nil, fmt.Errorf("write: %w", err)
+	}
+
+	// Close the conn on ctx cancel so an in-flight ReadKinded returns
+	// promptly and the daemon's watcher sees EOF == cancel.
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = conn.Close()
+		case <-done:
+		}
+	}()
+
+	totalBytes := 0
+	for {
+		kind, payload, rerr := proto.ReadKinded(conn)
+		if rerr != nil {
+			return nil, fmt.Errorf("read: %w", rerr)
+		}
+		totalBytes += 1 + len(payload)
+		switch kind {
+		case proto.KindChunk:
+			chunk, cerr := proto.DecodeChunk(payload)
+			if cerr != nil {
+				return nil, fmt.Errorf("decode chunk: %w", cerr)
+			}
+			// Decode the verb-typed batch back into a generic []any so we
+			// can JSON-encode it for the progress message. ashmcp is verb-
+			// agnostic at this layer; the harness sees the same record
+			// shape as in the final result.
+			var batch []any
+			if uerr := msgpack.Unmarshal(chunk.Data, &batch); uerr != nil {
+				return nil, fmt.Errorf("decode chunk data: %w", uerr)
+			}
+			msg, jerr := json.Marshal(batch)
+			if jerr != nil {
+				return nil, fmt.Errorf("marshal chunk: %w", jerr)
+			}
+			// Best-effort: NotifyProgress can fail if the MCP transport
+			// is broken, but the daemon is still producing real work, so
+			// we keep draining the stream.
+			_ = ss.NotifyProgress(ctx, &mcp.ProgressNotificationParams{
+				ProgressToken: progressToken,
+				Progress:      float64(chunk.Seq),
+				Message:       string(msg),
+			})
+		case proto.KindFinal:
+			rsp, derr := proto.DecodeResponse(payload)
+			if derr != nil {
+				return nil, fmt.Errorf("decode final: %w", derr)
+			}
+			if rsp.Metrics != nil {
+				rsp.Metrics.BytesOut = totalBytes
+			}
+			return rsp, nil
+		default:
+			return nil, fmt.Errorf("unexpected frame kind %#x", kind)
+		}
+	}
 }
 
 // toolResult shapes the ashd response as an MCP tool result. Verb-level

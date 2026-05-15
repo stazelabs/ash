@@ -963,7 +963,7 @@
           },
           {
             "file": "internal/verbs/grep/grep.go",
-            "line": 482
+            "line": 493
           },
           {
             "file": "internal/verbs/initverb/initverb.go",
@@ -1317,7 +1317,7 @@
           },
           {
             "file": "internal/verbs/grep/grep.go",
-            "line": 241
+            "line": 248
           }
         ]
       },
@@ -1952,11 +1952,11 @@
         "sites": [
           {
             "file": "internal/verbs/grep/grep.go",
-            "line": 588
+            "line": 599
           },
           {
             "file": "internal/verbs/grep/grep.go",
-            "line": 644
+            "line": 655
           }
         ]
       },
