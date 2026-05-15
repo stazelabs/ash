@@ -166,7 +166,7 @@ func TestDecide_bash(t *testing.T) {
 		{name: "backslash-escaped grep", command: `\grep foo bar`, want: "deny", wantRule: "Bash:grep"},
 		{name: "double-quoted find", command: `"find" . -name "*.go"`, want: "deny", wantRule: "Bash:find"},
 		{name: "double-quoted cat", command: `"cat" main.go`, want: "deny", wantRule: "Bash:cat"},
-		{name: "quoted env prefix then grep", command: `"env" FOO=bar grep .`, want: "deny", wantRule: "Bash:grep"},
+		{name: "quoted env prefix then grep", command: `"env" FOO=bar grep PATTERN file.txt`, want: "deny", wantRule: "Bash:grep"},
 
 		// Nudge tail is appended.
 		{name: "deny includes nudge tail", command: "grep foo .", want: "deny", wantRule: "Bash:grep"},
@@ -315,6 +315,35 @@ func TestDecide_bash(t *testing.T) {
 			command: "sed -i 's/x/y/' a.go 2>/dev/null",
 			want: "deny", wantRule: "Bash:sed",
 			wantSugg: "ash edit --path a.go"},
+
+		// ASH-142: grepLike / readLike pipeline forms (no file argument)
+		// pass through — ash grep / ash read can't substitute for stdin.
+		{name: "grep pipeline (pattern only) allows",
+			command: "grep PATTERN", want: "allow"},
+		{name: "grep pipeline after pipe allows",
+			command: "echo hi | grep PATTERN", want: "allow"},
+		{name: "rg pipeline (pattern only) allows",
+			command: "rg PATTERN", want: "allow"},
+		{name: "egrep pipeline (pattern only) allows",
+			command: "egrep PATTERN", want: "allow"},
+		{name: "fgrep pipeline (pattern only) allows",
+			command: "fgrep PATTERN", want: "allow"},
+		{name: "grep with flag and pattern (no file) allows",
+			command: "grep -i PATTERN", want: "allow"},
+		{name: "grep with pattern and file still denies",
+			command: "grep PATTERN file.txt", want: "deny", wantRule: "Bash:grep"},
+		{name: "cat pipeline (no file) allows",
+			command: "make foo | cat", want: "allow"},
+		{name: "head pipeline (flags only) allows",
+			command: "head -n 10", want: "allow"},
+		{name: "tail pipeline (flags only) allows",
+			command: "tail -n 20", want: "allow"},
+		{name: "tail with file still denies",
+			command: "tail -f log.txt", want: "deny", wantRule: "Bash:tail"},
+		{name: "head with file still denies",
+			command: "head -n 20 main.go", want: "deny", wantRule: "Bash:head"},
+		{name: "cat with file in pipe still denies",
+			command: "cat foo.go | wc -l", want: "deny", wantRule: "Bash:cat"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

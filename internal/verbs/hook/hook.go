@@ -998,6 +998,45 @@ var grepLike = map[string]bool{"grep": true, "rg": true, "egrep": true, "fgrep":
 var readLike = map[string]bool{"cat": true, "head": true, "tail": true}
 var gitRedirect = map[string]bool{"status": true, "log": true, "diff": true, "show": true}
 
+// flagsWithValueArg lists per-program flags whose value is the next arg
+// (e.g. `head -n 10`, `grep -A 3 PATTERN`). Used by pipelinePositionals
+// so flag values aren't mis-counted as file/path positionals — important
+// for the pipeline-form pass-through (ASH-142) and also fixes a latent
+// mis-suggestion bug for `grep -A N PATTERN file`.
+var flagsWithValueArg = map[string]map[string]bool{
+	"grep":  {"-A": true, "-B": true, "-C": true, "-m": true, "-e": true, "-f": true},
+	"rg":    {"-A": true, "-B": true, "-C": true, "-m": true, "-e": true, "-f": true, "-t": true, "-T": true, "-g": true},
+	"egrep": {"-A": true, "-B": true, "-C": true, "-m": true, "-e": true, "-f": true},
+	"fgrep": {"-A": true, "-B": true, "-C": true, "-m": true, "-e": true, "-f": true},
+	"head":  {"-n": true, "-c": true},
+	"tail":  {"-n": true, "-c": true, "-s": true, "--pid": true},
+}
+
+// pipelinePositionals returns args with redirections, flags, AND
+// flag-with-value pairs stripped — leaving only true positional
+// arguments (patterns, paths). Used to decide whether a redirected
+// program is being used in pipeline form (no file argument).
+func pipelinePositionals(prog string, args []string) []string {
+	args = stripRedirections(args)
+	flags := flagsWithValueArg[prog]
+	out := make([]string, 0, len(args))
+	skip := false
+	for _, a := range args {
+		if skip {
+			skip = false
+			continue
+		}
+		if strings.HasPrefix(a, "-") {
+			if flags[a] {
+				skip = true
+			}
+			continue
+		}
+		out = append(out, a)
+	}
+	return out
+}
+
 // writeRedirectProgs are bash programs whose canonical write idiom is an
 // output redirection: `cat > FILE`, `echo "x" > FILE`, `printf "..." > FILE`,
 // `tee FILE` (or `tee >> FILE`). When one of these runs with a `>`/`>>`/`&>`
@@ -1027,20 +1066,20 @@ func decideBash(command string, excludeVerbs []string) *Result {
 			}
 		}
 		if grepLike[prog] {
-			pos := positionalArgs(args)
-			var pattern, path string
-			if len(pos) >= 1 {
-				pattern = pos[0]
+			pos := pipelinePositionals(prog, args)
+			if len(pos) < 2 {
+				// Pure pipeline form (no file argument) — stdin-stream
+				// usage we have no ash equivalent for (ash grep needs
+				// --path). Pass through, mirroring the sed carve-out.
+				continue
 			}
-			if len(pos) >= 2 {
-				path = pos[1]
-			} else {
-				path = "."
-			}
+			pattern := pos[0]
+			path := pos[1]
 			reason := fmt.Sprintf("Use ash instead: `%s` (bash `%s` is redirected to ash grep in this repo).",
 				suggestGrep(pattern, path, ""), prog)
 			return deny("Bash", "Bash:"+prog, reason)
 		}
+
 		if prog == "find" {
 			pos := positionalArgs(args)
 			path := "."
@@ -1059,15 +1098,19 @@ func decideBash(command string, excludeVerbs []string) *Result {
 			return deny("Bash", "Bash:find", reason)
 		}
 		if readLike[prog] {
-			pos := positionalArgs(args)
-			path := ""
-			if len(pos) >= 1 {
-				path = pos[0]
+			pos := pipelinePositionals(prog, args)
+			if len(pos) == 0 {
+				// Pure pipeline form (no file argument) — stdin-stream
+				// usage we have no ash equivalent for (ash read needs
+				// --path). Pass through, mirroring the sed carve-out.
+				continue
 			}
+			path := pos[0]
 			reason := fmt.Sprintf("Use ash instead: `%s` (bash `%s` is redirected to ash read in this repo).",
 				suggestRead(path), prog)
 			return deny("Bash", "Bash:"+prog, reason)
 		}
+
 		if prog == "ls" && lsIsRecursive(args) {
 			pos := positionalArgs(args)
 			path := "."
