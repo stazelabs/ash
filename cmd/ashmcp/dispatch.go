@@ -237,6 +237,14 @@ func streamingRoundtrip(ctx context.Context, conn net.Conn, ss *mcp.ServerSessio
 // Metrics move out of the body into MCP _meta — it's protocol-reserved
 // metadata, not part of the tool's output contract, so harnesses don't
 // pay for it in tokens.
+//
+// When the verb truncated its output (ASH-127), the structured
+// TruncInfo rides alongside metrics in _meta.ash.truncated so harnesses
+// can detect "this response is partial" programmatically without
+// parsing the envelope. A short sentinel TextContent is also prepended
+// so harnesses that ignore _meta still see the signal in the model-
+// visible content. IsError stays false — truncation is a partial
+// success, not a failure.
 func toolResult(rsp *proto.Response) (*mcp.CallToolResult, error) {
 	body, err := proto.MCPEnvelope(rsp)
 	if err != nil {
@@ -246,6 +254,7 @@ func toolResult(rsp *proto.Response) (*mcp.CallToolResult, error) {
 		IsError: !rsp.OK,
 		Content: []mcp.Content{&mcp.TextContent{Text: string(body)}},
 	}
+	var trunc *proto.TruncInfo
 	if rsp.OK {
 		data, derr := proto.MCPStructuredData(rsp)
 		if derr == nil {
@@ -258,9 +267,26 @@ func toolResult(rsp *proto.Response) (*mcp.CallToolResult, error) {
 				out.StructuredContent = m
 			}
 		}
+		trunc = proto.MCPTruncationHint(rsp)
 	}
+	ashMeta := map[string]any{}
 	if rsp.Metrics != nil {
-		out.Meta = mcp.Meta{"ash": map[string]any{"metrics": rsp.Metrics}}
+		ashMeta["metrics"] = rsp.Metrics
+	}
+	if trunc != nil {
+		ashMeta["truncated"] = trunc
+		// Prepend the sentinel so the truncation signal is the first
+		// thing the harness renders. The text comes from proto so
+		// ashd's tokens_out_emit accounting (ASH-123) sees the same
+		// bytes the harness consumes.
+		sentinel := proto.MCPTruncationSentinel(rsp)
+		out.Content = append(
+			[]mcp.Content{&mcp.TextContent{Text: sentinel}},
+			out.Content...,
+		)
+	}
+	if len(ashMeta) > 0 {
+		out.Meta = mcp.Meta{"ash": ashMeta}
 	}
 	return out, nil
 }

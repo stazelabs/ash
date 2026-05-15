@@ -66,3 +66,46 @@ func MCPStructuredData(rsp *Response) (any, error) {
 	}
 	return data, nil
 }
+
+// MCPTruncationHint extracts the structured truncation hint from a
+// verb's Result without depending on the verb-specific Result type.
+// Every truncating verb encodes the hint under msgpack tag
+// "truncation_hint"; a partial decode picks it up. Returns nil when the
+// response is empty, errored, or the verb didn't truncate. Lives in
+// proto so ashmcp (emit) and ashd (tokens_out_emit accounting) agree
+// on whether the sentinel is present (ASH-127).
+func MCPTruncationHint(rsp *Response) *TruncInfo {
+	if rsp == nil || !rsp.OK || len(rsp.Data) == 0 {
+		return nil
+	}
+	var probe struct {
+		Hint *TruncInfo `msgpack:"truncation_hint"`
+	}
+	if err := UnmarshalData(rsp, &probe); err != nil {
+		return nil
+	}
+	return probe.Hint
+}
+
+// MCPTruncationSentinel renders the short, verb-agnostic truncation
+// hint that ashmcp prepends to the CallToolResult content blocks when a
+// response carries a truncation hint (ASH-127). Returns "" when the
+// response was not truncated, so ashd can add `len(sentinel)` /
+// `tokens(sentinel)` to its MCP-envelope accounting unconditionally
+// and keep the ledger's tokens_out_emit honest with what the harness
+// actually consumes.
+//
+// Limit==Max means the verb hit its hard cap — raising the limit
+// cannot help, only narrowing the call will. The two phrasings keep
+// agents from retrying with --max=higher on a call that already
+// saturated the cap.
+func MCPTruncationSentinel(rsp *Response) string {
+	t := MCPTruncationHint(rsp)
+	if t == nil {
+		return ""
+	}
+	if t.Limit >= t.Max {
+		return fmt.Sprintf("truncated: hit hard cap (max=%d) — narrow the call; raising the limit will not help", t.Max)
+	}
+	return fmt.Sprintf("truncated: hit limit=%d (max=%d) — narrow the call or raise the verb's limit flag", t.Limit, t.Max)
+}

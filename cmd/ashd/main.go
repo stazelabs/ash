@@ -437,8 +437,18 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 					metrics.BytesOut = len(final)
 				}
 				if env, eerr := proto.MCPEnvelope(rsp); eerr == nil {
+					emitBytes := len(env)
 					emitTokens := led.Counter().Count(string(env))
-					if err := led.UpdateMCPEmit(rowID, len(env), emitTokens); err != nil {
+					// ashmcp prepends a sentinel TextContent block
+					// when the response was truncated (ASH-127);
+					// mirror its byte/token cost here so
+					// tokens_out_emit still equals what the harness
+					// actually consumed.
+					if sentinel := proto.MCPTruncationSentinel(rsp); sentinel != "" {
+						emitBytes += len(sentinel)
+						emitTokens += led.Counter().Count(sentinel)
+					}
+					if err := led.UpdateMCPEmit(rowID, emitBytes, emitTokens); err != nil {
 						log.Printf("ashd: ledger update mcp emit: %v", err)
 					}
 				} else {

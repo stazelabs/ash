@@ -119,6 +119,9 @@ func main() {
 		// MCP shape: same envelope ashmcp would emit. The daemon already
 		// populated rsp.Metrics.BytesOut for MCP-transport requests, so
 		// the embedded `bo` matches what the harness sees byte-for-byte.
+		// Truncated responses also gain a prepended sentinel TextContent
+		// block (ASH-127); mirror its cost here so wirecmp stays
+		// byte-identical to the daemon's tokens_out_emit accounting.
 		env, err := proto.MCPEnvelope(rsp)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "wirecmp: %s envelope: %v\n", f.Name, err)
@@ -126,6 +129,12 @@ func main() {
 		}
 		mcpBytes := len(env)
 		mcpTokens := counter.Count(string(env))
+		mcpText := string(env)
+		if sentinel := proto.MCPTruncationSentinel(rsp); sentinel != "" {
+			mcpBytes += len(sentinel)
+			mcpTokens += counter.Count(sentinel)
+			mcpText = sentinel + "\n" + mcpText
+		}
 
 		// Latency: median of N roundtrips per transport.
 		cliLat := medianRoundtripUs(sock, f.Verb, f.Args, "", *repeat)
@@ -142,7 +151,7 @@ func main() {
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "wirecmp: claude (%s cli): %v\n", f.Name, err)
 			}
-			n2, err := countTokensAnthropic(apiKey, *model, string(env))
+			n2, err := countTokensAnthropic(apiKey, *model, mcpText)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "wirecmp: claude (%s mcp): %v\n", f.Name, err)
 			}

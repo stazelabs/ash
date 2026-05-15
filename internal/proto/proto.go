@@ -117,9 +117,9 @@ type Error struct {
 // Limit is the cap that triggered truncation; Max is the hard cap (if
 // Limit==Max, the only recourse is narrowing — raising is not possible).
 type TruncInfo struct {
-	Trunc int `msgpack:"trunc"`
-	Limit int `msgpack:"limit"`
-	Max   int `msgpack:"max"`
+	Trunc int `msgpack:"trunc" json:"trunc"`
+	Limit int `msgpack:"limit" json:"limit"`
+	Max   int `msgpack:"max"   json:"max"`
 }
 
 type Metrics struct {
