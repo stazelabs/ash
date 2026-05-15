@@ -122,6 +122,8 @@ Every move worth considering has a ticket with enough detail to evaluate when th
 
 ## [ASH-109](https://linear.app/stazelabs/issue/ASH-109) -- LSP-bridged semantic index pilot
 
+**Status (2026-05-15).** Decomposed into [ASH-136](https://linear.app/stazelabs/issue/ASH-136) (gopls broker), [ASH-137](https://linear.app/stazelabs/issue/ASH-137) (lang-cache.db), [ASH-138](https://linear.app/stazelabs/issue/ASH-138) (`outline`+`def`), [ASH-139](https://linear.app/stazelabs/issue/ASH-139) (`refs`+`callers`+`impl`), [ASH-140](https://linear.app/stazelabs/issue/ASH-140) (ashmcp exposure), [ASH-141](https://linear.app/stazelabs/issue/ASH-141) (replay validation). ASH-109 closed as umbrella. Children carry the work.
+
 **Hypothesis.** Agents pay an approximation tax on semantic questions (callers, definitions, refs, implementations) that have exact structured answers. A semantic verb could replace 5-10 grep+read sequences with a single call.
 
 **Key reframe.** **Do not write the indexer.** Bridge to existing language servers via `go.lsp.dev/protocol`. ash becomes a *broker* that caches LSP responses in `.ash/lang-cache.db`. Mature compiler teams (gopls, rust-analyzer, pyright) do the heavy lifting. Sidesteps the no-CGO + tree-sitter wall entirely.
@@ -172,7 +174,7 @@ Every move worth considering has a ticket with enough detail to evaluate when th
 4. **[ASH-112](https://linear.app/stazelabs/issue/ASH-112) (replay)** -- cheap, unlocks empirical validation for every subsequent move.
 5. **[ASH-108](https://linear.app/stazelabs/issue/ASH-108) (cache envelope)** -- biggest real Claude-side token win; measurable via replay.
 6. **[ASH-106](https://linear.app/stazelabs/issue/ASH-106) (streaming MCP)** -- once v1 stabilizes.
-7. **[ASH-109](https://linear.app/stazelabs/issue/ASH-109) (LSP-bridged semantic pilot)** -- the capability pivot; Phase 3 territory.
+7. **[ASH-109](https://linear.app/stazelabs/issue/ASH-109) (LSP-bridged semantic pilot)** -- the capability pivot; Phase 3 territory. *(Decomposed 2026-05-15 into [ASH-136](https://linear.app/stazelabs/issue/ASH-136)..[ASH-141](https://linear.app/stazelabs/issue/ASH-141); start with ASH-136.)*
 8. **[ASH-110](https://linear.app/stazelabs/issue/ASH-110) (session memory)** -- after MCP and replay are live.
 9. **[ASH-111](https://linear.app/stazelabs/issue/ASH-111) (plan-as-object)** -- after ASH-109 lands. Phase 4.
 
@@ -181,7 +183,7 @@ Every move worth considering has a ticket with enough detail to evaluate when th
 - ASH-103 (audit) -> blocks ASH-104, ASH-109
 - ASH-105 (schema) -> blocks ASH-104
 - ASH-104 (ashmcp) -> blocks ASH-106, ASH-107, ASH-108, ASH-110
-- ASH-109 (LSP) -> blocks ASH-111
+- ASH-109 (LSP) -> decomposed into ASH-136..ASH-141; ASH-139 (lang verbs) -> blocks ASH-111
 - ASH-112 (replay) -> blocks ASH-108
 - ASH-103, ASH-105, ASH-112 have no blockers; safe to start in parallel.
 
