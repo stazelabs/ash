@@ -191,6 +191,107 @@ func TestParseFlags_NoPrefixDoesNotConsumeNextArg(t *testing.T) {
 	}
 }
 
+// ASH-122 — bool flags whose registered name itself begins with "no-"
+// (--no-text, --no-clobber, --no-registry) must accept the same four
+// shapes every other flag accepts: presence-only, =value, and space-
+// separated value (when bool-like). The pre-fix parser silently stripped
+// the "no-" prefix and bound the trailing "true" as a positional, which
+// then collided with --pattern/--path and surfaced as a confusing
+// "set both as a flag and as a positional" error.
+
+func TestParseFlags_BoolNoPrefixPresenceOnly(t *testing.T) {
+	got, err := parseFlags("grep", []string{"--pattern", "x", "--path", "src", "--no-text"})
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	want := map[string]any{"pattern": "x", "path": "src", "no-text": "true"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestParseFlags_BoolNoPrefixEqualsForm(t *testing.T) {
+	got, err := parseFlags("grep", []string{"--pattern", "x", "--path", "src", "--no-text=true"})
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	want := map[string]any{"pattern": "x", "path": "src", "no-text": "true"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestParseFlags_BoolNoPrefixSpaceTrue(t *testing.T) {
+	// Repro from ASH-122: pre-fix, "true" floated free and collided with --pattern.
+	got, err := parseFlags("grep", []string{"--pattern", "x", "--path", "src", "--no-text", "true"})
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	want := map[string]any{"pattern": "x", "path": "src", "no-text": "true"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestParseFlags_BoolNoPrefixSpaceFalse(t *testing.T) {
+	got, err := parseFlags("write", []string{"--path", "/tmp/foo", "--content", "x", "--no-clobber", "false"})
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	want := map[string]any{"path": "/tmp/foo", "content": "x", "no-clobber": "false"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestParseFlags_BoolFlagSpaceNonBoolToken(t *testing.T) {
+	// A non-bool-looking trailing token must NOT be consumed by a bool
+	// flag — it stays available for positional binding (or, here,
+	// errors loudly when no slot exists).
+	_, err := parseFlags("grep", []string{"--pattern", "x", "--path", "src", "--no-text", "maybe"})
+	if err == nil {
+		t.Fatal("expected error: 'maybe' should not be consumed by --no-text and should fail positional binding")
+	}
+}
+
+func TestParseFlags_BoolFlagSpaceBoolLiteralVariants(t *testing.T) {
+	for _, in := range []string{"true", "True", "TRUE", "1", "yes", "YES", "false", "False", "0", "no", "No"} {
+		got, err := parseFlags("write", []string{"--path", "f", "--content", "x", "--no-clobber", in})
+		if err != nil {
+			t.Fatalf("parseFlags %q: %v", in, err)
+		}
+		if got["no-clobber"] != in {
+			t.Errorf("--no-clobber %q: got no-clobber=%v, want %q", in, got["no-clobber"], in)
+		}
+	}
+}
+
+func TestParseFlags_BoolFlagSpaceTrueOnPlainBool(t *testing.T) {
+	// Non-no- bool flags also benefit: --all true / --stat false work
+	// and don't drop the trailing token onto a positional.
+	got, err := parseFlags("diff", []string{"--path", "a", "--other", "b", "--stat", "true"})
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	want := map[string]any{"path": "a", "other": "b", "stat": "true"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestParseFlags_NoShorthandStillWorksForRegisteredBool(t *testing.T) {
+	// --no-mkdir is shorthand for mkdir=false (mkdir is registered with
+	// default true on write); the new parser branch must not break this.
+	got, err := parseFlags("write", []string{"--path", "f", "--content", "x", "--no-mkdir"})
+	if err != nil {
+		t.Fatalf("parseFlags: %v", err)
+	}
+	want := map[string]any{"path": "f", "content": "x", "mkdir": "false"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
 func TestParseFlags_GitPositional(t *testing.T) {
 	got, err := parseFlags("git", []string{"log"})
 	if err != nil {

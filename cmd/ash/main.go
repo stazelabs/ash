@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -293,17 +294,69 @@ var verbListFlags = map[string]map[string]bool{
 	"stat": {"paths": true},
 }
 
+// verbBoolFlagsCache memoizes per-verb sets of bool-typed flag names,
+// derived from help.Registry(). It lets parseFlags answer "is --foo a
+// bool flag?" without scanning the registry on every call.
+var (
+	verbBoolFlagsOnce  sync.Once
+	verbBoolFlagsCache map[string]map[string]bool
+)
+
+// verbBoolFlags returns the set of bool flag names registered for verb.
+// The set keys flag names verbatim (no --no- stripping), so flags whose
+// registered name itself begins with "no-" (e.g. --no-text, --no-clobber)
+// resolve directly. Returns nil for unknown verbs; callers must treat a
+// nil map as "no bool flags," which is the safe default.
+func verbBoolFlags(verb string) map[string]bool {
+	verbBoolFlagsOnce.Do(func() {
+		reg := help.Registry()
+		verbBoolFlagsCache = make(map[string]map[string]bool, len(reg))
+		for _, vs := range reg {
+			m := make(map[string]bool, len(vs.Args))
+			for _, a := range vs.Args {
+				if a.Type == "bool" {
+					m[a.Name] = true
+				}
+			}
+			verbBoolFlagsCache[vs.Verb] = m
+		}
+	})
+	return verbBoolFlagsCache[verb]
+}
+
+// looksLikeBool reports whether s is a recognized bool literal — the same
+// set argutil.ToBool accepts (case-insensitive). The CLI parser uses this
+// to decide whether the token after a bool flag is its value or a free
+// positional. ASH-122.
+func looksLikeBool(s string) bool {
+	switch strings.ToLower(s) {
+	case "true", "false", "1", "0", "yes", "no":
+		return true
+	}
+	return false
+}
+
 // parseFlags converts agent-friendly long flags and per-verb positional
 // arguments into an args map. Both --key value and --key=value are
 // accepted. Bare values (no -- prefix) are matched against the verb's
-// positional slot list (verbPositionals). The bare form --no-foo is
-// accepted as shorthand for --foo=false; this covers default-true booleans
-// like --gi, --untracked, and --mkdir without requiring the verbose =false
-// suffix. Boolean shorthand (--flag with no value and no --no- prefix) is
-// rejected to keep the on-wire shape unambiguous.
+// positional slot list (verbPositionals).
+//
+// Bool flags (per help.Registry()) accept three forms: --flag (presence-
+// only, equivalent to true), --flag=true|false, and --flag true|false (the
+// trailing value is consumed only when it parses as a bool literal —
+// matching argutil.ToBool — otherwise the token is left for the positional
+// pass). This keeps the --key value muscle-memory shape working for flags
+// whose registered name itself starts with "no-" (e.g. --no-text true,
+// --no-clobber false), where the next-token would otherwise float free
+// and collide with a positional slot. ASH-122.
+//
+// The bare form --no-foo remains shorthand for --foo=false when foo (not
+// no-foo) is a registered bool flag — this covers default-true bools like
+// --gi, --untracked, --mkdir without requiring the verbose =false suffix.
 func parseFlags(verb string, argv []string) (map[string]any, error) {
 	out := make(map[string]any)
 	positionals := verbPositionals[verb]
+	bools := verbBoolFlags(verb)
 	posIdx := 0
 	for i := 0; i < len(argv); i++ {
 		a := argv[i]
@@ -324,7 +377,14 @@ func parseFlags(verb string, argv []string) (map[string]any, error) {
 		if eq := strings.IndexByte(key, '='); eq >= 0 {
 			val = key[eq+1:]
 			key = key[:eq]
-		} else if strings.HasPrefix(key, "no-") {
+		} else if bools[key] {
+			if i+1 < len(argv) && looksLikeBool(argv[i+1]) {
+				i++
+				val = argv[i]
+			} else {
+				val = "true"
+			}
+		} else if strings.HasPrefix(key, "no-") && bools[key[3:]] {
 			key = key[3:]
 			val = "false"
 		} else {
