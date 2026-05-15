@@ -70,7 +70,10 @@ This project is two experiments at once: the shell itself, and a deliberate stud
 
 Agents in repos that ran `ash init` see only the hook's deny messages today; no CLAUDE.md is propagated to target repos yet (tracked as a follow-up). The design rationale and maintenance ritual for these surfaces live in [docs/agent-guidance.md](docs/agent-guidance.md).
 
+**Native adoption via MCP.** The companion binary `ashmcp` exposes every read-side verb as a typed Model Context Protocol tool (`ash_read`, `ash_grep`, `ash_lang_def`, …) over stdio. MCP-aware harnesses see them alongside their built-ins from session start, so adoption no longer depends on the hook's block-and-nudge loop. Copy-paste snippets and verification recipes for Claude Code and Claude Desktop, plus the migration path off the hook, live in [docs/adoption/](docs/adoption/).
+
 ## The verb surface
+
 
 17 verbs are live as of phase 2 ship 14. Every verb returns a structured response over a MessagePack-with-schema-dictionary protocol; the same data renders as a token-lean pretty form for human (or LLM) consumption. Run `ash help` for the full schema of every verb, or `ash help --verb <name>` for one.
 
