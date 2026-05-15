@@ -1,10 +1,13 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 )
+
 
 func TestParseFlags_FlagOnly(t *testing.T) {
 	got, err := parseFlags("read", []string{"--path", "foo.go", "--range", "10:20"})
@@ -296,3 +299,95 @@ func TestResolveStdin_TTYRefuses(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
+
+func TestResolveAtFile_OldAndNew(t *testing.T) {
+	dir := t.TempDir()
+	oldPath := filepath.Join(dir, "old.txt")
+	newPath := filepath.Join(dir, "new.txt")
+	if err := os.WriteFile(oldPath, []byte("old\n\tblock\n"), 0o600); err != nil {
+		t.Fatalf("write old: %v", err)
+	}
+	if err := os.WriteFile(newPath, []byte("new\n\tblock\n"), 0o600); err != nil {
+		t.Fatalf("write new: %v", err)
+	}
+	args := map[string]any{"path": "f.go", "old": "@" + oldPath, "new": "@" + newPath}
+	if err := resolveAtFile(args, "old", "new"); err != nil {
+		t.Fatalf("resolveAtFile: %v", err)
+	}
+	if args["old"] != "old\n\tblock\n" {
+		t.Errorf("old: got %q, want %q", args["old"], "old\n\tblock\n")
+	}
+	if args["new"] != "new\n\tblock\n" {
+		t.Errorf("new: got %q, want %q", args["new"], "new\n\tblock\n")
+	}
+}
+
+func TestResolveAtFile_NoPrefixPassthrough(t *testing.T) {
+	args := map[string]any{"old": "literal text", "new": ""}
+	before := map[string]any{"old": "literal text", "new": ""}
+	if err := resolveAtFile(args, "old", "new"); err != nil {
+		t.Fatalf("resolveAtFile: %v", err)
+	}
+	if !reflect.DeepEqual(args, before) {
+		t.Errorf("args mutated when no @ sentinel: got %v, want %v", args, before)
+	}
+}
+
+func TestResolveAtFile_MissingFileErrors(t *testing.T) {
+	args := map[string]any{"old": "@/nonexistent/path/to/file"}
+	err := resolveAtFile(args, "old", "new")
+	if err == nil {
+		t.Fatal("expected error for missing file, got nil")
+	}
+	if !strings.Contains(err.Error(), "--old") {
+		t.Errorf("error should name the flag: %v", err)
+	}
+}
+
+func TestResolveAtFile_EmptyPathErrors(t *testing.T) {
+	args := map[string]any{"old": "@"}
+	err := resolveAtFile(args, "old", "new")
+	if err == nil {
+		t.Fatal("expected error for bare @, got nil")
+	}
+	if !strings.Contains(err.Error(), "empty path") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestResolveAtFile_DirectoryErrors(t *testing.T) {
+	dir := t.TempDir()
+	args := map[string]any{"old": "@" + dir}
+	err := resolveAtFile(args, "old", "new")
+	if err == nil {
+		t.Fatal("expected error for directory, got nil")
+	}
+	if !strings.Contains(err.Error(), "regular file") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// TestResolveAtFile_CoexistsWithStdin verifies the load-bearing combo:
+// --old @file resolves from disk while --new - reads stdin in the same
+// invocation. This is the central ergonomic win of ASH-119.
+func TestResolveAtFile_CoexistsWithStdin(t *testing.T) {
+	dir := t.TempDir()
+	oldPath := filepath.Join(dir, "old.txt")
+	if err := os.WriteFile(oldPath, []byte("from-disk"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	args := map[string]any{"old": "@" + oldPath, "new": "-"}
+	if err := resolveAtFile(args, "old", "new"); err != nil {
+		t.Fatalf("resolveAtFile: %v", err)
+	}
+	if err := resolveStdinFromReader(args, strings.NewReader("from-stdin"), false); err != nil {
+		t.Fatalf("resolveStdinFromReader: %v", err)
+	}
+	if args["old"] != "from-disk" {
+		t.Errorf("old: got %q, want \"from-disk\"", args["old"])
+	}
+	if args["new"] != "from-stdin" {
+		t.Errorf("new: got %q, want \"from-stdin\"", args["new"])
+	}
+}
+

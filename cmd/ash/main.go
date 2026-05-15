@@ -55,7 +55,12 @@ func main() {
 		fmt.Fprintln(os.Stderr, "ash:", err)
 		os.Exit(2)
 	}
+	if err := resolveAtFile(args, "old", "new"); err != nil {
+		fmt.Fprintln(os.Stderr, "ash:", err)
+		os.Exit(2)
+	}
 	if err := resolvePatchFile(args); err != nil {
+
 		fmt.Fprintln(os.Stderr, "ash:", err)
 		os.Exit(2)
 	}
@@ -400,7 +405,49 @@ func resolveStdinFromReader(args map[string]any, r io.Reader, isTTY bool) error 
 	return nil
 }
 
+// resolveAtFile expands string args of the form "@PATH" by replacing them
+// with the contents of PATH on disk. This lets a single `ash edit` call
+// supply both --old and --new from external storage in one shot (ASH-119),
+// since the stdin sentinel "-" can only be used by one arg per invocation.
+//
+// The leading "@" is hard: if it is present and the file is missing or
+// unreadable, the call errors loudly rather than falling back to a literal
+// value. --old / --new strings are arbitrary user content (code that may
+// itself look like a path), so silent file-vs-literal heuristics would be
+// a footgun. To pass a literal value that genuinely starts with "@", pipe
+// it through stdin with "-" instead.
+func resolveAtFile(args map[string]any, keys ...string) error {
+	for _, k := range keys {
+		v, ok := args[k]
+		if !ok {
+			continue
+		}
+		s, ok := v.(string)
+		if !ok || !strings.HasPrefix(s, "@") {
+			continue
+		}
+		path := s[1:]
+		if path == "" {
+			return fmt.Errorf("--%s: empty path after @", k)
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			return fmt.Errorf("reading file for --%s: %w", k, err)
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("--%s @%s is not a regular file", k, path)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("reading file for --%s: %w", k, err)
+		}
+		args[k] = string(data)
+	}
+	return nil
+}
+
 // resolvePatchFile replaces --patch <file> with the file's contents when the
+
 // value is a path to an existing regular file (and not the stdin sentinel "-").
 // This enables: ash edit --path f.go --patch my.diff
 func resolvePatchFile(args map[string]any) error {

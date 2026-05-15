@@ -738,7 +738,7 @@
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 543
+            "line": 546
           },
           {
             "file": "internal/verbs/initverb/initverb.go",
@@ -1781,7 +1781,7 @@
         "sites": [
           {
             "file": "cmd/ash/main.go",
-            "line": 224
+            "line": 229
           }
         ]
       },
@@ -1997,11 +1997,11 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 567
+            "line": 570
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 573
+            "line": 576
           }
         ]
       },
@@ -2214,6 +2214,10 @@
           {
             "file": "cmd/ash/main.go",
             "line": 59
+          },
+          {
+            "file": "cmd/ash/main.go",
+            "line": 64
           }
         ]
       },
@@ -2223,7 +2227,7 @@
         "sites": [
           {
             "file": "cmd/ash/main.go",
-            "line": 219
+            "line": 224
           }
         ]
       },
@@ -2253,7 +2257,7 @@
         "sites": [
           {
             "file": "cmd/ash/main.go",
-            "line": 209
+            "line": 214
           }
         ]
       },
@@ -2273,7 +2277,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 832
+            "line": 835
           }
         ]
       },
@@ -2307,7 +2311,7 @@
         "sites": [
           {
             "file": "cmd/ash/main.go",
-            "line": 212
+            "line": 217
           }
         ]
       },
@@ -2327,7 +2331,7 @@
         "sites": [
           {
             "file": "cmd/ash/main.go",
-            "line": 215
+            "line": 220
           }
         ]
       },
@@ -2375,7 +2379,7 @@
         "sites": [
           {
             "file": "cmd/ash/main.go",
-            "line": 202
+            "line": 207
           }
         ]
       },
@@ -2385,7 +2389,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 578
+            "line": 581
           }
         ]
       },
@@ -2395,7 +2399,7 @@
         "sites": [
           {
             "file": "cmd/ash/main.go",
-            "line": 206
+            "line": 211
           }
         ]
       },

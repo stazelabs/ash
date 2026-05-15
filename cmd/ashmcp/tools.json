@@ -2054,11 +2054,11 @@
           },
           "new": {
             "type": "string",
-            "description": "[mode=string] Replacement text; pass '-' to read from stdin; empty string deletes the match. / [mode=range] Replacement lines; pass '-' to read from stdin; empty string deletes the range."
+            "description": "[mode=string] Replacement text; pass '-' for stdin or '@PATH' for a file; empty string deletes the match. / [mode=range] Replacement lines; pass '-' for stdin or '@PATH' for a file; empty string deletes the range."
           },
           "old": {
             "type": "string",
-            "description": "[mode=string] Exact text to find; pass '-' to read from stdin; must appear once unless all=true."
+            "description": "[mode=string] Exact text to find; pass '-' for stdin or '@PATH' for a file; must appear once unless all=true."
           },
           "patch": {
             "type": "string",
