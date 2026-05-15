@@ -40,3 +40,8 @@ Thumbs.db
 # Per-developer Claude Code overrides (the shared project hook config is
 # .claude/settings.json, which IS tracked).
 .claude/settings.local.json
+
+# Project-scope MCP server config — `command` must be an absolute path
+# (Claude Code does not expand env vars in `.mcp.json`), so the file is
+# inherently per-checkout-machine. See docs/adoption/claude-code.md.
+.mcp.json
