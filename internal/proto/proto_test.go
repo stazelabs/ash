@@ -295,3 +295,128 @@ func TestRequest_ArgvOmittedWhenEmpty(t *testing.T) {
 		t.Errorf("expected empty Argv on decode of legacy request, got %v", out.Argv)
 	}
 }
+
+func TestRequest_StreamOmittedWhenFalse(t *testing.T) {
+	// Backward compat (ASH-106): v1 clients did not have Stream. The
+	// omitempty tag must keep stream=false off the wire so v1 daemons
+	// decoding a v2 request still parse it as today's plain request.
+	in := &Request{V: ProtocolVersion, ID: 1, Verb: "grep", Args: map[string]any{}}
+	buf, err := EncodeRequest(in)
+	if err != nil {
+		t.Fatalf("EncodeRequest: %v", err)
+	}
+	if bytes.Contains(buf, []byte("stream")) {
+		t.Errorf("stream key must be omitted when false; encoded: %x", buf)
+	}
+	out, err := DecodeRequest(buf)
+	if err != nil {
+		t.Fatalf("DecodeRequest: %v", err)
+	}
+	if out.Stream {
+		t.Errorf("expected Stream=false on decode, got true")
+	}
+}
+
+func TestRequest_StreamRoundTrip(t *testing.T) {
+	in := &Request{V: ProtocolVersion, ID: 7, Verb: "grep", Args: map[string]any{"pattern": "TODO"}, Stream: true}
+	buf, err := EncodeRequest(in)
+	if err != nil {
+		t.Fatalf("EncodeRequest: %v", err)
+	}
+	out, err := DecodeRequest(buf)
+	if err != nil {
+		t.Fatalf("DecodeRequest: %v", err)
+	}
+	if !out.Stream {
+		t.Errorf("Stream=true did not survive round-trip")
+	}
+}
+
+func TestKindedFrameRoundTrip(t *testing.T) {
+	// WriteKinded / ReadKinded must preserve the kind byte AND the
+	// payload bytes exactly. Used for streaming Chunk and control Cancel
+	// frames (ASH-106).
+	cases := []struct {
+		kind    byte
+		payload []byte
+	}{
+		{KindFinal, []byte("final")},
+		{KindChunk, []byte("a batch of matches")},
+		{KindCancel, []byte{}},
+		{KindChunk, bytes.Repeat([]byte{0x42}, 4096)},
+	}
+	for _, tc := range cases {
+		var buf bytes.Buffer
+		if err := WriteKinded(&buf, tc.kind, tc.payload); err != nil {
+			t.Fatalf("WriteKinded(kind=%#x, %dB): %v", tc.kind, len(tc.payload), err)
+		}
+		kind, body, err := ReadKinded(&buf)
+		if err != nil {
+			t.Fatalf("ReadKinded(kind=%#x): %v", tc.kind, err)
+		}
+		if kind != tc.kind {
+			t.Errorf("kind: got %#x want %#x", kind, tc.kind)
+		}
+		if !bytes.Equal(body, tc.payload) {
+			t.Errorf("payload mismatch for kind=%#x (%dB vs %dB)", tc.kind, len(body), len(tc.payload))
+		}
+	}
+}
+
+func TestChunkRoundTrip(t *testing.T) {
+	// Chunk carries verb-typed batches as RawMessage so the verb's
+	// concrete chunk type (e.g. []grep.Match) round-trips without an
+	// any-walk. Mirror the Response/MustData pattern.
+	type item struct {
+		Path string `msgpack:"p"`
+		Line int    `msgpack:"l"`
+	}
+	batch := []item{{"foo.go", 10}, {"bar.go", 42}}
+	in := &Chunk{V: ProtocolVersion, ID: 100, Seq: 1, Data: MustData(batch)}
+	buf, err := EncodeChunk(in)
+	if err != nil {
+		t.Fatalf("EncodeChunk: %v", err)
+	}
+	out, err := DecodeChunk(buf)
+	if err != nil {
+		t.Fatalf("DecodeChunk: %v", err)
+	}
+	if out.ID != in.ID || out.Seq != in.Seq {
+		t.Errorf("envelope mismatch: got %+v want %+v", out, in)
+	}
+	var got []item
+	if err := UnmarshalData(&Response{Data: out.Data}, &got); err != nil {
+		t.Fatalf("UnmarshalData: %v", err)
+	}
+	if len(got) != 2 || got[0].Path != "foo.go" || got[1].Line != 42 {
+		t.Errorf("data decoded wrong: %+v", got)
+	}
+}
+
+func TestCancelRoundTrip(t *testing.T) {
+	in := &Cancel{V: ProtocolVersion, ID: 999}
+	buf, err := EncodeCancel(in)
+	if err != nil {
+		t.Fatalf("EncodeCancel: %v", err)
+	}
+	out, err := DecodeCancel(buf)
+	if err != nil {
+		t.Fatalf("DecodeCancel: %v", err)
+	}
+	if out.V != in.V || out.ID != in.ID {
+		t.Errorf("got %+v want %+v", out, in)
+	}
+}
+
+func TestReadKindedEmptyFrame(t *testing.T) {
+	// A zero-length frame (no kind byte) is malformed; the reader must
+	// return an error rather than dereference an empty slice.
+	var buf bytes.Buffer
+	if err := WriteFrame(&buf, nil); err != nil {
+		t.Fatalf("WriteFrame: %v", err)
+	}
+	_, _, err := ReadKinded(&buf)
+	if err == nil {
+		t.Fatal("expected error on empty kinded frame, got nil")
+	}
+}

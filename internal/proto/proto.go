@@ -16,12 +16,24 @@ import (
 )
 
 const (
-	ProtocolVersion = 1
+	ProtocolVersion = 2
 	MaxFrameSize    = 64 << 20 // 64 MiB hard cap on a single message
 
 	// AshVersion is bumped manually per ship. Persisted into bench_runs
 	// so historical bench rows can be attributed to a known surface.
 	AshVersion = "0.1.0"
+)
+
+// Frame kind tags discriminate streaming response/control frames on the
+// wire (ASH-106). Tags are written as a single byte immediately before the
+// msgpack payload, INSIDE the length-prefixed frame. Legacy non-streaming
+// traffic does not carry a kind byte at all — the daemon emits a plain
+// Response frame iff Request.Stream is false (or absent), preserving v1
+// byte-for-byte compatibility.
+const (
+	KindFinal  byte = 0x01 // daemon → client: final Response after streaming
+	KindChunk  byte = 0x02 // daemon → client: intermediate batch
+	KindCancel byte = 0x03 // client → daemon: cancel an in-flight streaming request
 )
 
 type Request struct {
@@ -36,6 +48,35 @@ type Request struct {
 	// rather than the post-parse canonical form. Optional for backward
 	// compatibility: when absent the daemon falls back to PrettyRequest.
 	Argv []string `msgpack:"argv,omitempty" json:"argv,omitempty"`
+	// Stream opts the request into the streaming response shape (ASH-106).
+	// When true, the daemon emits zero or more kind-tagged Chunk frames as
+	// the verb produces intermediate results, then a kind-tagged Final
+	// frame (the legacy Response shape). When false or absent, the daemon
+	// returns a single legacy Response frame with no kind tag — v1 clients
+	// continue to work unchanged.
+	Stream bool `msgpack:"stream,omitempty" json:"stream,omitempty"`
+}
+
+// Chunk is one batch of intermediate results emitted during a streaming
+// response. Data is the msgpack-encoded verb-specific chunk payload (e.g.
+// []grep.Match, []find.Record, test.Package). Seq numbers chunks from 1
+// in emission order — the client uses Seq for progress accounting and to
+// detect dropped frames (none expected today; the wire is a UDS).
+type Chunk struct {
+	V    int                `msgpack:"v"    json:"v"`
+	ID   uint64             `msgpack:"id"   json:"id"`
+	Seq  uint32             `msgpack:"seq"  json:"seq"`
+	Data msgpack.RawMessage `msgpack:"data" json:"data"`
+}
+
+// Cancel is a control frame sent from client to daemon to interrupt an
+// in-flight streaming request. The daemon's per-request cancel watcher
+// reads kind-tagged frames from the conn while the verb runs; receiving
+// a Cancel with a matching ID triggers context cancellation, which the
+// streaming verbs honor at their walker / event-loop checkpoints.
+type Cancel struct {
+	V  int    `msgpack:"v"  json:"v"`
+	ID uint64 `msgpack:"id" json:"id"`
 }
 
 // Response carries the verb result back to the client. Data is
@@ -138,6 +179,55 @@ func ReadFrame(r io.Reader) ([]byte, error) {
 		return nil, err
 	}
 	return buf, nil
+}
+
+// WriteKinded writes a kind-tagged frame: a single byte kind followed by
+// the msgpack payload, wrapped in the standard 4-byte length prefix. Used
+// for streaming traffic (ASH-106) — Chunk and Final frames from the
+// daemon, and Cancel frames from the client. Legacy non-streaming frames
+// continue to use WriteFrame with no kind byte.
+func WriteKinded(w io.Writer, kind byte, payload []byte) error {
+	if len(payload)+1 > MaxFrameSize {
+		return fmt.Errorf("proto: kinded frame size %d exceeds max %d", len(payload)+1, MaxFrameSize)
+	}
+	buf := make([]byte, 0, 1+len(payload))
+	buf = append(buf, kind)
+	buf = append(buf, payload...)
+	return WriteFrame(w, buf)
+}
+
+// ReadKinded reads one kind-tagged frame and returns its kind byte and
+// payload (the bytes after the kind byte, ready to be msgpack-decoded into
+// the matching envelope type). The caller is responsible for dispatching
+// on kind.
+func ReadKinded(r io.Reader) (byte, []byte, error) {
+	buf, err := ReadFrame(r)
+	if err != nil {
+		return 0, nil, err
+	}
+	if len(buf) < 1 {
+		return 0, nil, fmt.Errorf("proto: kinded frame is empty")
+	}
+	return buf[0], buf[1:], nil
+}
+
+func EncodeChunk(c *Chunk) ([]byte, error) { return msgpack.Marshal(c) }
+func EncodeCancel(c *Cancel) ([]byte, error) { return msgpack.Marshal(c) }
+
+func DecodeChunk(buf []byte) (*Chunk, error) {
+	var c Chunk
+	if err := msgpack.Unmarshal(buf, &c); err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
+func DecodeCancel(buf []byte) (*Cancel, error) {
+	var c Cancel
+	if err := msgpack.Unmarshal(buf, &c); err != nil {
+		return nil, err
+	}
+	return &c, nil
 }
 
 func EncodeRequest(req *Request) ([]byte, error)   { return msgpack.Marshal(req) }
