@@ -52,6 +52,7 @@ Dispatched on `tool_name`:
 
 - **`Grep`** → always deny. Suggests `ash grep --pattern <p> --path <d> [--glob …]`.
 - **`Glob`** → always deny. Suggests `ash find --path <d> --glob <p> --type file`.
+- **`Edit`** → always deny. Suggests `ash edit --path <p> --old <text> --new <replacement>`. The harness's own `Edit` enforces a prior harness `Read`, which is also denied — denying `Edit` symmetrically routes the agent to `ash edit` directly instead of through the misleading "File has not been read yet" error path (ASH-126).
 - **`Write`** → always deny. Suggests `ash write --path <p> --content <text>`.
 - **`Read`** → deny on text files. Allow on `.png`/`.jpg`/`.jpeg`/`.gif`/`.webp`/`.pdf`/`.ipynb` (file types `ash read` can't render meaningfully).
 - **`Bash`** → tokenize the command across shell separators. For each segment, look at the first command word (skipping leading `VAR=value` assignments and `env`/`command`/`exec`/`time`/`nice` prefixes). Deny when:
@@ -104,6 +105,7 @@ Smoke test the decision engine by piping JSON payloads to `bin/ash hook`:
 - Grep payload should produce a Claude deny pointing at `ash grep`.
 - Read on a `.go` file should deny with `ash read --path …` (new behavior).
 - Read on a `.png` file should allow (no output, exit 0).
+- Edit payload should deny with `ash edit --path … --old … --new …` (sends the agent straight to `ash edit` instead of the harness's "File has not been read yet" error path).
 - Bash `git diff` should allow.
 - Bash `git status` should deny with `ash git --op status`.
 - Bash `cat foo.go` should still deny with `ash read --path foo.go`.
