@@ -628,10 +628,16 @@ func findAshd() (string, error) {
 }
 
 // killStaleIfNeeded checks whether the ashd binary is newer than the socket
-// file. If so, the running daemon is stale — it sends SIGTERM to the PID from
-// .ash/ashd.pid and removes the socket so the normal auto-start path picks up
-// the fresh binary. Errors are silently ignored: the worst case is we connect
-// to the old daemon and get a mismatch, not a crash.
+// file. If so, the running daemon is stale — it sweeps every ashd bound to
+// this socket (SIGTERM, then SIGKILL after a bounded grace), then removes
+// the socket so the normal auto-start path picks up the fresh binary.
+//
+// ASH-154: the pre-sweep version only signalled the pidfile PID and
+// trusted SIGTERM-then-socket-unlink to do the rest, which left orphans
+// alive whenever the old daemon was mid-request or had a hung handler.
+// stop.SweepAshdOnSocket reuses the same per-PID grace+escalate logic
+// that `ash stop` uses for its post-hoc orphan cleanup, so the
+// preventative and curative paths agree on what "gone" means.
 func killStaleIfNeeded(root, sock string) {
 	ashdBin, err := findAshd()
 	if err != nil {
@@ -648,17 +654,10 @@ func killStaleIfNeeded(root, sock string) {
 	if !binStat.ModTime().After(sockStat.ModTime()) {
 		return // binary is not newer than socket; daemon is current
 	}
-	// Binary is newer — read PID file and SIGTERM the old daemon.
-	pidData, err := os.ReadFile(session.PIDPath(root))
-	if err == nil {
-		var pid int
-		if _, err := fmt.Sscan(strings.TrimSpace(string(pidData)), &pid); err == nil && pid > 0 {
-			if proc, err := os.FindProcess(pid); err == nil {
-				_ = proc.Signal(syscall.SIGTERM)
-			}
-		}
-	}
-	// Remove the socket so dialOrStart falls through to startDaemon.
+	_ = stop.SweepAshdOnSocket(sock)
+	// Remove the socket so dialOrStart falls through to startDaemon. The
+	// sweep may have already done this when the daemons unlinked on exit,
+	// but in the SIGKILL escalation path nobody cleaned it up.
 	_ = os.Remove(sock)
 }
 

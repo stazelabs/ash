@@ -231,6 +231,51 @@ func TestFindAshdPIDs_Exported(t *testing.T) {
 	}
 }
 
+// TestSweepAshdOnSocket_KillsAllMatchingDaemons is the ASH-154 contract:
+// the client's killStaleIfNeeded must sweep every ashd bound to the
+// socket, not just the pidfile PID. Two real sleeper processes stand in
+// for "old daemon" and "orphan from the previous rebuild"; both must be
+// gone after SweepAshdOnSocket returns.
+func TestSweepAshdOnSocket_KillsAllMatchingDaemons(t *testing.T) {
+	primary := spawnSleeper(t)
+	orphan := spawnSleeper(t)
+
+	sock := filepath.Join(t.TempDir(), "ash.sock")
+	withFakeLister(t, []processInfo{
+		{PID: primary.Process.Pid, Cmdline: "bin/ashd --socket " + sock},
+		{PID: orphan.Process.Pid, Cmdline: "bin/ashd --root /p --socket=" + sock},
+	})
+
+	got := SweepAshdOnSocket(sock)
+	if len(got) != 2 {
+		t.Fatalf("SweepAshdOnSocket: got %d entries, want 2", len(got))
+	}
+	for _, o := range got {
+		if !o.Exited {
+			t.Errorf("pid %d not reported as exited: %+v", o.PID, o)
+		}
+	}
+	if !waitGone(primary.Process.Pid, 2*time.Second) {
+		t.Fatalf("primary pid %d still alive", primary.Process.Pid)
+	}
+	if !waitGone(orphan.Process.Pid, 2*time.Second) {
+		t.Fatalf("orphan pid %d still alive", orphan.Process.Pid)
+	}
+}
+
+// TestSweepAshdOnSocket_NoMatchesReturnsNil is the fast path: when the
+// process table contains no matching ashd, the sweep is a cheap no-op.
+// Important because killStaleIfNeeded calls this on every auto-start
+// after a binary mtime check trips.
+func TestSweepAshdOnSocket_NoMatchesReturnsNil(t *testing.T) {
+	withFakeLister(t, []processInfo{
+		{PID: 9999, Cmdline: "bin/ashd --socket /tmp/somewhere-else.sock"},
+	})
+	if got := SweepAshdOnSocket("/tmp/ash-empty.sock"); got != nil {
+		t.Fatalf("expected nil, got %v", got)
+	}
+}
+
 func TestPrettyResult_OrphansAndSocket(t *testing.T) {
 	r := &Result{
 		PID:               1234,

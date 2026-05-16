@@ -23,6 +23,7 @@ import (
 	"github.com/stazelabs/ash/internal/session"
 	"github.com/stazelabs/ash/internal/verbs"
 	"github.com/stazelabs/ash/internal/verbs/git"
+	"github.com/stazelabs/ash/internal/verbs/stop"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
@@ -84,6 +85,16 @@ func main() {
 	runners := verbs.Runners(led, cfg, daemonStart, rootFlag)
 	pretty := verbs.PrettyHandlers()
 
+	// ASH-154: refuse to double-bind. The client-side sweep should
+	// normally have cleared the socket before spawning us, but if
+	// another ashd is still alive for this socket (a racing client,
+	// or a sweep that missed an orphan) we exit non-zero with a
+	// clear error rather than racing the survivor for the bind. The
+	// FindAshdPIDs scan excludes our own PID, so a fresh startup
+	// against a free socket passes through.
+	if err := checkNoOtherAshd(sockFlag); err != nil {
+		log.Fatalf("ashd: %v", err)
+	}
 	_ = os.Remove(sockFlag)
 	listener, err := net.Listen("unix", sockFlag)
 	if err != nil {
@@ -545,6 +556,27 @@ func argsBlob(reqBuf []byte) []byte {
 		return nil
 	}
 	return b
+}
+
+// findAshdSocketPIDs is the test seam for checkNoOtherAshd. It defaults
+// to stop.FindAshdPIDs and is overridden by tests that need to simulate
+// a contested socket without forging argv in the live process table.
+var findAshdSocketPIDs = stop.FindAshdPIDs
+
+// checkNoOtherAshd returns a non-nil error when another ashd process is
+// already bound to sockPath. ASH-154 — closes the narrow window between
+// the client-side socket unlink in killStaleIfNeeded and the daemon's
+// own net.Listen where two ashd processes could otherwise both decide
+// they own the socket. The check is best-effort: a process that races
+// past it before our own bind would still produce a dual-listener
+// state, but the client sweep is the primary line of defense and the
+// remaining race is dominated by `ps`-scan latency.
+func checkNoOtherAshd(sockPath string) error {
+	pids := findAshdSocketPIDs(sockPath)
+	if len(pids) == 0 {
+		return nil
+	}
+	return fmt.Errorf("another ashd is bound to this socket (pid=%v); refusing to double-bind — run `ash stop` to clean up", pids)
 }
 
 func writeErrFrame(conn net.Conn, id uint64, code, msg string) {

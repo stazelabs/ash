@@ -108,6 +108,11 @@ func findAshd() (string, error) {
 	return "", errors.New("ashd binary not found (tried $ASH_DAEMON, sibling of ashmcp, and PATH)")
 }
 
+// killStaleIfNeeded mirrors the cmd/ash helper of the same name: when
+// the daemon binary is newer than the socket, sweep every ashd bound to
+// the socket and unlink it so dialOrStart picks up the fresh binary.
+// ASH-154 — the pre-sweep version only signalled the pidfile PID and
+// left orphans behind when the old daemon was mid-request.
 func killStaleIfNeeded(root, sock string) {
 	ashdBin, err := findAshd()
 	if err != nil {
@@ -124,15 +129,7 @@ func killStaleIfNeeded(root, sock string) {
 	if !binStat.ModTime().After(sockStat.ModTime()) {
 		return
 	}
-	pidData, err := os.ReadFile(session.PIDPath(root))
-	if err == nil {
-		var pid int
-		if _, err := fmt.Sscan(strings.TrimSpace(string(pidData)), &pid); err == nil && pid > 0 {
-			if proc, err := os.FindProcess(pid); err == nil {
-				_ = proc.Signal(syscall.SIGTERM)
-			}
-		}
-	}
+	_ = stop.SweepAshdOnSocket(sock)
 	_ = os.Remove(sock)
 }
 

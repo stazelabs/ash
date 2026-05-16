@@ -62,6 +62,29 @@ func FindAshdPIDs(sockPath string) []int {
 	return findOrphanDaemons(sockPath, nil)
 }
 
+// CleanupOrphans signals each PID with SIGTERM, polls for exit up to a
+// bounded grace, then escalates to SIGKILL — returning a per-PID summary
+// of what happened. Exposed for the client auto-start path: ASH-154 has
+// `killStaleIfNeeded` sweep every ashd bound to the socket (not just the
+// pidfile PID) before spawning a new daemon, so a rebuild-then-restart
+// cycle cannot leave the previous daemon alongside the fresh one.
+func CleanupOrphans(pids []int) []Orphan {
+	return cleanupOrphans(pids)
+}
+
+// SweepAshdOnSocket finds every live ashd process bound to sockPath and
+// runs CleanupOrphans on them. Returns the per-PID summary (nil when no
+// matching processes were found). Wraps the FindAshdPIDs + CleanupOrphans
+// pair so the client auto-start path expresses the sweep in one call and
+// can't accidentally signal only the pidfile PID. ASH-154.
+func SweepAshdOnSocket(sockPath string) []Orphan {
+	pids := FindAshdPIDs(sockPath)
+	if len(pids) == 0 {
+		return nil
+	}
+	return cleanupOrphans(pids)
+}
+
 func listProcessesPS() ([]processInfo, error) {
 	out, err := exec.Command("ps", "-A", "-ww", "-o", "pid=,command=").Output()
 	if err != nil {
