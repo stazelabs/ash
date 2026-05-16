@@ -46,10 +46,18 @@ type fixture struct {
 
 // Canonical read-side intents. Stay deliberately small so the
 // comparison reflects the protocol overhead, not the verb workload.
+//
+// Numeric / bool args are passed as strings so they survive msgpack
+// decoding into map[string]any without type drift: small positive ints
+// decode to uint8, which argutil.ToInt does not currently accept and
+// previous wirecmp runs measured the resulting `args` error envelope
+// for find/grep, not real verb output (ASH-148). Strings match the
+// shape the CLI's parseFlags produces, so this mirrors a real call.
 var fixtures = []fixture{
 	{"read README:1-60", "read", map[string]any{"path": "README.md", "range": "1:60"}},
-	{"find **/*.go (20)", "find", map[string]any{"path": ".", "glob": "**/*.go", "limit": 20}},
-	{"grep ^func Run", "grep", map[string]any{"path": ".", "pattern": "^func Run", "max": 20}},
+	{"find **/*.go (20)", "find", map[string]any{"path": ".", "glob": "**/*.go", "limit": "20"}},
+	{"find **/*.go --meta (20)", "find", map[string]any{"path": ".", "glob": "**/*.go", "limit": "20", "meta": "true"}},
+	{"grep ^func Run", "grep", map[string]any{"path": ".", "pattern": "^func Run", "max": "20"}},
 	{"stat README.md", "stat", map[string]any{"path": "README.md"}},
 	{"git status", "git", map[string]any{"op": "status"}},
 	{"help", "help", map[string]any{}},
