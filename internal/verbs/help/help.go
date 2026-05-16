@@ -538,6 +538,21 @@ var registry = []VerbSchema{
 		Description: "Stop the daemon cleanly (SIGTERM, 7s). Idempotent; next call auto-restarts.",
 		Args:        []ArgSchema{},
 	},
+	{
+		Verb:        "usage",
+		Description: "Annotate a prior call with Anthropic prompt-cache hit/miss tokens.",
+		Args: []ArgSchema{
+			{Name: "hit", Type: "int", Default: "0",
+				Description: "cache_read_input_tokens from the API response.",
+				Long:        "Anthropic usage.cache_read_input_tokens for the message that included the prior call. At least one of --hit or --miss must be > 0."},
+			{Name: "miss", Type: "int", Default: "0",
+				Description: "cache_creation_input_tokens from the API response.",
+				Long:        "Anthropic usage.cache_creation_input_tokens for the message that included the prior call. At least one of --hit or --miss must be > 0."},
+			{Name: "for", Type: "int", PH: "<request_id>",
+				Description: "request_id of a specific prior call; default is the most recent non-usage call.",
+				Long:        "When set, annotates the call recorded with this request_id in the current session. When omitted, the most recent non-usage call in the current session is annotated."},
+		},
+	},
 }
 
 // Registry returns the full verb schema registry (read-only view for tests and tooling).
@@ -676,7 +691,7 @@ var verbDisplayOrder = []string{
 	"read", "write", "edit", "diff",
 	"find", "grep", "git",
 	"metrics", "report", "recap", "workspace", "replay", "stat", "bench", "test",
-	"help", "hook", "init", "uninit", "stop",
+	"help", "hook", "init", "uninit", "stop", "usage",
 }
 
 // RenderUsage produces the full usage string printed when `ash` is invoked

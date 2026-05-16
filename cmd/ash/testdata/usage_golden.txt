@@ -49,6 +49,7 @@ verbs (phase 2):
   init    [--path <p>] [--force true|false] [--no-registry true|false]
   uninit  [--path <p>] [--no-registry true|false]
   stop    
+  usage   [--hit N] [--miss N] [--for <request_id>]
 
 positional args (most verbs accept their dominant arg positionally):
   ash read foo.go              (== ash read --path foo.go)

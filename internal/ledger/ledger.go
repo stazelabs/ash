@@ -540,6 +540,59 @@ func (l *Ledger) UpdateMCPEmit(rowID int64, bytesEmit, tokensEmit int) error {
 	return err
 }
 
+// UpdateCacheStats patches the Anthropic prompt-cache accounting onto a
+// row that has already been Record()ed. The agent calls `ash usage` with
+// the hit/miss numbers it observed (cache_read_input_tokens /
+// cache_creation_input_tokens from the API response) and the daemon
+// writes them here. CLI rows without a follow-up `ash usage` call leave
+// both columns at zero — the report/metrics surface stays hidden until
+// at least one row in the window has non-zero values. ASH-134.
+func (l *Ledger) UpdateCacheStats(rowID int64, hit, miss int) error {
+	_, err := l.db.Exec(
+		`UPDATE calls SET tokens_cache_hit = ?, tokens_cache_miss = ? WHERE id = ?`,
+		hit, miss, rowID,
+	)
+	return err
+}
+
+// FindRowByRequestID returns the row id and verb for the call recorded
+// with the given request_id in the current session. Returns (0, "", nil)
+// when no such row exists. Used by `ash usage --for <request_id>` to
+// retroactively annotate a specific prior call.
+func (l *Ledger) FindRowByRequestID(reqID uint64) (int64, string, error) {
+	var rowID int64
+	var verb string
+	err := l.db.QueryRow(
+		`SELECT id, verb FROM calls WHERE session_id = ? AND request_id = ? ORDER BY id DESC LIMIT 1`,
+		l.sessionID, int64(reqID),
+	).Scan(&rowID, &verb)
+	if err == sql.ErrNoRows {
+		return 0, "", nil
+	}
+	return rowID, verb, err
+}
+
+// FindMostRecentNonUsageRow returns the row id, request_id, and verb of
+// the most recent non-usage call in the current session. Returns
+// (0, 0, "", nil) when the session has no prior non-usage calls. The
+// excludeRowID argument lets the caller skip a specific row (typically
+// the usage call's own row, when it has already been Record()ed).
+func (l *Ledger) FindMostRecentNonUsageRow(excludeRowID int64) (int64, uint64, string, error) {
+	var rowID int64
+	var reqID int64
+	var verb string
+	err := l.db.QueryRow(
+		`SELECT id, request_id, verb FROM calls
+		 WHERE session_id = ? AND verb != 'usage' AND id != ?
+		 ORDER BY id DESC LIMIT 1`,
+		l.sessionID, excludeRowID,
+	).Scan(&rowID, &reqID, &verb)
+	if err == sql.ErrNoRows {
+		return 0, 0, "", nil
+	}
+	return rowID, uint64(reqID), verb, err
+}
+
 // SessionLink is one edge in the per-session call graph. Edges are
 // directional: parent_id is an earlier call whose work the child_id call
 // extended (re-read same path, narrowed a previous grep, etc.). Kind

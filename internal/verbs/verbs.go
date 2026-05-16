@@ -31,6 +31,7 @@ import (
 	"github.com/stazelabs/ash/internal/verbs/test"
 	"github.com/stazelabs/ash/internal/verbs/stop"
 	"github.com/stazelabs/ash/internal/verbs/uninit"
+	"github.com/stazelabs/ash/internal/verbs/usage"
 	"github.com/stazelabs/ash/internal/verbs/workspace"
 	"github.com/stazelabs/ash/internal/verbs/write"
 )
@@ -80,6 +81,7 @@ func PrettyHandlers() map[string]Pretty {
 		"init":    initverb.PrettyResponse,
 		"uninit":  uninit.PrettyResponse,
 		"stop":    stop.PrettyResponse,
+		"usage":   usage.PrettyResponse,
 	}
 }
 
@@ -133,6 +135,7 @@ func Runners(led *ledger.Ledger, cfg *config.Config, daemonStart time.Time, proj
 		"init":    wrap(initverb.ParseArgs, initverb.Run, nil),
 		"uninit":  wrap(uninit.ParseArgs, uninit.Run, nil),
 		"stop":    wrap(stop.ParseArgs, stop.Run, nil),
+		"usage":   wrapLedger(led, usage.ParseArgs, usage.RunWithLedger),
 	}
 	runners["bench"] = Runner{
 		Run: func(args map[string]any, _ *proto.Tracer) (any, *proto.Error) {

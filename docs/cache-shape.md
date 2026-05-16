@@ -136,10 +136,17 @@ The ledger has two columns reserved for prompt-cache accounting:
 
 Both default to zero. Daemon-originated rows leave them at zero
 because the daemon does not see Anthropic API responses. The
-columns ride the schema today so a future feedback path (a harness
-side annotation via MCP `_meta`, or an `ash usage` verb that the
-agent calls retroactively with the numbers it observed) can land
-without a schema migration.
+populator is `ash usage` (ASH-134): the agent calls
+`ash usage --hit <cache_read_input_tokens> --miss <cache_creation_input_tokens>`
+after observing the numbers in an Anthropic API response, and the
+daemon UPDATEs `tokens_cache_hit` / `tokens_cache_miss` on the most
+recent non-usage row in the current session. `--for <request_id>`
+overrides the default "most recent" target to annotate a specific
+prior call. We chose this explicit-verb path over an
+`ashmcp`-reads-`_meta` path because (a) it works regardless of
+harness (CLI/bash invocation gets the same surface as MCP), (b) it
+keeps the daemon free of a back-channel control verb, and (c) it
+is straightforward to test end-to-end.
 
 When at least one row in the report window has non-zero cache
 numbers, `ash report` adds a `cache:` line with the per-window
@@ -158,10 +165,9 @@ the cache-contract break at PR review time.
 
 ## Out of scope for ASH-108
 
-- Wire path for harness-reported cache stats. The columns exist; the
-  populator does not. Plausible homes: `ashmcp` reading `_meta` from
-  the harness's next call, or a dedicated `ash usage` verb the agent
-  calls retroactively.
+- Wire path for harness-reported cache stats. Resolved by
+  [ASH-134](https://linear.app/stazelabs/issue/ASH-134): see the
+  `ash usage` description in "Ledger telemetry" above.
 - Measuring the actual cache-hit % on real Claude Code sessions.
   That needs MCP-side hookup plus replay
   ([ASH-112](https://linear.app/stazelabs/issue/ASH-112)) to A/B the
@@ -170,4 +176,6 @@ the cache-contract break at PR review time.
   next ticket.
 - `proto.Metrics.CacheReadTokens` / `CacheCreationTokens` exist on
   the wire so a producer can ship telemetry through `_meta` without
-  a protocol revision, but no current code populates them.
+  a protocol revision. `ash usage` (ASH-134) writes to the ledger
+  rather than this in-response channel — the in-response path stays
+  reserved for a future producer that has the numbers *at request time*.

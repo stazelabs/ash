@@ -384,11 +384,11 @@
         "sites": [
           {
             "file": "internal/verbs/verbs.go",
-            "line": 148
+            "line": 151
           },
           {
             "file": "internal/verbs/verbs.go",
-            "line": 179
+            "line": 182
           }
         ]
       },
@@ -738,7 +738,7 @@
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 584
+            "line": 599
           },
           {
             "file": "internal/verbs/initverb/initverb.go",
@@ -747,6 +747,14 @@
           {
             "file": "internal/verbs/read/read.go",
             "line": 88
+          },
+          {
+            "file": "internal/verbs/usage/usage.go",
+            "line": 94
+          },
+          {
+            "file": "internal/verbs/usage/usage.go",
+            "line": 106
           }
         ]
       },
@@ -1041,6 +1049,18 @@
             "line": 71
           },
           {
+            "file": "internal/verbs/usage/usage.go",
+            "line": 64
+          },
+          {
+            "file": "internal/verbs/usage/usage.go",
+            "line": 69
+          },
+          {
+            "file": "internal/verbs/usage/usage.go",
+            "line": 97
+          },
+          {
             "file": "internal/verbs/workspace/workspace.go",
             "line": 98
           },
@@ -1189,6 +1209,18 @@
           {
             "file": "internal/verbs/report/report.go",
             "line": 382
+          },
+          {
+            "file": "internal/verbs/usage/usage.go",
+            "line": 91
+          },
+          {
+            "file": "internal/verbs/usage/usage.go",
+            "line": 103
+          },
+          {
+            "file": "internal/verbs/usage/usage.go",
+            "line": 110
           },
           {
             "file": "internal/verbs/workspace/workspace.go",
@@ -1590,6 +1622,11 @@
         "context": "stat"
       },
       {
+        "literal": "--for",
+        "cl100k_tokens": 2,
+        "context": "usage"
+      },
+      {
         "literal": "--force",
         "cl100k_tokens": 2,
         "context": "init"
@@ -1608,6 +1645,11 @@
         "literal": "--hidden",
         "cl100k_tokens": 2,
         "context": "find,grep"
+      },
+      {
+        "literal": "--hit",
+        "cl100k_tokens": 2,
+        "context": "usage"
       },
       {
         "literal": "--ignored",
@@ -1648,6 +1690,11 @@
         "literal": "--micro",
         "cl100k_tokens": 2,
         "context": "bench"
+      },
+      {
+        "literal": "--miss",
+        "cl100k_tokens": 2,
+        "context": "usage"
       },
       {
         "literal": "--mkdir",
@@ -1907,6 +1954,16 @@
         ]
       },
       {
+        "literal": "§usage: row=",
+        "cl100k_tokens": 5,
+        "sites": [
+          {
+            "file": "internal/verbs/usage/usage.go",
+            "line": 136
+          }
+        ]
+      },
+      {
         "literal": "§git log:",
         "cl100k_tokens": 4,
         "sites": [
@@ -2028,11 +2085,11 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 630
+            "line": 645
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 636
+            "line": 651
           }
         ]
       },
@@ -2303,12 +2360,32 @@
         ]
       },
       {
+        "literal": "hit=",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/usage/usage.go",
+            "line": 139
+          }
+        ]
+      },
+      {
         "literal": "io=",
         "cl100k_tokens": 2,
         "sites": [
           {
             "file": "cmd/ash/main.go",
             "line": 226
+          }
+        ]
+      },
+      {
+        "literal": "miss=",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/usage/usage.go",
+            "line": 140
           }
         ]
       },
@@ -2328,7 +2405,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 901
+            "line": 916
           }
         ]
       },
@@ -2401,6 +2478,16 @@
         ]
       },
       {
+        "literal": "req=",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/usage/usage.go",
+            "line": 138
+          }
+        ]
+      },
+      {
         "literal": "settings:",
         "cl100k_tokens": 2,
         "sites": [
@@ -2440,7 +2527,17 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 641
+            "line": 656
+          }
+        ]
+      },
+      {
+        "literal": "verb=",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/usage/usage.go",
+            "line": 137
           }
         ]
       },
@@ -2647,6 +2744,10 @@
       },
       {
         "literal": "test",
+        "cl100k_tokens": 1
+      },
+      {
+        "literal": "usage",
         "cl100k_tokens": 1
       },
       {

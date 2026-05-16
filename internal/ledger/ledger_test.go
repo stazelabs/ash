@@ -225,3 +225,98 @@ func TestRecord_CacheTokens_RoundTrip(t *testing.T) {
 			recCalls[0].TokensCacheHit, recCalls[0].TokensCacheMiss)
 	}
 }
+
+// ASH-134: UpdateCacheStats writes hit/miss onto an already-recorded row,
+// and the lookup helpers find the row by request_id or by session-recency.
+// This is the round-trip test the ticket calls out as verification.
+func TestUpdateCacheStats_RoundTrip(t *testing.T) {
+	l := openTestLedger(t)
+	rowID, err := l.Record(&Call{
+		Timestamp: time.Now(),
+		RequestID: 42,
+		Verb:      "grep",
+		OK:        true,
+	})
+	if err != nil {
+		t.Fatalf("Record: %v", err)
+	}
+
+	if err := l.UpdateCacheStats(rowID, 1234, 56); err != nil {
+		t.Fatalf("UpdateCacheStats: %v", err)
+	}
+
+	calls, err := l.QueryRecent(10, "")
+	if err != nil {
+		t.Fatalf("QueryRecent: %v", err)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("QueryRecent rows: want 1, got %d", len(calls))
+	}
+	if calls[0].TokensCacheHit != 1234 || calls[0].TokensCacheMiss != 56 {
+		t.Errorf("after UpdateCacheStats: hit=%d miss=%d (want 1234/56)",
+			calls[0].TokensCacheHit, calls[0].TokensCacheMiss)
+	}
+}
+
+func TestFindRowByRequestID(t *testing.T) {
+	l := openTestLedger(t)
+	_, err := l.Record(&Call{Timestamp: time.Now(), RequestID: 100, Verb: "find", OK: true})
+	if err != nil {
+		t.Fatalf("Record 1: %v", err)
+	}
+	wantRow, err := l.Record(&Call{Timestamp: time.Now(), RequestID: 200, Verb: "grep", OK: true})
+	if err != nil {
+		t.Fatalf("Record 2: %v", err)
+	}
+
+	gotRow, verb, err := l.FindRowByRequestID(200)
+	if err != nil {
+		t.Fatalf("FindRowByRequestID: %v", err)
+	}
+	if gotRow != wantRow {
+		t.Errorf("row: got %d want %d", gotRow, wantRow)
+	}
+	if verb != "grep" {
+		t.Errorf("verb: got %q want %q", verb, "grep")
+	}
+
+	missRow, _, err := l.FindRowByRequestID(9999)
+	if err != nil {
+		t.Fatalf("FindRowByRequestID (miss): %v", err)
+	}
+	if missRow != 0 {
+		t.Errorf("expected 0 row id for missing request, got %d", missRow)
+	}
+}
+
+func TestFindMostRecentNonUsageRow(t *testing.T) {
+	l := openTestLedger(t)
+	_, err := l.Record(&Call{Timestamp: time.Now(), RequestID: 1, Verb: "find", OK: true})
+	if err != nil {
+		t.Fatalf("Record 1: %v", err)
+	}
+	wantRow, err := l.Record(&Call{Timestamp: time.Now(), RequestID: 2, Verb: "grep", OK: true})
+	if err != nil {
+		t.Fatalf("Record 2: %v", err)
+	}
+	// A usage row after grep — the helper must skip it.
+	_, err = l.Record(&Call{Timestamp: time.Now(), RequestID: 3, Verb: "usage", OK: true})
+	if err != nil {
+		t.Fatalf("Record 3: %v", err)
+	}
+
+	gotRow, gotReq, gotVerb, err := l.FindMostRecentNonUsageRow(0)
+	if err != nil {
+		t.Fatalf("FindMostRecentNonUsageRow: %v", err)
+	}
+	if gotRow != wantRow {
+		t.Errorf("row: got %d want %d", gotRow, wantRow)
+	}
+	if gotReq != 2 {
+		t.Errorf("req: got %d want 2", gotReq)
+	}
+	if gotVerb != "grep" {
+		t.Errorf("verb: got %q want %q", gotVerb, "grep")
+	}
+}
+

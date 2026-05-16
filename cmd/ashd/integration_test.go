@@ -152,6 +152,11 @@ func TestIntegration_AllVerbs(t *testing.T) {
 		{"test", map[string]any{"packages": "internal/runner", "run": "NoSuchTestZZZ", "timeout": "30s"}, ""},
 		// stop is a client-only verb; the daemon returns client_only.
 		{"stop", map[string]any{}, "client_only"},
+		// usage annotates the most recent non-usage row; the earlier
+		// cases above leave plenty of candidates in this session, so a
+		// bare hit/miss pair lands on one of them. Verifies the
+		// in-process ledger update path end-to-end.
+		{"usage", map[string]any{"hit": 1000, "miss": 50}, ""},
 	}
 
 	// Fail loudly if a new verb is added to Runners without a corresponding

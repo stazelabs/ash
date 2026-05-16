@@ -3324,6 +3324,69 @@
         ],
         "additionalProperties": false
       }
+    },
+    {
+      "name": "ash_usage",
+      "description": "Annotate a prior call with Anthropic prompt-cache hit/miss tokens.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "for": {
+            "type": "integer",
+            "description": "request_id of a specific prior call; default is the most recent non-usage call."
+          },
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty"
+            ],
+            "default": "json"
+          },
+          "hit": {
+            "type": "integer",
+            "description": "cache_read_input_tokens from the API response.",
+            "default": 0
+          },
+          "miss": {
+            "type": "integer",
+            "description": "cache_creation_input_tokens from the API response.",
+            "default": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "hit": {
+            "type": "integer"
+          },
+          "miss": {
+            "type": "integer"
+          },
+          "request_id": {
+            "type": "integer"
+          },
+          "row_id": {
+            "type": "integer"
+          },
+          "verb": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "hit",
+          "miss",
+          "request_id",
+          "row_id",
+          "verb"
+        ],
+        "additionalProperties": false
+      }
     }
   ]
 }
