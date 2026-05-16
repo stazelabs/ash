@@ -224,8 +224,71 @@ A checked-in `.mcp.json` template would either be wrong for every
 machine but its author, or would need Makefile rendering. Worth a design
 moment before any "let's ship a `.mcp.json` template" reflex.
 
+## ASH-130: structuredContent smoke-test findings
+
+ASH-124's dual-emit (`StructuredContent` + a `TextContent` carrying the
+same JSON bytes) was shipped as defense-in-depth: if either target
+harness ignored `StructuredContent`, the fallback was load-bearing.
+ASH-130 was the verification step.
+
+**Claude Code (verified in-session, v2.x with model claude-opus-4-7).**
+Forwards `structuredContent` to the model and **drops `content[].text`**
+when both are present. Confirmed directly by running `ash_stat` with
+`format=json` (dual-emit) vs `format=pretty` (single TextContent, no
+StructuredContent) and observing that the model sees exactly one copy
+of the payload in each case — JSON-shaped in json mode, pretty text in
+pretty mode. Corroborated by upstream issues
+[claude-code#9962](https://github.com/anthropics/claude-code/issues/9962),
+[#55677](https://github.com/anthropics/claude-code/issues/55677), and
+[#15412](https://github.com/anthropics/claude-code/issues/15412), all
+closed *not planned* — the structuredContent-wins behavior is
+intentional, not a bug.
+
+**Claude Desktop (community evidence, not directly tested).** Live
+Claude Desktop testing was out of reach from this session. Public
+reports for claude.ai web — which underlies Claude Desktop — say the
+model receives **both** `structuredContent` and `content[].text` when a
+tool returns both. If true, dual-emit on Claude Desktop doesn't just
+add dead wire bytes — it **doubles the model-visible token cost** of
+every json-mode tool result.
+
+**Decision matrix** (from ASH-130's verification block):
+
+| harness | StructuredContent consumed? | TextContent consumed? | dual-emit effect |
+|---|---|---|---|
+| Claude Code 2.x | yes | no (dropped) | dead wire bytes; tokens_out_emit overcounts |
+| Claude Desktop / claude.ai | yes | yes (community) | ~2× model tokens per json-mode call |
+
+Neither harness consumes *only* TextContent — the fallback's original
+defense-in-depth purpose does not fire. Per ASH-130's decision rule,
+this triggers the single-emit follow-up ([ASH-156](https://linear.app/stazelabs/issue/ASH-156)).
+
+**Caveats the follow-up must handle.**
+
+- MCP spec 2025-06-18 says a tool that returns structured content
+  *SHOULD* also return the serialized JSON in a TextContent block for
+  backwards compatibility. Dropping it is a `SHOULD` violation; the
+  practical question is who, outside Claude Code + Claude Desktop,
+  still depends on the fallback. Cursor / Cline / third-party harnesses
+  are explicitly out of scope here (ASH-130).
+- `CallToolResult.content` is a required field but allows an empty
+  array. Single-emit can ship `Content: []mcp.Content{}` in json mode
+  without violating the wire format. Truncation sentinels (when
+  present) still ride as separate TextContent blocks — the ASH-127
+  surfacing is unaffected.
+- `tokens_out_emit` accounting (ASH-123) currently models dual-emit
+  bytes. The follow-up must update `proto.MCPEnvelope` or the daemon-
+  side accounting in lockstep, otherwise the ledger's emit column will
+  drift from what the harness actually consumes.
+- `format=pretty` mode is already single-emit and unaffected.
+
 ## Open follow-ups
 
+- **ASH-156 (single-emit json mode).** Drop the json-mode TextContent
+  fallback in `cmd/ashmcp/dispatch.go`'s `toolResult`. Saves ~2× model
+  tokens on Claude Desktop per json-mode call; drops dead wire bytes on
+  Claude Code. Truncation sentinel + error envelope keep their
+  TextContent emission. Filed off ASH-130's smoke-test finding.
 - **ASH-146 (tax-2 closure).** With per-record cost pinned at ~12 Claude
   tokens (find --meta), `--format pretty|json` or structured-pretty
   tuple form have a concrete target to beat.
