@@ -87,4 +87,4 @@ Each ticket should reference this design doc and the relevant session-note secti
    - `bin/ash report --format json | jq .` — confirms wire shape decodes cleanly.
    - `bin/ash help --verb report` — schema entry visible.
 4. Self-recursion check: `bin/ash report` itself appears as a row in subsequent reports (sanity that it goes through the ledger).
-5. Write a short session note at `docs/session-notes/2026-05-07-report-verb.md` capturing first-use friction (per the repo's session-feedback ritual).
+5. Promote any first-use friction into the [CLAUDE.md Gotchas section](../CLAUDE.md) or this doc, per the [session-feedback ritual](../CLAUDE.md).

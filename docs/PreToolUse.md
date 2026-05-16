@@ -6,7 +6,7 @@
 
 The root cause is structural, not documentary: the harness system prompt instructs the model to "prefer dedicated tools over Bash," and the dedicated `Grep`/`Glob` tools are the ergonomic default. `CLAUDE.md` prose competes with that bias and loses. Shell aliases don't help — the `Bash` tool runs commands non-interactively (no rc files), and the dedicated tools bypass bash entirely.
 
-The fix is a `PreToolUse` hook that intercepts the offending tool calls and denies them with a message pointing to the equivalent `ash` invocation. Block-and-nudge (not auto-rewrite), so the friction stays visible and feeds the session-notes ritual. Project-scoped (checked into the repo) so anyone working on `ash` gets the same enforcement.
+The fix is a `PreToolUse` hook that intercepts the offending tool calls and denies them with a message pointing to the equivalent `ash` invocation. Block-and-nudge (not auto-rewrite), so the friction stays visible and feeds the session-feedback ritual. Project-scoped (checked into the repo) so anyone working on `ash` gets the same enforcement.
 
 ## Approach
 
@@ -80,11 +80,11 @@ The hook steers via canonical bash idioms — it tokenizes the top-level command
 - `eval '<inner>'` — same shape: the inner string is never re-parsed as a command.
 - `xargs … sh -c '<inner>'` — the `xargs` wrapper hides the `sh -c` from the segmenter.
 
-These are bypass-by-design (the hook is steering, not enforcing) rather than bugs. Agents who genuinely need the escape (e.g., running `go test -bench=…` while `ash test` does not yet expose `--bench` — see [session note](session-notes/2026-05-10-hook-hot-path.md)) should not pretend it does not exist; agents tempted to use it to dodge intent should know they are sidestepping the design, not exploiting a hole. If a session surfaces an *unintentional* escape (the agent reached for `bash -c` without realizing it bypassed the deny), file a follow-up to recursively segment the inner command.
+These are bypass-by-design (the hook is steering, not enforcing) rather than bugs. Agents who genuinely need the escape (e.g., running `go test -bench=…` while `ash test` does not yet expose `--bench` — see [docs/performance-baselines.md](performance-baselines.md)) should not pretend it does not exist; agents tempted to use it to dodge intent should know they are sidestepping the design, not exploiting a hole. If a session surfaces an *unintentional* escape (the agent reached for `bash -c` without realizing it bypassed the deny), file a follow-up to recursively segment the inner command.
 
 ## A note on Read denial
 
-An earlier iteration of this hook (when it was a Python script) denied `Read` on text files but had to remove that handler: at the time, `ash edit` and `ash write` did not exist, and the harness's `Edit`/`Write` tools refused to act unless they had previously seen a harness `Read` on the same path. Denying `Read` therefore left the agent unable to edit anything without bash workarounds. See [docs/session-notes/2026-05-08-hook-allows-read.md](session-notes/2026-05-08-hook-allows-read.md) for the original incident.
+An earlier iteration of this hook (when it was a Python script) denied `Read` on text files but had to remove that handler: at the time, `ash edit` and `ash write` did not exist, and the harness's `Edit`/`Write` tools refused to act unless they had previously seen a harness `Read` on the same path. Denying `Read` therefore left the agent unable to edit anything without bash workarounds.
 
 `ash edit` and `ash write` are now live, so the harness's edit workflow no longer needs harness `Read` to function. `Read` is denied symmetrically with the rest, with the image/PDF/notebook exemption preserved.
 

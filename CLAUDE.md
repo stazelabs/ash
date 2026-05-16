@@ -148,22 +148,17 @@ EOF
 
 ## Session feedback ritual
 
-This is the most important habit in this repo. The whole point of building `ash` recursively is that real session experience drives design. If we lose the feedback loop, the project loses its edge over top-down spec work.
+Real session experience drives design — that hasn't changed. What changed (May 2026) is that findings go to one of three durable destinations, not a `docs/session-notes/` directory:
 
-**When to write a note.** Any session that touches `ash` (using it, debugging it, working around it, designing the next verb). When in doubt, write the note — it costs nothing and the project is still small enough that every data point matters.
+- **Implementation work** (a bug, a verb, a flag, an optimization) → Linear ticket + commit. The ticket and commit message are the record; don't write a parallel session note.
+- **Durable design rationale** (a measurement, a "we tried X and it didn't work", a non-obvious decision) → the relevant file under [docs/](docs/). Examples: [encoding-results.md](docs/encoding-results.md), [performance-baselines.md](docs/performance-baselines.md), [mcp/design-decisions.md](docs/mcp/design-decisions.md), [streaming.md](docs/streaming.md). One concern per doc; extend the existing file before creating a new one.
+- **Gotchas that bite the next agent** → a one-paragraph entry in the [Gotchas](#gotchas) section of this file.
 
-**Where notes live.** `docs/session-notes/YYYY-MM-DD-<slug>.md` — one file per session, dated and slugged.
+Workflow: capture findings as you go (scratch in `/tmp/` or your task list). At session end, promote the load-bearing parts to a destination above — terse bullets are fine, signal beats prose. If a finding fits nowhere, it's not load-bearing — drop it.
 
-**What a note should contain.**
+`ash report --since 1h` answers most "where did the friction land?" questions without prose.
 
-- **Task.** One line: what was the agent trying to do?
-- **Verbs used.** Which `ash` verbs (or bash equivalents) were used.
-- **Friction.** Where did `ash` fall short? Where did bash feel heavier than it needed to?
-- **Workarounds.** Bash incantations or extra steps the agent reached for.
-- **Suggestions.** New verbs, new flags, behavior changes — anything the experience pointed at.
-- **Instrumentation.** Paste the relevant ledger rows, or summarize them. Numbers beat impressions.
-
-Keep notes terse. A bullet list is fine. The goal is signal, not prose.
+**Historical note.** The `docs/session-notes/YYYY-MM-DD-*.md` model accumulated 62 notes / ~4400 lines over ~9 days before we retired it; the current `docs/` files are the distillation. Don't recreate the accumulation pattern.
 
 ## Bash whitelist
 

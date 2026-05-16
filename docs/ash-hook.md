@@ -69,7 +69,7 @@ This is a one-syscall pre-check that turns the daemon-down case from "5ms wasted
 - Manual: `echo '{"tool_name":"Bash","tool_input":{"command":"grep foo ."}}' | bin/ash hook` should still return the deny JSON unchanged. Same for an allow case (`{"tool_name":"Task","tool_input":{}}` or similar).
 - With daemon up: `ash report --verb hook --since 1h` should still record rows after a few synthetic hook calls.
 - With daemon down (after `ash stop`): `time bin/ash hook < payload.json` should drop measurably (5ms → sub-ms).
-- Write a session note at `docs/session-notes/2026-05-10-hook-hot-path.md` with before/after bench numbers and a one-liner summary of which phases moved the needle.
+- Promote before/after bench numbers and a one-liner summary of which phases moved the needle into [docs/performance-baselines.md](performance-baselines.md).
 
 ## Files touched
 

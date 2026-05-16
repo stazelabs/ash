@@ -17,7 +17,7 @@ This document lays out *frame-breaking* moves and the immediate next steps. Dire
 Three observations from exploration that should inform any leap:
 
 - **The ledger is call-centric, not journey-centric.** Records every individual call but not retries, causal chains, or agent re-orientation cost. The data needed is mostly captured; what is missing is a layer reading it back at agent-relevant moments.
-- **Claude charges ~19% more than cl100k_base** ([session-notes/2026-05-13-encoding-substitution-measurement.md](session-notes/2026-05-13-encoding-substitution-measurement.md)). Anthropic's prompt cache charges **10x less** on cached tokens. The ledger is optimizing the wrong target.
+- **Claude charges ~19% more than cl100k_base** (see [encoding-results.md](encoding-results.md)). Anthropic's prompt cache charges **10x less** on cached tokens. The ledger is optimizing the wrong target.
 - **Approximation tax.** Agents grep+read+regex toward questions that have exact structured answers (callers, definitions, refs). Each approximation costs tokens *and* correctness.
 
 ---
@@ -191,8 +191,8 @@ Every move worth considering has a ticket with enough detail to evaluate when th
 
 - [../README.md](../README.md) -- vision, phase plan, constraints
 - [cli-tokens.md](cli-tokens.md) -- Tier 1-4 evolutionary token roadmap
-- [session-notes/2026-05-13-encoding-substitution-measurement.md](session-notes/2026-05-13-encoding-substitution-measurement.md) -- +19% Claude finding
-- [session-notes/2026-05-13-vocab-design.md](session-notes/2026-05-13-vocab-design.md) -- design predecessor for [ASH-102](https://linear.app/stazelabs/issue/ASH-102) and [ASH-105](https://linear.app/stazelabs/issue/ASH-105)
+- [encoding-results.md](encoding-results.md) -- +19% Claude finding (cl100k vs Claude calibration)
+- [vocab/design.md](vocab/design.md) -- design rationale for the vocab generator ([ASH-102](https://linear.app/stazelabs/issue/ASH-102), [ASH-105](https://linear.app/stazelabs/issue/ASH-105))
 - [../go.mod](../go.mod) -- entry point for [ASH-103](https://linear.app/stazelabs/issue/ASH-103)
 - `internal/help/` -- registry that [ASH-105](https://linear.app/stazelabs/issue/ASH-105) will derive schemas from
 - `internal/ledger/ledger.go` -- call-centric schema; extended by [ASH-110](https://linear.app/stazelabs/issue/ASH-110)

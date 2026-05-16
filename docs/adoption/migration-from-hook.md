@@ -74,4 +74,4 @@ The hook produced the highest-fidelity friction signal in `ash`'s first year: ev
 - **Hook denies** tell us where the harness's built-ins still pull agents off `ash`.
 - **MCP call rates** tell us which `ash_*` tools the model reaches for organically.
 
-A session note comparing the two for the same task is the kind of evidence the experiment runs on — see [docs/session-notes/](../session-notes/) for the format.
+Comparing the two for the same task is the kind of evidence the experiment runs on — promote findings into [docs/](../) and Linear per the [CLAUDE.md session feedback ritual](../../CLAUDE.md).

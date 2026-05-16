@@ -29,7 +29,7 @@ Three pieces, in order of dependency:
    foreign ledgers using the registry.
 
 Out of scope: the friction note in
-[docs/session-notes/2026-05-08-encoding-measurement.md](session-notes/2026-05-08-encoding-measurement.md)
+[docs/encoding-results.md](encoding-results.md)
 about the hook denying writes outside project root — tracked separately.
 
 ## 1. `make install` / `make uninstall`

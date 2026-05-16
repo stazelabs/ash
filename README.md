@@ -55,7 +55,7 @@ This project is two experiments at once: the shell itself, and a deliberate stud
 
 **Self-hosting from day one.** As soon as primordial `ash` existed (`find` / `grep` / `read`), agents working on this repo started using `ash` for those operations. Every verb that lands gets dogfooded immediately; the surface is shaped by friction in real sessions, not spec work. A PreToolUse hook (`ash hook`) enforces the switch by intercepting the harness's built-in `Grep` / `Glob` / `Edit` / `Write` / `Read` and bash equivalents, returning the equivalent `ash` invocation as the deny reason. The hook itself is queryable via `ash report --verb hook`, so the friction is measurable too. See [docs/PreToolUse.md](docs/PreToolUse.md).
 
-**Capturing the experience.** Every call lands in a per-project SQLite ledger: which verb ran, parse / exec / serialize latency, walk / io / regex sub-phases, real cl100k_base token counts (in and out), bytes in/out, truncation events, error class, and a sanitized msgpack arg blob for post-hoc query-shape grouping. Session-level qualitative notes live in [docs/session-notes/](docs/session-notes/) and feed the next ship's design.
+**Capturing the experience.** Every call lands in a per-project SQLite ledger: which verb ran, parse / exec / serialize latency, walk / io / regex sub-phases, real cl100k_base token counts (in and out), bytes in/out, truncation events, error class, and a sanitized msgpack arg blob for post-hoc query-shape grouping. Session-level qualitative findings get promoted into the relevant file under [docs/](docs/); see [CLAUDE.md §Session feedback ritual](CLAUDE.md) for the workflow.
 
 **Why read-side first.** `find`, `grep`, and `read` cover the majority of what an agent does in a coding session and they touch nothing on disk. Mistakes cost nothing, feedback comes fast, and the wire protocol gets stress-tested before any verb can corrupt the workspace.
 
@@ -226,7 +226,7 @@ Instrumentation was wired in from the first verb, not retrofitted. A tool that c
 
 **Privacy.** The ledger is local-only. Export is opt-in and explicit; nothing leaves the machine without an action that says so.
 
-**Tokenizer note.** `cl100k_base` undercounts Claude's tokenizer by ~19% on a representative ash corpus ([session note](docs/session-notes/2026-05-13-encoding-substitution-measurement.md)). Multiply absolute figures by ~1.2 for Claude estimates; directional comparisons (ash vs bash, verb A vs verb B) remain honest.
+**Tokenizer note.** `cl100k_base` undercounts Claude's tokenizer by ~19% on a representative ash corpus (see [docs/encoding-results.md](docs/encoding-results.md)). Multiply absolute figures by ~1.2 for Claude estimates; directional comparisons (ash vs bash, verb A vs verb B) remain honest.
 
 **Static surface inventory.** [docs/vocab/inventory.md](docs/vocab/inventory.md) is the checked-in catalog of every stable string ash emits — verb names, flags, value enums, status values, error codes, pretty-form headers, labels — each with its cl100k token cost and source locations. The ledger tells you what the surface *did* on a given call; the inventory tells you what the surface *is*. `make vocab-check` fails when they drift.
 

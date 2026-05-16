@@ -63,7 +63,7 @@ type HookConfig struct {
 
 `LedgerConfig` governs automatic cleanup at daemon startup. With defaults applied, the ledger retains 30 days of call history. Set `max_age = "0s"` to restore the old unbounded behavior.
 
-Note: `tokens_out` is counted with `cl100k_base`, which undercounts Claude's tokenizer by ~19% on a representative ash corpus ([docs/session-notes/2026-05-13-encoding-substitution-measurement.md](session-notes/2026-05-13-encoding-substitution-measurement.md)). Multiply absolute figures by ~1.2 for Claude estimates; directional comparisons (ash vs bash, verb A vs verb B) remain honest.
+Note: `tokens_out` is counted with `cl100k_base`, which undercounts Claude's tokenizer by ~19% on a representative ash corpus (see [docs/encoding-results.md](encoding-results.md)). Multiply absolute figures by ~1.2 for Claude estimates; directional comparisons (ash vs bash, verb A vs verb B) remain honest.
 
 `Duration` is a thin wrapper over `time.Duration` with an `UnmarshalText` so TOML strings like `"30s"` parse cleanly.
 

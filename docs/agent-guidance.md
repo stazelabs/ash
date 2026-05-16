@@ -67,7 +67,7 @@ Future extension worth considering (not in scope for this round): a CI check tha
 
 CLAUDE.md should document a fact only when *all three* are true:
 
-1. **Born from observable session friction.** Documented in [docs/session-notes/](session-notes/) or in a postmortem comment in the source. Not theoretical.
+1. **Born from observable session friction.** Born from a real session and documented in commit messages, Linear tickets, or a postmortem comment in the source. Not theoretical.
 2. **Not derivable from source or `ash help`.** A note that "`grep` has a `--fixed_string` flag" is reference material; help has it. A note that "shell quoting silently corrupts `--old_string`" is wisdom; you can't infer it from the help schema.
 3. **Actionable by an agent without reading additional docs.** "Use stdin via `--content -`" is actionable. "There's a class of issues with shell quoting" is not — it's punting.
 

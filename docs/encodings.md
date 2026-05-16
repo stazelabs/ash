@@ -73,8 +73,7 @@ Goal: turn "where do our tokens go?" from intuition into data.
      the `(N matches)` parenthetical in `grep`)
    - record body
    Goal: a one-page table of "where the tokens go" that drives Phase 2.
-4. **Write findings into a session note** at
-   `docs/session-notes/YYYY-MM-DD-encoding-measurement.md`.
+4. **Promote findings into [docs/encoding-results.md](encoding-results.md).**
 
 The output of Phase 1 is **the table**: per-verb tokens × frequency,
 with the body-vs-overhead breakdown for hot verbs. Without it, picking
@@ -151,8 +150,7 @@ one Tier A option has validated the design space.
 - Inspect ledger after a full session of recursive use: `ash report
   --since 1h --verb <verb>` should show p50 / p95 `tokens_out` dropping
   on the affected verbs and **no regressions** on others.
-- Write a session note (`docs/session-notes/YYYY-MM-DD-encoding-results.md`)
-  capturing measured deltas and any agent-ergonomics friction.
+- Promote measured deltas and any agent-ergonomics friction into [docs/encoding-results.md](encoding-results.md).
 
 ## Critical files
 

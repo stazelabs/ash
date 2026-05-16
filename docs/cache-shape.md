@@ -13,10 +13,10 @@ The Anthropic prompt cache charges **roughly 10× less** on cached input
 tokens (5-minute TTL) than on uncached. The 2026-05-13 encoding
 measurement also found Claude tokenizes ash output ~19% heavier than
 the cl100k_base proxy in the ledger
-([session note](session-notes/2026-05-13-encoding-substitution-measurement.md))
+(see [encoding-results.md](encoding-results.md))
 and the 2026-05-15 wire-cost measurement found MCP-emitted envelopes
 are ~3.4× the CLI cost
-([ASH-123 note](session-notes/2026-05-15-ash-123-mcp-wire-cost.md)).
+(see [mcp/wire-cost.md](mcp/wire-cost.md)).
 Restructuring the response envelope so volatile fields (random request
 IDs, per-call timings) ride at the **tail** of the encoded bytes lets
 two consecutive identical calls share a long matching prefix that the
