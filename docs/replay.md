@@ -5,6 +5,14 @@ reports per-verb token deltas vs the originals. Companion verb to
 [`ash bench`](bench.md): bench compares ash to bash on synthetic cases;
 replay compares the current build to recorded real sessions.
 
+With `--cache_prefix=true` (ASH-135) it also surfaces an empirical A/B
+of the ASH-108 envelope reorder: per-verb average matching-byte-prefix
+between consecutive same-verb responses, encoded once with today's
+cache-aware envelope and once with a struct mirroring the pre-ASH-108
+ordering. The delta is how many bytes the reorder bought a hypothetical
+Anthropic prompt cache. See [docs/cache-shape.md](cache-shape.md) for the
+contract this measures.
+
 The empirical scoreboard for token-saving claims — ASH-108 (cache
 envelope), ASH-114 (read-header compaction), ASH-121 (truncation-hint
 compaction) — replay is what tells you a claimed saving actually
@@ -19,6 +27,7 @@ ash replay [--session current|all|<id>]
            [--limit N]
            [--regress_tokens %]
            [--top N]
+           [--cache_prefix true|false]
 ```
 
 Same flag idiom as `ash report`. `--regress_tokens` uses bench's

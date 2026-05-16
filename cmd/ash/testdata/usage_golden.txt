@@ -33,7 +33,7 @@ verbs (phase 2):
   recap   [--since <dur>] [--top N]
   workspace[--since <dur>] [--recent N]
   replay  [--session current|all|<id>] [--since <dur>] [--verb <verb>] [--limit N]
-          [--regress_tokens N] [--top N]
+          [--regress_tokens N] [--top N] [--cache_prefix true|false]
   stat    [--paths <p1>[,<p2>...]] [--path <p>] [--follow true|false] [--absolute true|false]
   bench   [--verb <verb>] [--case <case>] [--limit N] [--repeat N] [--warmup N] [--list true|false]
           [--list_limit N] [--compare <A,B>] [--baseline <dur>] [--regress_tokens N]

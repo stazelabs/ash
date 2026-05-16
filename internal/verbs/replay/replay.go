@@ -13,6 +13,11 @@
 //	limit           int     cap on calls replayed; 0 = no cap (hard ceiling 5000)
 //	regress_tokens  int     Δtokens% threshold for tagging regressions (default 10)
 //	top             int     max rows in top-regressors section (default 10)
+//	cache_prefix    bool    when true, also compute the ASH-108 envelope-reorder A/B
+//	                        (see cache_prefix.go) — average matching byte-prefix
+//	                        between consecutive same-verb stable-data pairs, encoded
+//	                        once with today's envelope and once with a legacy
+//	                        struct mirroring the pre-ASH-108 ordering.
 //
 // Mutating and heavyweight verbs are skipped unconditionally (write,
 // edit, init, uninit, stop, test, bench, replay). Calls whose long
@@ -75,6 +80,7 @@ type Args struct {
 	Limit         int
 	RegressTokPct int
 	Top           int
+	CachePrefix   bool
 }
 
 type Scope struct {
@@ -83,6 +89,7 @@ type Scope struct {
 	Verb          string `msgpack:"verb,omitempty" json:"verb,omitempty"`
 	Limit         int    `msgpack:"limit,omitempty" json:"limit,omitempty"`
 	RegressTokPct int    `msgpack:"regress_tokens" json:"regress_tokens"`
+	CachePrefix   bool   `msgpack:"cache_prefix,omitempty" json:"cache_prefix,omitempty"`
 }
 
 // CallReplay is one row of the comparison: the original ledger call
@@ -119,10 +126,11 @@ type Result struct {
 	Replayed      int            `msgpack:"replayed" json:"replayed"`
 	Skipped       int            `msgpack:"skipped" json:"skipped"`
 	SkipByReason  map[string]int `msgpack:"skip_by_reason,omitempty" json:"skip_by_reason,omitempty"`
-	ByVerb        []VerbSummary  `msgpack:"by_verb" json:"by_verb"`
-	Overall       VerbSummary    `msgpack:"overall" json:"overall"`
-	TopRegressors []CallReplay   `msgpack:"top_regressors,omitempty" json:"top_regressors,omitempty"`
-	OKMismatches  []CallReplay   `msgpack:"ok_mismatches,omitempty" json:"ok_mismatches,omitempty"`
+	ByVerb        []VerbSummary      `msgpack:"by_verb" json:"by_verb"`
+	Overall       VerbSummary        `msgpack:"overall" json:"overall"`
+	TopRegressors []CallReplay       `msgpack:"top_regressors,omitempty" json:"top_regressors,omitempty"`
+	OKMismatches  []CallReplay       `msgpack:"ok_mismatches,omitempty" json:"ok_mismatches,omitempty"`
+	CachePrefix   *CachePrefixResult `msgpack:"cache_prefix,omitempty" json:"cache_prefix,omitempty"`
 }
 
 // Deps mirrors the bench Deps pattern. The daemon supplies closures
@@ -166,6 +174,9 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Top == 0 {
 		a.Top = DefaultTop
 	}
+	if a.CachePrefix, perr = argutil.OptionalBool(in, "cache_prefix", false); perr != nil {
+		return nil, perr
+	}
 	return a, nil
 }
 
@@ -199,6 +210,7 @@ func RunWithDeps(d Deps, a *Args) (*Result, *proto.Error) {
 		Verb:          a.Verb,
 		Limit:         a.Limit,
 		RegressTokPct: a.RegressTokPct,
+		CachePrefix:   a.CachePrefix,
 	}
 	if a.Since > 0 {
 		scope.Since = a.Since.String()
@@ -210,6 +222,12 @@ func RunWithDeps(d Deps, a *Args) (*Result, *proto.Error) {
 	}
 	byVerb := map[string]*VerbSummary{}
 	var rows []CallReplay
+	// QueryWindow returns rows in reverse chronological order (newest
+	// first). Cache-prefix analysis wants the chronological order the
+	// agent's conversation transcript would have seen, so collect
+	// per-call responses and reverse at the end before handing them to
+	// computeCachePrefix.
+	var cacheResps []verbResp
 
 	for _, c := range calls {
 		if reason := preDispatchSkip(c); reason != "" {
@@ -232,7 +250,7 @@ func RunWithDeps(d Deps, a *Args) (*Result, *proto.Error) {
 			res.SkipByReason["args_truncated"]++
 			continue
 		}
-		row, skip := replayOne(d, c, vargs, a.RegressTokPct)
+		row, rsp, skip := replayOne(d, c, vargs, a.RegressTokPct)
 		if skip != "" {
 			res.Skipped++
 			res.SkipByReason[skip]++
@@ -240,6 +258,9 @@ func RunWithDeps(d Deps, a *Args) (*Result, *proto.Error) {
 		}
 		rows = append(rows, row)
 		res.Replayed++
+		if a.CachePrefix && rsp != nil && rsp.OK {
+			cacheResps = append(cacheResps, verbResp{Verb: c.Verb, Rsp: rsp})
+		}
 		s, ok := byVerb[c.Verb]
 		if !ok {
 			s = &VerbSummary{Verb: c.Verb}
@@ -268,10 +289,17 @@ func RunWithDeps(d Deps, a *Args) (*Result, *proto.Error) {
 	res.Overall = aggregateOverall(rows)
 	res.TopRegressors = topRegressors(rows, a.Top)
 	res.OKMismatches = okMismatches(rows)
+	if a.CachePrefix && len(cacheResps) >= 2 {
+		// QueryWindow returned DESC; reverse to chronological.
+		for i, j := 0, len(cacheResps)-1; i < j; i, j = i+1, j-1 {
+			cacheResps[i], cacheResps[j] = cacheResps[j], cacheResps[i]
+		}
+		res.CachePrefix = computeCachePrefix(cacheResps)
+	}
 	return res, nil
 }
 
-func replayOne(d Deps, c ledger.Call, vargs map[string]any, regressPct int) (CallReplay, string) {
+func replayOne(d Deps, c ledger.Call, vargs map[string]any, regressPct int) (CallReplay, *proto.Response, string) {
 	row := CallReplay{
 		Verb:           c.Verb,
 		Args:           argsSummary(vargs),
@@ -286,7 +314,7 @@ func replayOne(d Deps, c ledger.Call, vargs map[string]any, regressPct int) (Cal
 		// Surface that as a skip rather than a row — there's no honest
 		// comparison to make.
 		if perr.Code == "unknown_verb" {
-			return CallReplay{}, "unknown_verb"
+			return CallReplay{}, nil, "unknown_verb"
 		}
 		rsp.OK = false
 		rsp.Err = perr
@@ -310,7 +338,7 @@ func replayOne(d Deps, c ledger.Call, vargs map[string]any, regressPct int) (Cal
 		// Original was empty; any new output is a regression by definition.
 		row.Regress = true
 	}
-	return row, ""
+	return row, rsp, ""
 }
 
 func preDispatchSkip(c ledger.Call) string {
@@ -538,6 +566,23 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 				t.Verb, t.Args, t.OriginalTokens, t.ReplayTokens,
 				t.DeltaTokens, t.DeltaPct)
 		}
+	}
+
+	if r.CachePrefix != nil && r.CachePrefix.Overall.StablePairs > 0 {
+		cp := r.CachePrefix
+		fmt.Fprintf(&b, "\ncache prefix (ASH-108 A/B, stable pairs):\n")
+		fmt.Fprintf(&b, "%-10s  %5s  %6s  %7s  %7s  %7s  %6s\n",
+			"verb", "pairs", "stable", "enc_len", "old_pre", "new_pre", "\xce\x94gain")
+		fmt.Fprintf(&b, "%s\n", strings.Repeat("-", 60))
+		for _, vs := range cp.ByVerb {
+			fmt.Fprintf(&b, "%-10s  %5d  %6d  %7d  %7d  %7d  %+6d\n",
+				vs.Verb, vs.Pairs, vs.StablePairs, vs.AvgEncodedLen,
+				vs.AvgPrefixOld, vs.AvgPrefixNew, vs.AvgPrefixGain)
+		}
+		fmt.Fprintf(&b, "%-10s  %5d  %6d  %7d  %7d  %7d  %+6d\n",
+			"overall", cp.Overall.Pairs, cp.Overall.StablePairs,
+			cp.Overall.AvgEncodedLen, cp.Overall.AvgPrefixOld,
+			cp.Overall.AvgPrefixNew, cp.Overall.AvgPrefixGain)
 	}
 
 	return strings.TrimRight(b.String(), "\n")

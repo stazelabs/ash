@@ -738,7 +738,7 @@
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 599
+            "line": 602
           },
           {
             "file": "internal/verbs/initverb/initverb.go",
@@ -1014,7 +1014,7 @@
           },
           {
             "file": "internal/verbs/replay/replay.go",
-            "line": 150
+            "line": 158
           },
           {
             "file": "internal/verbs/report/report.go",
@@ -1108,7 +1108,7 @@
           },
           {
             "file": "internal/verbs/replay/replay.go",
-            "line": 177
+            "line": 188
           }
         ]
       },
@@ -1200,7 +1200,7 @@
           },
           {
             "file": "internal/verbs/replay/replay.go",
-            "line": 194
+            "line": 205
           },
           {
             "file": "internal/verbs/report/report.go",
@@ -1450,6 +1450,11 @@
         "literal": "--benchtime",
         "cl100k_tokens": 3,
         "context": "test"
+      },
+      {
+        "literal": "--cache_prefix",
+        "cl100k_tokens": 3,
+        "context": "replay"
       },
       {
         "literal": "--diff_micro",
@@ -2085,11 +2090,11 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 645
+            "line": 648
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 651
+            "line": 654
           }
         ]
       },
@@ -2293,7 +2298,7 @@
         "sites": [
           {
             "file": "internal/verbs/replay/replay.go",
-            "line": 498
+            "line": 526
           }
         ]
       },
@@ -2405,7 +2410,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 916
+            "line": 919
           }
         ]
       },
@@ -2527,7 +2532,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 656
+            "line": 659
           }
         ]
       },

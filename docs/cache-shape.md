@@ -173,7 +173,19 @@ the cache-contract break at PR review time.
   ([ASH-112](https://linear.app/stazelabs/issue/ASH-112)) to A/B the
   same task with and without cache-aware envelope. The structural
   shape change is the prerequisite; the empirical scoreboard is the
-  next ticket.
+  next ticket. **Update (ASH-135):** the structural A/B is now
+  available via `ash replay --cache_prefix true` — it encodes each
+  replayed response under both the current envelope and a struct
+  mirroring the pre-ASH-108 ordering, then reports the average
+  matching byte-prefix per verb. Measured against a real session of
+  376 stable consecutive same-verb pairs: legacy ordering shared
+  8 bytes per pair on average; current ordering shared 775 bytes —
+  a +767 byte cache-prefix win per call. Per-verb wins: `help`
+  +14084, `read` +4965, `grep` +2337, `report` +2343, `find` +1352,
+  `git` +408, `stat` +93, `hook` +46. The empirical scoreboard
+  matches the structural claim. See
+  [the ASH-135 measurement](cache-prefix-measurement.md) for the
+  methodology and full per-run numbers.
 - `proto.Metrics.CacheReadTokens` / `CacheCreationTokens` exist on
   the wire so a producer can ship telemetry through `_meta` without
   a protocol revision. `ash usage` (ASH-134) writes to the ledger

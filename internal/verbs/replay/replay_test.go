@@ -157,7 +157,7 @@ func TestReplayOne_DeltaMath(t *testing.T) {
 		OK:         true,
 		TokensOut:  10,
 	}
-	row, skip := replayOne(deps, c, map[string]any{"pattern": "x", "path": "."}, 10)
+	row, _, skip := replayOne(deps, c, map[string]any{"pattern": "x", "path": "."}, 10)
 	if skip != "" {
 		t.Fatalf("unexpected skip: %q", skip)
 	}
@@ -193,7 +193,7 @@ func TestReplayOne_UnknownVerbSkips(t *testing.T) {
 			return ""
 		},
 	}
-	_, skip := replayOne(deps, ledger.Call{Verb: "obsolete"}, map[string]any{}, 10)
+	_, _, skip := replayOne(deps, ledger.Call{Verb: "obsolete"}, map[string]any{}, 10)
 	if skip != "unknown_verb" {
 		t.Errorf("skip reason: got %q, want unknown_verb", skip)
 	}
@@ -214,7 +214,7 @@ func TestReplayOne_OKMismatch(t *testing.T) {
 		},
 	}
 	c := ledger.Call{Verb: "read", OK: true, TokensOut: 100}
-	row, skip := replayOne(deps, c, map[string]any{"path": "/etc/passwd"}, 10)
+	row, _, skip := replayOne(deps, c, map[string]any{"path": "/etc/passwd"}, 10)
 	if skip != "" {
 		t.Fatalf("unexpected skip: %q", skip)
 	}
@@ -248,7 +248,7 @@ func TestRegressDetection(t *testing.T) {
 		},
 	}
 	c := ledger.Call{Verb: "grep", OK: true, TokensOut: 5}
-	row, _ := replayOne(deps, c, map[string]any{"pattern": "x", "path": "."}, 10)
+	row, _, _ := replayOne(deps, c, map[string]any{"pattern": "x", "path": "."}, 10)
 	if !row.Regress {
 		t.Errorf("expected regression flag: orig=%d new=%d delta=%d (%.1f%%)",
 			row.OriginalTokens, row.ReplayTokens, row.DeltaTokens, row.DeltaPct)

@@ -306,6 +306,9 @@ var registry = []VerbSchema{
 			{Name: "top", Type: "int", Default: "10",
 				Description: "Max rows in the top-regressors section.",
 				Long:        "Cap on the top-regressors section in pretty output. Sorted by |Δtokens| descending. The wire result is uncapped; this only shapes the rendered table."},
+			{Name: "cache_prefix", Type: "bool", Default: "false",
+				Description: "Add per-verb cache-prefix A/B (ASH-108) to the result.",
+				Long:        "When true, compute the per-verb average matching byte-prefix between consecutive same-verb replayed responses, encoded once with today's cache-aware envelope and once with a struct mirroring the pre-ASH-108 ordering. Reports stable-pair counts and the ΔAvgPrefixNew - AvgPrefixOld byte gain attributable to the reorder. See ASH-135 / docs/cache-shape.md."},
 		},
 	},
 	{
