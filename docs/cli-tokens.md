@@ -1,5 +1,7 @@
 # ash CLI surface: token-efficiency evaluation
 
+> **Status (2026-05-16):** This was the original Tier 1-4 token roadmap. Most of Tier 1 and Tier 3 has shipped — `1.5` stderr footer compaction, `1.6` structured truncation hint (ASH-121, ASH-127), `3.1` no-arg help one-liner (ASH-147), `3.2` compact per-arg help (ASH-143), `3.4` error shape via `_meta` (ASH-127). Tier 2 is partial: `2.3` positional `ash git --op` shipped; the broad `2.1` flag rename pass landed for some flags (`--old`/`--new`, `--meta`, `--max`, `--mpf`, `--bytes`) and not others. Tier 4 explicitly deferred. Treat this doc as a roadmap, not a live status surface — verify any specific item against `bin/ash help --verb <name>` and `git log --grep ASH-NN` before acting on it.
+
 ## Context
 
 `ash` is targeted exclusively at coding agents — it has no human users. That gives us full freedom to optimize the verb/flag/response surface for token cost without needing to preserve human affordances. The recursive-development premise of this project (you are the first user, and your friction drives design) makes the dogfood signal especially clean: every token we shave off ash's surface is a token freed for actual reasoning.

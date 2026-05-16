@@ -1,8 +1,9 @@
 # Encoding results — measured token costs & shipped decisions
 
-Companion to [docs/encodings.md](encodings.md) (the forward-looking plan).
-This doc captures what we *measured* and *decided*, so future exploration
-doesn't redo finished work.
+This doc captures the constraints, options considered, and outcomes of
+the token-efficiency exploration so future work doesn't redo finished
+ground. Live status for ongoing token-saving items is in
+[cli-tokens.md](cli-tokens.md).
 
 ## Token cost landscape (where the tokens go)
 
@@ -25,7 +26,63 @@ hints), not the body. `read` header alone carries ~15 tokens of
 `mtime`+`encoding` chrome that's opt-in via `--with_meta`. `stat` rows
 carry ~10 tokens of `mtime`+`mode` similarly suppressible.
 
+## Constraints that shaped the option set
+
+Four invariants kept the option search honest:
+
+1. **One result per line (greppable).** Each record renders on its own
+   line. Rules out tree-form / path-prefix-grouped output.
+2. **`tokens_in` honesty.** Aliases, positionals, or interning must
+   tokenize against what the agent literally typed, not the
+   post-expansion canonical form.
+3. **Headers stay on by default.** The `§<verb>: …` header is part of
+   the contract. Compact mode is opt-in only.
+4. **Wire parity.** Anything dropped from the pretty form must still
+   ride the wire (JSON / msgpack). Only the agent-facing rendering
+   changes.
+
+## Options considered
+
+The original Phase-2 option menu, with current status. ✓ shipped,
+✗ ruled out, ↻ deferred / tracked elsewhere.
+
+### Output-side
+
+| ID | Option | Status | Notes |
+|---|---|---|---|
+| O1 | `--fields a,b,c` projection | ↻ | Generalizes `--with_meta`/`--stat`/`--files_only`; no live consumer yet |
+| O2 | `--compact true` global | ↻ | Headers stay on by default (constraint #3); opt-in mode unbuilt |
+| O3 | Path-prefix compression (tree form) | ✗ | Ruled out by constraint #1 |
+| O4 | Sharpen grep lean form | ↻ | Marginal; not prioritized |
+| O5 | Per-record column elision | ✓ | `find --with_meta=false` and `read` header trim shipped (ASH-114) |
+| O6 | `--format` extensions (`tsv`, `lean`, `fields:…`) | ↻ | Subsumes O1+O2; deferred |
+| O7 | Tokenizer-aware micro-opts | ✓ | Header compaction + truncation glyphs shipped (ASH-100, ASH-120, ASH-121) |
+| O8 | `--max_tokens N` budget knob | ↻ | Speculative; no ledger-driven motivation |
+
+### Input-side
+
+| ID | Option | Status | Notes |
+|---|---|---|---|
+| I0 | Argv-honesty rework (literal argv on `proto.Request`) | ↻ | Prerequisite for I1-I4; not started |
+| I1 | Positional dominant arg | ✓ | `ash git log` etc. shipped; broader rollout partial |
+| I2 | Argv path interning (`@root`, `@cwd`) | ↻ | Deferred until I0 lands |
+| I3 | Short flag aliases (`-p`, `-g`) | ✗ | Conflict risk; rolled into Tier 2 rename pass |
+| I4 | Short verb aliases (`f`/`g`/`r`/…) | ✗ | Surface pollution; ruled out |
+| I5 | Stop sorting keys in `PrettyRequest` | ✗ | Negligible win, determinism loss |
+| I6 | Drop `ash` prefix in `PrettyRequest` | ✗ | Agents type it; removing under-reports cost |
+
+### Cross-cutting
+
+| ID | Option | Status | Notes |
+|---|---|---|---|
+| X1 | `--encoding` global / encoding registry | ↻ | Architectural home for O1+O2+O4+O6; defer until two Tier-A wins land |
+| X2 | Flip defaults to compact | ✗ | Ruled out by constraint #3 |
+
+Items overlap with [cli-tokens.md](cli-tokens.md) (Tier 1-4); that doc
+is the live status surface for ongoing token-saving work.
+
 ## Non-ASCII substitution — abandoned
+
 
 Scanned 67 Unicode ranges (~46,000 codepoints) for sub-1-token runes;
 **none exist**. Every single-token Unicode rune (1313 found, including

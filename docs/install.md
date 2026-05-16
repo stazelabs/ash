@@ -1,5 +1,7 @@
 # Plan — installing ash into target repos for ledger capture
 
+> **Status:** Shipped Phase 2. `ash init`/`ash uninit` (ASH-47, commit 490dcf0; refactored under ASH-70 in commit 4982819), `make install`/`make uninstall`, and `ash report --root`/`--all` (the original `--all-roots` shipped as `--all`) are all live. This doc is the original plan record; authoritative current behavior is `bin/ash help --verb init` / `uninit` / `report`.
+
 ## Context
 
 `ash` is in Phase 2; the recursive-development premise says agents working on
@@ -105,8 +107,7 @@ gitignore line, and the registry row. Useful for clean teardown.
 - New: `internal/verbs/init/init_test.go` — unit tests covering
   fresh repo, already-installed repo, conflicting hook entry,
   no-gitignore repo.
-- Modify: [internal/server/server.go](../internal/server/server.go)
-  (or wherever verbs are registered) — register `init` and `uninit`.
+- Modify: the verb registry (now [internal/verbs/verbs.go](../internal/verbs/verbs.go); the originally-planned `internal/server/server.go` was never created — the daemon dispatch lives in `cmd/ashd/main.go` instead) — register `init` and `uninit`.
 - Modify: [cmd/ash/main.go](../cmd/ash/main.go) — verb argument schema and
   pretty renderer.
 - Modify: [internal/proto/proto.go](../internal/proto/proto.go) —

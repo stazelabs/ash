@@ -1,10 +1,12 @@
 # `ash bench` — measurement framework: pre-ash vs ash (design)
 
+> **Status:** `ash bench` shipped in Phase 2 (commit 2ba1f3d and follow-ups). This doc captures the original design plus the first three optimization rounds (find pretty form, heavy-tree case, header trimming) as a historical record. Follow-up work — bench persistence, regression detection, coverage gates — is tracked in [bench-2.md](bench-2.md). Authoritative current behavior: `bin/ash bench` and `bin/ash help --verb bench`.
+
 ## Context
 
-The PreToolUse hook is now redirecting bash `grep`/`find`/`cat`/`git status`/etc. to ash equivalents in this repo. The ledger captures detailed per-call instrumentation: real cl100k_base tokens (in/out), parse/exec/serialize latency, walk/io/regex sub-phases, truncation, args. We have a dense, honest picture of *what ash costs*.
+The PreToolUse hook redirects bash `grep`/`find`/`cat`/`git status`/etc. to ash equivalents in this repo. The ledger captures detailed per-call instrumentation: real cl100k_base tokens (in/out), parse/exec/serialize latency, walk/io/regex sub-phases, truncation, args. We have a dense, honest picture of *what ash costs*.
 
-What we don't have: any record of what the bash counterfactual would have cost. Without that, "ash saves tokens" is conjecture, not measurement. This doc establishes (a) the conceptual frame for what "saving" means, (b) what data is missing today, and (c) the design for `ash bench`, the first ship that closes the gap.
+Before this ship there was no record of what the bash counterfactual would have cost. Without that, "ash saves tokens" is conjecture, not measurement. This doc establishes (a) the conceptual frame for what "saving" means, (b) what data is missing today, and (c) the design for `ash bench`, the first ship that closes the gap.
 
 ## How to think about the comparison
 
