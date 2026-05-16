@@ -37,19 +37,46 @@ func TestNoArgTokenBudget(t *testing.T) {
 // one well-known Long-only string ("@PATH" — appears in edit --old/--new
 // Long bodies but not in their concise Description), verbose mode includes
 // it and default mode does not.
+//
+// Post-ASH-147: Long is gated on Args.Verbose at Run, not at PrettyResponse,
+// so the test runs Run twice and verifies both the wire-level strip (no
+// Long bytes in the encoded default-mode Data) and the pretty render.
 func TestVerboseSurfacesLong(t *testing.T) {
-	result, perr := Run(&Args{Verb: "edit"}, nil)
+	conciseResult, perr := Run(&Args{Verb: "edit", Verbose: false}, nil)
 	if perr != nil {
-		t.Fatalf("Run: %v", perr)
+		t.Fatalf("Run concise: %v", perr)
 	}
-	rsp := &proto.Response{OK: true, Data: proto.MustData(result)}
-
-	concise := PrettyResponse(&proto.Request{Verb: "help", Args: map[string]any{"verb": "edit"}}, rsp)
+	for _, vs := range conciseResult.Verbs {
+		for _, a := range vs.Args {
+			if a.Long != "" {
+				t.Errorf("Verbose=false Run left Long=%q on arg %s/%s", a.Long, vs.Verb, a.Name)
+			}
+		}
+	}
+	conciseRsp := &proto.Response{OK: true, Data: proto.MustData(conciseResult)}
+	concise := PrettyResponse(&proto.Request{Verb: "help", Args: map[string]any{"verb": "edit"}}, conciseRsp)
 	if strings.Contains(concise, "@PATH") {
 		t.Errorf("default (verbose=false) help leaked Long marker @PATH:\n%s", concise)
 	}
 
-	verbose := PrettyResponse(&proto.Request{Verb: "help", Args: map[string]any{"verb": "edit", "verbose": true}}, rsp)
+	verboseResult, perr := Run(&Args{Verb: "edit", Verbose: true}, nil)
+	if perr != nil {
+		t.Fatalf("Run verbose: %v", perr)
+	}
+	sawLong := false
+	for _, vs := range verboseResult.Verbs {
+		for _, a := range vs.Args {
+			if a.Long != "" {
+				sawLong = true
+				break
+			}
+		}
+	}
+	if !sawLong {
+		t.Fatalf("Verbose=true Run returned no Long descriptions; expected at least one")
+	}
+	verboseRsp := &proto.Response{OK: true, Data: proto.MustData(verboseResult)}
+	verbose := PrettyResponse(&proto.Request{Verb: "help", Args: map[string]any{"verb": "edit", "verbose": true}}, verboseRsp)
 	if !strings.Contains(verbose, "@PATH") {
 		t.Errorf("verbose=true help missing Long marker @PATH:\n%s", verbose)
 	}

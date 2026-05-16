@@ -738,7 +738,7 @@
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 570
+            "line": 584
           },
           {
             "file": "internal/verbs/initverb/initverb.go",
@@ -2028,11 +2028,11 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 594
+            "line": 630
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 600
+            "line": 636
           }
         ]
       },
@@ -2328,7 +2328,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 865
+            "line": 901
           }
         ]
       },
@@ -2440,7 +2440,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 605
+            "line": 641
           }
         ]
       },

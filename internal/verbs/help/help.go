@@ -557,17 +557,53 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 
 // Run is signature-compatible with the rest of the verbs. help has no
 // instrumentable sub-phases, so tr is unused.
+//
+// Long descriptions ride the wire only when a.Verbose is true. The
+// default (non-verbose) request strips Long from every ArgSchema before
+// encoding, so callers that won't render it — every CLI default call
+// and every MCP harness that doesn't opt in — don't pay the tokens.
+// ASH-147; reverses the over-eager shipping introduced by ASH-144's
+// `long,omitempty` tag change without re-introducing the silent
+// strip-from-wire bug that change was fixing.
 func Run(a *Args, _ *proto.Tracer) (*Result, *proto.Error) {
 	if a.Verb == "" {
-		r := &Result{Verbs: registry, Count: len(registry)}
-		return r, nil
+		verbs := registry
+		if !a.Verbose {
+			verbs = registryWithoutLong()
+		}
+		return &Result{Verbs: verbs, Count: len(verbs)}, nil
 	}
 	for _, vs := range registry {
 		if vs.Verb == a.Verb {
+			if !a.Verbose {
+				vs = verbWithoutLong(vs)
+			}
 			return &Result{Verbs: []VerbSchema{vs}, Count: 1}, nil
 		}
 	}
 	return nil, &proto.Error{Code: "not_found", Msg: "unknown verb: " + a.Verb}
+}
+
+// verbWithoutLong returns a shallow copy of vs with Long cleared on every
+// ArgSchema. The Args slice is freshly allocated so the package-level
+// registry stays untouched; Values/Ops slices are aliased because we
+// never mutate them.
+func verbWithoutLong(vs VerbSchema) VerbSchema {
+	out := vs
+	out.Args = make([]ArgSchema, len(vs.Args))
+	for i, a := range vs.Args {
+		a.Long = ""
+		out.Args[i] = a
+	}
+	return out
+}
+
+func registryWithoutLong() []VerbSchema {
+	out := make([]VerbSchema, len(registry))
+	for i, vs := range registry {
+		out[i] = verbWithoutLong(vs)
+	}
+	return out
 }
 
 func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
