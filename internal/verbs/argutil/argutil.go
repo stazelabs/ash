@@ -29,13 +29,37 @@ import (
 
 // -- Layer 1: pure coercers ------------------------------------------------
 
+// ToInt accepts every integer-flavored Go type a wire decode could
+// produce. The CLI's parseFlags hands us strings; ashmcp's json.Unmarshal
+// hands us float64; but msgpack-go decodes small positive ints (0–127)
+// into uint8 and slightly larger ones into uint16 / uint32 when the
+// target is map[string]any. Without coverage of the full integer family,
+// any caller that talks msgpack directly with Go-native ints (wirecmp,
+// internal tooling, replay sessions reading ledger data) trips an
+// `args: <name> must be a positive integer` envelope (ASH-148, ASH-149).
 func ToInt(v any) (int, bool) {
 	switch n := v.(type) {
 	case int:
 		return n, true
+	case int8:
+		return int(n), true
+	case int16:
+		return int(n), true
+	case int32:
+		return int(n), true
 	case int64:
 		return int(n), true
+	case uint:
+		return int(n), true
+	case uint8:
+		return int(n), true
+	case uint16:
+		return int(n), true
+	case uint32:
+		return int(n), true
 	case uint64:
+		return int(n), true
+	case float32:
 		return int(n), true
 	case float64:
 		return int(n), true
@@ -50,9 +74,25 @@ func ToInt64(v any) (int64, bool) {
 	switch n := v.(type) {
 	case int:
 		return int64(n), true
+	case int8:
+		return int64(n), true
+	case int16:
+		return int64(n), true
+	case int32:
+		return int64(n), true
 	case int64:
 		return n, true
+	case uint:
+		return int64(n), true
+	case uint8:
+		return int64(n), true
+	case uint16:
+		return int64(n), true
+	case uint32:
+		return int64(n), true
 	case uint64:
+		return int64(n), true
+	case float32:
 		return int64(n), true
 	case float64:
 		return int64(n), true

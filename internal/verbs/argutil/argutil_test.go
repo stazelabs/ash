@@ -9,7 +9,10 @@ import (
 
 // TestToInt covers every wire-shape the daemon could see. The string
 // case is the one that bit ash git --op log when its local toInt was
-// missing the arm.
+// missing the arm; the int8/16/32, uint, uint8/16/32, float32 arms
+// were added in ASH-149 after wirecmp surfaced that msgpack-go decodes
+// small positive ints into uint8 / uint16 / uint32 when the target is
+// map[string]any.
 func TestToInt(t *testing.T) {
 	cases := []struct {
 		name string
@@ -18,14 +21,25 @@ func TestToInt(t *testing.T) {
 		ok   bool
 	}{
 		{"int", int(42), 42, true},
+		{"int8", int8(42), 42, true},
+		{"int16", int16(42), 42, true},
+		{"int32", int32(42), 42, true},
 		{"int64", int64(42), 42, true},
+		{"uint", uint(42), 42, true},
+		{"uint8", uint8(42), 42, true},
+		{"uint16", uint16(42), 42, true},
+		{"uint32", uint32(42), 42, true},
 		{"uint64", uint64(42), 42, true},
+		{"float32", float32(42), 42, true},
 		{"float64", float64(42), 42, true},
 		{"string", "42", 42, true},
+		{"negative_int8", int8(-7), -7, true},
 		{"negative_string", "-7", -7, true},
 		{"bad_string", "not a number", 0, false},
 		{"bool", true, 0, false},
 		{"nil", nil, 0, false},
+		{"slice", []int{1, 2}, 0, false},
+		{"map", map[string]int{"a": 1}, 0, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -38,14 +52,36 @@ func TestToInt(t *testing.T) {
 }
 
 func TestToInt64(t *testing.T) {
-	if v, ok := ToInt64("9223372036854775807"); !ok || v != 9223372036854775807 {
-		t.Errorf("ToInt64 max int64: %d %v", v, ok)
+	cases := []struct {
+		name string
+		in   any
+		want int64
+		ok   bool
+	}{
+		{"int", int(7), 7, true},
+		{"int8", int8(7), 7, true},
+		{"int16", int16(7), 7, true},
+		{"int32", int32(7), 7, true},
+		{"int64", int64(7), 7, true},
+		{"uint", uint(7), 7, true},
+		{"uint8", uint8(7), 7, true},
+		{"uint16", uint16(7), 7, true},
+		{"uint32", uint32(7), 7, true},
+		{"uint64", uint64(7), 7, true},
+		{"float32", float32(7), 7, true},
+		{"float64", float64(7), 7, true},
+		{"max_int64_string", "9223372036854775807", 9223372036854775807, true},
+		{"bad_string", "not a number", 0, false},
+		{"bool", true, 0, false},
+		{"nil", nil, 0, false},
 	}
-	if _, ok := ToInt64("not a number"); ok {
-		t.Errorf("ToInt64 should reject garbage")
-	}
-	if v, ok := ToInt64(int(7)); !ok || v != 7 {
-		t.Errorf("ToInt64(int): %d %v", v, ok)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, ok := ToInt64(c.in)
+			if ok != c.ok || (ok && got != c.want) {
+				t.Errorf("ToInt64(%v)=(%d, %v); want (%d, %v)", c.in, got, ok, c.want, c.ok)
+			}
+		})
 	}
 }
 
