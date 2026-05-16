@@ -541,6 +541,8 @@ const argsMaxStrBytes = 1024
 // argsBlob encodes just the sanitized Args map from the request into msgpack
 // for ledger storage. Argv is dropped (it duplicates Args and can be large).
 // String values longer than argsMaxStrBytes are replaced with "<truncated:N>".
+// Env is intentionally excluded — secrets in req.Env (forwarded to test
+// subprocesses, ASH-132) must not leak into args_msgpack.
 // Returns nil when the request has no args or cannot be decoded.
 func argsBlob(reqBuf []byte) []byte {
 	req, err := proto.DecodeRequest(reqBuf)
