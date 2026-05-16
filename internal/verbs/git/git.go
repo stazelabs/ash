@@ -13,7 +13,7 @@
 //	log      list commits with structured per-commit metadata. Optional:
 //	         --limit, --range, --author, --since, --until, --pathspec.
 //	diff     structured file-level diff. Optional: --staged, --range,
-//	         --pathspec, --stat, --context, --limit_bytes.
+//	         --pathspec, --stat, --context, --bytes.
 //
 // Implementation shells out to system `git` and parses documented
 // machine-readable formats (porcelain v2 for status, NUL-separated
