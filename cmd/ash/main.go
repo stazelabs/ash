@@ -25,6 +25,7 @@ import (
 	"github.com/stazelabs/ash/internal/session"
 	"github.com/stazelabs/ash/internal/verbs"
 	"github.com/stazelabs/ash/internal/verbs/help"
+	"github.com/stazelabs/ash/internal/verbs/stop"
 )
 
 func main() {
@@ -541,6 +542,15 @@ func dialOrStart(root, sock string) (net.Conn, error) {
 		return conn, nil
 	} else if !isConnRefused(err) && !isENOENT(err) {
 		return nil, err
+	}
+	// Before auto-starting, refuse if an ashd process is already alive
+	// for this socket — the socket is gone/unreachable but the process
+	// survived, which is exactly the orphan state ASH-151 cleans up.
+	// Spawning a second daemon would race the survivor and let stale
+	// behavior leak into the session.
+	if pids := stop.FindAshdPIDs(sock); len(pids) > 0 {
+		return nil, fmt.Errorf("multiple_daemons: %d ashd process(es) still alive for this socket (pid=%v) but the socket is unreachable; run ash stop to clean up",
+			len(pids), pids)
 	}
 	if err := startDaemon(root, sock); err != nil {
 		return nil, fmt.Errorf("start daemon: %w", err)

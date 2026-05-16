@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/stazelabs/ash/internal/session"
+	"github.com/stazelabs/ash/internal/verbs/stop"
 )
 
 // dialOrStart mirrors the same-named helper in cmd/ash: if the daemon
@@ -36,6 +37,14 @@ func dialOrStart(ctx context.Context, root, sock string) (net.Conn, error) {
 		return conn, nil
 	} else if !isConnRefused(err) && !isENOENT(err) {
 		return nil, err
+	}
+	// Mirror cmd/ash: refuse to spawn a second daemon when an orphan ashd
+	// is still alive for this socket. The MCP server has no way to surface
+	// a clean error to the harness mid-stream, so producing this error
+	// here is strictly better than racing the orphan. ASH-151.
+	if pids := stop.FindAshdPIDs(sock); len(pids) > 0 {
+		return nil, fmt.Errorf("multiple_daemons: %d ashd process(es) still alive for this socket (pid=%v) but the socket is unreachable; run ash stop to clean up",
+			len(pids), pids)
 	}
 	if err := startDaemon(root, sock); err != nil {
 		return nil, fmt.Errorf("start daemon: %w", err)

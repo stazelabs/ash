@@ -398,7 +398,7 @@
         "sites": [
           {
             "file": "internal/verbs/stop/stop.go",
-            "line": 109
+            "line": 155
           }
         ],
         "hints": [
@@ -1802,7 +1802,7 @@
         "sites": [
           {
             "file": "cmd/ash/main.go",
-            "line": 230
+            "line": 231
           }
         ]
       },
@@ -1862,7 +1862,7 @@
         "sites": [
           {
             "file": "internal/verbs/stop/stop.go",
-            "line": 130
+            "line": 176
           }
         ]
       },
@@ -1892,7 +1892,7 @@
         "sites": [
           {
             "file": "internal/verbs/stop/stop.go",
-            "line": 140
+            "line": 186
           }
         ]
       },
@@ -1902,7 +1902,7 @@
         "sites": [
           {
             "file": "internal/verbs/stop/stop.go",
-            "line": 135
+            "line": 181
           }
         ]
       },
@@ -2256,19 +2256,19 @@
         "sites": [
           {
             "file": "cmd/ash/main.go",
-            "line": 52
+            "line": 53
           },
           {
             "file": "cmd/ash/main.go",
-            "line": 56
+            "line": 57
           },
           {
             "file": "cmd/ash/main.go",
-            "line": 60
+            "line": 61
           },
           {
             "file": "cmd/ash/main.go",
-            "line": 65
+            "line": 66
           }
         ]
       },
@@ -2278,7 +2278,7 @@
         "sites": [
           {
             "file": "cmd/ash/main.go",
-            "line": 225
+            "line": 226
           }
         ]
       },
@@ -2308,7 +2308,7 @@
         "sites": [
           {
             "file": "cmd/ash/main.go",
-            "line": 215
+            "line": 216
           }
         ]
       },
@@ -2348,11 +2348,11 @@
         "sites": [
           {
             "file": "internal/verbs/stop/stop.go",
-            "line": 136
+            "line": 182
           },
           {
             "file": "internal/verbs/stop/stop.go",
-            "line": 141
+            "line": 187
           }
         ]
       },
@@ -2362,7 +2362,7 @@
         "sites": [
           {
             "file": "cmd/ash/main.go",
-            "line": 218
+            "line": 219
           }
         ]
       },
@@ -2382,7 +2382,7 @@
         "sites": [
           {
             "file": "cmd/ash/main.go",
-            "line": 221
+            "line": 222
           }
         ]
       },
@@ -2430,7 +2430,7 @@
         "sites": [
           {
             "file": "cmd/ash/main.go",
-            "line": 208
+            "line": 209
           }
         ]
       },
@@ -2450,7 +2450,7 @@
         "sites": [
           {
             "file": "cmd/ash/main.go",
-            "line": 212
+            "line": 213
           }
         ]
       },

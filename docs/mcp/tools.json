@@ -3271,10 +3271,43 @@
           "exited_within_grace": {
             "type": "boolean"
           },
+          "orphans": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "elapsed_ms": {
+                  "type": "integer",
+                  "description": "wall time from first signal to confirmed exit (or timeout)"
+                },
+                "exited": {
+                  "type": "boolean",
+                  "description": "true if process is gone post-cleanup"
+                },
+                "pid": {
+                  "type": "integer"
+                },
+                "signal": {
+                  "type": "string",
+                  "description": "\"SIGTERM\" | \"SIGKILL\""
+                }
+              },
+              "required": [
+                "elapsed_ms",
+                "exited",
+                "pid",
+                "signal"
+              ],
+              "additionalProperties": false
+            }
+          },
           "pid": {
             "type": "integer"
           },
           "signal_sent": {
+            "type": "boolean"
+          },
+          "socket_unlinked": {
             "type": "boolean"
           },
           "status": {

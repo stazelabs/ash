@@ -7,10 +7,18 @@
 //
 // Args: none. The project root is derived from the client's cwd.
 //
-// Result: {pid, signal_sent, exited_within_grace, elapsed_ms, status}
+// Result fields cover both the pidfile-pointed daemon and any orphan
+// `ashd` processes still bound to the same per-project UDS:
 //   - status "stopped"         — SIGTERM delivered, process exited within grace.
 //   - status "already_stopped" — no PID file, stale PID file, or process already gone.
 //   - status "timeout"         — SIGTERM delivered but process did not exit within waitTimeout.
+//
+// Orphan cleanup (ASH-151): after the pidfile shutdown, stop scans the
+// live process table for any other `ashd --socket <sock>` processes,
+// signals them, escalates to SIGKILL if needed, and unlinks the socket
+// file as a defense-in-depth pass. Orphans appear in Result.Orphans
+// with their own per-process signal/exit/elapsed bookkeeping so the
+// pretty output can name each one.
 package stop
 
 import (
@@ -32,18 +40,56 @@ const (
 
 // Result is the structured output of ash stop.
 type Result struct {
-	PID               int    `msgpack:"pid"`
-	SignalSent        bool   `msgpack:"signal_sent"`
-	ExitedWithinGrace bool   `msgpack:"exited_within_grace"`
-	ElapsedMs         int64  `msgpack:"elapsed_ms"`
-	Status            string `msgpack:"status"` // "stopped" | "already_stopped" | "timeout"
+	PID               int      `msgpack:"pid"`
+	SignalSent        bool     `msgpack:"signal_sent"`
+	ExitedWithinGrace bool     `msgpack:"exited_within_grace"`
+	ElapsedMs         int64    `msgpack:"elapsed_ms"`
+	Status            string   `msgpack:"status"` // "stopped" | "already_stopped" | "timeout"
+	Orphans           []Orphan `msgpack:"orphans,omitempty"`
+	SocketUnlinked    bool     `msgpack:"socket_unlinked,omitempty"`
 }
 
-// StopDaemon sends SIGTERM to the daemon at pidPath and waits for clean exit.
+// StopDaemon sends SIGTERM to the daemon at pidPath, waits for it to exit,
+// then cleans up any orphan `ashd` processes still bound to sockPath.
 // Returns a non-nil error only for unexpected OS failures (e.g. permission
 // denied reading the PID file). "No daemon running" is not an error — it
-// returns status "already_stopped".
-func StopDaemon(pidPath string) (*Result, error) {
+// returns status "already_stopped". An empty sockPath skips orphan
+// detection and the socket-unlink defense pass.
+func StopDaemon(pidPath, sockPath string) (*Result, error) {
+	r, err := stopPidfileDaemon(pidPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Orphan sweep: ashd processes that share this project's socket but
+	// are not the pidfile-pointed daemon. Common after a missed graceful
+	// shutdown or a rebuild that lost track of the previous daemon.
+	exclude := map[int]bool{}
+	if r.PID > 0 {
+		exclude[r.PID] = true
+	}
+	r.Orphans = cleanupOrphans(findOrphanDaemons(sockPath, exclude))
+
+	// Defense in depth: the surviving daemon's normal shutdown unlinks
+	// the socket, but orphans usually don't (they never registered for
+	// it). Remove the file ourselves so the next auto-start path falls
+	// through cleanly to startDaemon.
+	if sockPath != "" {
+		if _, err := os.Stat(sockPath); err == nil {
+			if err := os.Remove(sockPath); err == nil {
+				r.SocketUnlinked = true
+			}
+		}
+	}
+
+	return r, nil
+}
+
+// stopPidfileDaemon is the original single-PID shutdown path, factored
+// out so StopDaemon can layer orphan cleanup on top without disturbing
+// the "no daemon → already_stopped" / "timeout" semantics that downstream
+// callers and tests depend on.
+func stopPidfileDaemon(pidPath string) (*Result, error) {
 	pidData, err := os.ReadFile(pidPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -142,5 +188,19 @@ func PrettyResult(r *Result) string {
 		b.WriteString("signal:  sent (SIGTERM)\n")
 		b.WriteString("exited:  yes\n")
 	}
+	for _, o := range r.Orphans {
+		fmt.Fprintf(&b, "orphan:  pid=%d signal=%s exited=%s elapsed=%dms\n",
+			o.PID, o.Signal, yesNo(o.Exited), o.ElapsedMs)
+	}
+	if r.SocketUnlinked {
+		b.WriteString("socket:  unlinked\n")
+	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+func yesNo(b bool) string {
+	if b {
+		return "yes"
+	}
+	return "no"
 }

@@ -19,7 +19,7 @@ import (
 )
 
 func runStop(root, format string) {
-	result, err := stop.StopDaemon(session.PIDPath(root))
+	result, err := stop.StopDaemon(session.PIDPath(root), session.SocketPath(root))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "ash stop:", err)
 		os.Exit(1)
