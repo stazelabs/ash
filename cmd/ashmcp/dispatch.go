@@ -14,8 +14,10 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 
 	"github.com/stazelabs/ash/internal/jail"
+	"github.com/stazelabs/ash/internal/mcpschema"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/session"
+	"github.com/stazelabs/ash/internal/verbs"
 )
 
 // streamingVerbs is the set of MCP-exposed verbs that opt into the ASH-106
@@ -45,7 +47,7 @@ const dialDeadline = 5 * time.Second
 // or been stopped between calls.
 func makeHandler(verb string) mcp.ToolHandler {
 	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		args, err := decodeArgs(req.Params.Arguments)
+		args, format, err := decodeArgs(req.Params.Arguments)
 		if err != nil {
 			return nil, fmt.Errorf("decode arguments: %w", err)
 		}
@@ -68,29 +70,42 @@ func makeHandler(verb string) mcp.ToolHandler {
 		var rsp *proto.Response
 		token := req.Params.GetProgressToken()
 		if streamingVerbs[verb] && token != nil {
-			rsp, err = streamingRoundtrip(ctx, conn, req.Session, token, verb, args)
+			rsp, err = streamingRoundtrip(ctx, conn, req.Session, token, verb, args, format)
 		} else {
-			rsp, err = roundtrip(conn, verb, args)
+			rsp, err = roundtrip(conn, verb, args, format)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("ashd roundtrip: %w", err)
 		}
-		return toolResult(rsp)
+		return toolResult(verb, rsp, format)
 	}
 }
 
-func decodeArgs(raw json.RawMessage) (map[string]any, error) {
+// decodeArgs unmarshals the JSON args object and peels off the MCP-only
+// `format` knob (ASH-146) so it does not reach the daemon's verb-level
+// arg parser. Empty / missing / `json` are equivalent — the JSON envelope
+// is the default emit shape. `pretty` opts into daemon-pretty rendering.
+// Unknown values are silently coerced to `json` so a typo can't break a
+// session; MCP schema validation already rejects them client-side.
+func decodeArgs(raw json.RawMessage) (map[string]any, string, error) {
 	if len(raw) == 0 || string(raw) == "null" {
-		return map[string]any{}, nil
+		return map[string]any{}, mcpschema.FormatJSON, nil
 	}
 	var m map[string]any
 	if err := json.Unmarshal(raw, &m); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if m == nil {
 		m = map[string]any{}
 	}
-	return m, nil
+	format := mcpschema.FormatJSON
+	if v, ok := m[mcpschema.FormatArg]; ok {
+		if s, ok := v.(string); ok && s == mcpschema.FormatPretty {
+			format = mcpschema.FormatPretty
+		}
+		delete(m, mcpschema.FormatArg)
+	}
+	return m, format, nil
 }
 
 func resolveRoot() (string, error) {
@@ -104,13 +119,19 @@ func resolveRoot() (string, error) {
 // roundtrip encodes the request, writes a single frame, reads the
 // response frame, and decodes it. Connection is single-use, matching the
 // pattern in cmd/ash.
-func roundtrip(conn net.Conn, verb string, args map[string]any) (*proto.Response, error) {
+//
+// emitFormat is set on the wire as Request.EmitFormat (ASH-146) so the
+// daemon's tokens_out_emit accounting tokenizes the right rendering —
+// pretty when the harness opted in via the `format` tool arg, JSON
+// envelope (legacy / default) otherwise.
+func roundtrip(conn net.Conn, verb string, args map[string]any, emitFormat string) (*proto.Response, error) {
 	req := &proto.Request{
-		V:         proto.ProtocolVersion,
-		ID:        newID(),
-		Verb:      verb,
-		Args:      args,
-		Transport: proto.TransportMCP,
+		V:          proto.ProtocolVersion,
+		ID:         newID(),
+		Verb:       verb,
+		Args:       args,
+		Transport:  proto.TransportMCP,
+		EmitFormat: wireEmitFormat(emitFormat),
 	}
 	encoded, err := proto.EncodeRequest(req)
 	if err != nil {
@@ -144,14 +165,15 @@ func roundtrip(conn net.Conn, verb string, args map[string]any) (*proto.Response
 // ctx cancellation (the agent abandoning the tool call) propagates by
 // closing the conn; the daemon's per-request watcher reads EOF, cancels
 // its own ctx, and the streaming verb aborts at its next checkpoint.
-func streamingRoundtrip(ctx context.Context, conn net.Conn, ss *mcp.ServerSession, progressToken any, verb string, args map[string]any) (*proto.Response, error) {
+func streamingRoundtrip(ctx context.Context, conn net.Conn, ss *mcp.ServerSession, progressToken any, verb string, args map[string]any, emitFormat string) (*proto.Response, error) {
 	req := &proto.Request{
-		V:         proto.ProtocolVersion,
-		ID:        newID(),
-		Verb:      verb,
-		Args:      args,
-		Stream:    true,
-		Transport: proto.TransportMCP,
+		V:          proto.ProtocolVersion,
+		ID:         newID(),
+		Verb:       verb,
+		Args:       args,
+		Stream:     true,
+		Transport:  proto.TransportMCP,
+		EmitFormat: wireEmitFormat(emitFormat),
 	}
 	encoded, err := proto.EncodeRequest(req)
 	if err != nil {
@@ -226,13 +248,19 @@ func streamingRoundtrip(ctx context.Context, conn net.Conn, ss *mcp.ServerSessio
 // proto.Error payload as TextContent — the harness sees "the tool ran
 // and reported an error", not "the transport blew up".
 //
-// On success (ASH-124) the response is dual-emitted: the decoded data
-// rides as both StructuredContent (for harnesses that validate against
-// the tool's outputSchema and skip the parse) and a TextContent
-// fallback carrying the same JSON bytes (for harnesses that ignore
-// structuredContent). The bytes in both places are byte-identical to
-// what proto.MCPEnvelope produces, so ashd's tokens_out_emit
-// accounting models exactly what the harness consumes.
+// On success in JSON-emit mode (ASH-124) the response is dual-emitted:
+// the decoded data rides as both StructuredContent (for harnesses that
+// validate against the tool's outputSchema and skip the parse) and a
+// TextContent fallback carrying the same JSON bytes (for harnesses that
+// ignore structuredContent). The bytes in both places are byte-identical
+// to what proto.MCPEnvelope produces, so ashd's tokens_out_emit accounting
+// models exactly what the harness consumes.
+//
+// On success in pretty-emit mode (ASH-146) the structured fallback is
+// dropped: TextContent carries the daemon-pretty render — the same text
+// the ash CLI emits — so the harness pays CLI-equivalent token cost.
+// StructuredContent is omitted; harnesses that need programmatic access
+// to fields must use the default JSON mode.
 //
 // Metrics move out of the body into MCP _meta — it's protocol-reserved
 // metadata, not part of the tool's output contract, so harnesses don't
@@ -245,26 +273,34 @@ func streamingRoundtrip(ctx context.Context, conn net.Conn, ss *mcp.ServerSessio
 // so harnesses that ignore _meta still see the signal in the model-
 // visible content. IsError stays false — truncation is a partial
 // success, not a failure.
-func toolResult(rsp *proto.Response) (*mcp.CallToolResult, error) {
-	body, err := proto.MCPEnvelope(rsp)
+func toolResult(verb string, rsp *proto.Response, emitFormat string) (*mcp.CallToolResult, error) {
+	body, err := mcpBody(verb, rsp, emitFormat)
 	if err != nil {
 		return nil, fmt.Errorf("marshal tool result: %w", err)
 	}
 	out := &mcp.CallToolResult{
 		IsError: !rsp.OK,
-		Content: []mcp.Content{&mcp.TextContent{Text: string(body)}},
+		Content: []mcp.Content{&mcp.TextContent{Text: body}},
 	}
 	var trunc *proto.TruncInfo
 	if rsp.OK {
-		data, derr := proto.MCPStructuredData(rsp)
-		if derr == nil {
-			// MCP requires StructuredContent to marshal to a JSON
-			// object. Every verb Result type in ash decodes to a
-			// top-level map; non-object payloads are dropped from
-			// structured emission and the TextContent fallback
-			// continues to carry them.
-			if m, ok := data.(map[string]any); ok {
-				out.StructuredContent = m
+		// StructuredContent is paired with the JSON envelope: it shares
+		// the same field shape as the TextContent in JSON mode. In
+		// pretty mode the TextContent diverges from the structured
+		// payload, so we drop StructuredContent rather than serve two
+		// inconsistent views; harnesses that need structured access can
+		// re-call with format=json.
+		if emitFormat != mcpschema.FormatPretty {
+			data, derr := proto.MCPStructuredData(rsp)
+			if derr == nil {
+				// MCP requires StructuredContent to marshal to a JSON
+				// object. Every verb Result type in ash decodes to a
+				// top-level map; non-object payloads are dropped from
+				// structured emission and the TextContent fallback
+				// continues to carry them.
+				if m, ok := data.(map[string]any); ok {
+					out.StructuredContent = m
+				}
 			}
 		}
 		trunc = proto.MCPTruncationHint(rsp)
@@ -289,6 +325,58 @@ func toolResult(rsp *proto.Response) (*mcp.CallToolResult, error) {
 		out.Meta = mcp.Meta{"ash": ashMeta}
 	}
 	return out, nil
+}
+
+// mcpBody returns the model-visible text for one tool call. JSON mode
+// (default) builds the proto.MCPEnvelope used since ASH-124. Pretty mode
+// (ASH-146) renders the daemon-pretty form a CLI client would print, so
+// the harness pays the same token cost it would have paid had it shelled
+// out to ash directly. On error responses both modes return the legacy
+// "<code>: <msg>" prose envelope — the failure shape is small enough
+// that the JSON/pretty distinction doesn't matter.
+func mcpBody(verb string, rsp *proto.Response, emitFormat string) (string, error) {
+	if rsp != nil && !rsp.OK {
+		b, err := proto.MCPEnvelope(rsp)
+		if err != nil {
+			return "", err
+		}
+		return string(b), nil
+	}
+	if emitFormat == mcpschema.FormatPretty {
+		if p, ok := prettyHandlers[verb]; ok {
+			// PrettyHandlers expect the rendering Request that
+			// produced the response so they can quote the request
+			// path in headers. ashmcp does not carry the original
+			// Request all the way to toolResult, so synthesize a
+			// minimal one — verb is the only field every pretty
+			// renderer consults today (path is read off the
+			// response's typed Data, not the Request).
+			return p(&proto.Request{Verb: verb}, rsp), nil
+		}
+		// Verb has no pretty handler registered — fall through to the
+		// JSON envelope so we never silently emit empty content.
+	}
+	b, err := proto.MCPEnvelope(rsp)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+// prettyHandlers is built once at process start; ashmcp uses these to
+// render daemon-pretty output for format=pretty calls (ASH-146).
+var prettyHandlers = verbs.PrettyHandlers()
+
+// wireEmitFormat maps the local format value to the proto.Request wire
+// representation. Empty / json both serialize as empty (the omitempty tag
+// keeps two-call cache prefixes stable for the common case); pretty rides
+// as "pretty" so the daemon can route emit accounting through the pretty
+// renderer instead of the JSON envelope.
+func wireEmitFormat(format string) string {
+	if format == mcpschema.FormatPretty {
+		return mcpschema.FormatPretty
+	}
+	return ""
 }
 
 func newID() uint64 {

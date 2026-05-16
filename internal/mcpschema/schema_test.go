@@ -126,6 +126,47 @@ func TestGenerateEditCoalescesNew(t *testing.T) {
 	}
 }
 
+// TestGenerateFormatKnob (ASH-146) checks the MCP-only `format` property
+// is injected into every tool's InputSchema with the right enum, default,
+// and that it does not appear in the help registry (which would leak it
+// to the CLI surface where it has no meaning — `ash` ships its own
+// out-of-band --format flag).
+func TestGenerateFormatKnob(t *testing.T) {
+	tl, err := Generate(testRepoRoot(t), help.Registry())
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if len(tl.Tools) == 0 {
+		t.Fatal("no tools generated")
+	}
+	for _, tool := range tl.Tools {
+		f, ok := tool.InputSchema.Properties[FormatArg]
+		if !ok {
+			t.Errorf("%s: missing %q property", tool.Name, FormatArg)
+			continue
+		}
+		if f.Type != "string" {
+			t.Errorf("%s.%s type = %q, want string", tool.Name, FormatArg, f.Type)
+		}
+		if f.Default != FormatJSON {
+			t.Errorf("%s.%s default = %v, want %q", tool.Name, FormatArg, f.Default, FormatJSON)
+		}
+		if !equalStringSet(f.Enum, []string{FormatJSON, FormatPretty}) {
+			t.Errorf("%s.%s enum = %v, want [%s %s]", tool.Name, FormatArg, f.Enum, FormatJSON, FormatPretty)
+		}
+	}
+	// `format` must not collide with any registered help arg — otherwise
+	// the duplicate-coalescing path in propertiesForVerb would silently
+	// overwrite the verb's own value.
+	for _, vs := range help.Registry() {
+		for _, a := range vs.Args {
+			if a.Name == FormatArg {
+				t.Errorf("verb %s registers an arg named %q, which collides with the MCP-only knob", vs.Verb, FormatArg)
+			}
+		}
+	}
+}
+
 // TestGenerateEnums verifies enum lists make the round trip — picking
 // read's --unit (lines|bytes) and git's --op as the witnesses.
 func TestGenerateEnums(t *testing.T) {

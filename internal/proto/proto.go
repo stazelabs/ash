@@ -66,6 +66,17 @@ type Request struct {
 	// accounting — a server seeing a future transport it doesn't model
 	// just leaves the _emit columns at zero.
 	Transport string `msgpack:"transport,omitempty" json:"transport,omitempty"`
+	// EmitFormat opts an MCP request out of the JSON-envelope emit shape
+	// in favor of the daemon-pretty text the CLI consumes (ASH-146).
+	// Empty (default) preserves today's behavior: ashmcp surfaces the
+	// JSON envelope as TextContent and the daemon tokenizes that for
+	// tokens_out_emit. "pretty" tells ashmcp to surface the daemon-pretty
+	// text instead and the daemon to tokenize the pretty form for emit
+	// accounting, so the ledger reports what the harness actually
+	// consumed and the harness pays CLI-equivalent token cost. Other
+	// transports ignore this field. Set by ashmcp from the MCP-only
+	// `format` tool arg.
+	EmitFormat string `msgpack:"emit_format,omitempty" json:"emit_format,omitempty"`
 }
 
 

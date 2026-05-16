@@ -452,9 +452,29 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 				if metrics != nil {
 					metrics.BytesOut = len(final)
 				}
-				if env, eerr := proto.MCPEnvelope(rsp); eerr == nil {
-					emitBytes := len(env)
-					emitTokens := led.Counter().Count(string(env))
+				// ASH-146: a request with EmitFormat=="pretty" tells
+				// the daemon ashmcp will surface the daemon-pretty
+				// text inside TextContent instead of the JSON
+				// envelope. Tokenize the pretty form for emit
+				// accounting so tokens_out_emit still equals what
+				// the harness consumed. The pretty bytes are already
+				// computed above for tokens_out; reuse them rather
+				// than rendering twice.
+				emitBody := ""
+				emitErr := error(nil)
+				if req.EmitFormat == "pretty" {
+					emitBody = prettyRsp
+				} else {
+					env, eerr := proto.MCPEnvelope(rsp)
+					if eerr == nil {
+						emitBody = string(env)
+					} else {
+						emitErr = eerr
+					}
+				}
+				if emitErr == nil {
+					emitBytes := len(emitBody)
+					emitTokens := led.Counter().Count(emitBody)
 					// ashmcp prepends a sentinel TextContent block
 					// when the response was truncated (ASH-127);
 					// mirror its byte/token cost here so
@@ -468,7 +488,7 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 						log.Printf("ashd: ledger update mcp emit: %v", err)
 					}
 				} else {
-					log.Printf("ashd: mcp envelope: %v", eerr)
+					log.Printf("ashd: mcp envelope: %v", emitErr)
 				}
 			}
 		}

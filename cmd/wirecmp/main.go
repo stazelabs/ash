@@ -68,6 +68,7 @@ func main() {
 	outPath := flag.String("out", "", "markdown output path (default stdout)")
 	claudeFlag := flag.Bool("claude", false, "also call Anthropic count_tokens (needs ANTHROPIC_API_KEY)")
 	model := flag.String("model", "claude-sonnet-4-5", "model for count_tokens when -claude")
+	prettyFlag := flag.Bool("pretty", false, "measure MCP under format=pretty (ASH-146) instead of the default JSON envelope")
 	flag.Parse()
 
 	root, err := session.Root(".")
@@ -124,20 +125,28 @@ func main() {
 		cliBytes := len(cliText)
 		cliTokens := counter.Count(cliText)
 
-		// MCP shape: same envelope ashmcp would emit. The daemon already
-		// populated rsp.Metrics.BytesOut for MCP-transport requests, so
-		// the embedded `bo` matches what the harness sees byte-for-byte.
-		// Truncated responses also gain a prepended sentinel TextContent
-		// block (ASH-127); mirror its cost here so wirecmp stays
-		// byte-identical to the daemon's tokens_out_emit accounting.
-		env, err := proto.MCPEnvelope(rsp)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "wirecmp: %s envelope: %v\n", f.Name, err)
-			continue
+		// MCP shape: what ashmcp would actually emit as TextContent. In
+		// the default JSON envelope mode (the pre-ASH-146 surface) this
+		// is proto.MCPEnvelope. Under -pretty, ashmcp ships the
+		// daemon-pretty render instead — same text the CLI prints — so
+		// the harness pays CLI-equivalent token cost. Truncated
+		// responses gain a prepended sentinel TextContent block
+		// (ASH-127) in either mode; we mirror its cost here so wirecmp
+		// stays byte-identical to the daemon's tokens_out_emit
+		// accounting.
+		var mcpText string
+		if *prettyFlag {
+			mcpText = cliText
+		} else {
+			env, err := proto.MCPEnvelope(rsp)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "wirecmp: %s envelope: %v\n", f.Name, err)
+				continue
+			}
+			mcpText = string(env)
 		}
-		mcpBytes := len(env)
-		mcpTokens := counter.Count(string(env))
-		mcpText := string(env)
+		mcpBytes := len(mcpText)
+		mcpTokens := counter.Count(mcpText)
 		if sentinel := proto.MCPTruncationSentinel(rsp); sentinel != "" {
 			mcpBytes += len(sentinel)
 			mcpTokens += counter.Count(sentinel)

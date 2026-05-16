@@ -36,7 +36,7 @@ func TestToolResultTruncationMeta(t *testing.T) {
 			Hint:      &proto.TruncInfo{Trunc: 1, Limit: 256, Max: 4096},
 		}),
 	}
-	res, err := toolResult(rsp)
+	res, err := toolResult("grep", rsp, "")
 	if err != nil {
 		t.Fatalf("toolResult: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestToolResultHardCapSentinel(t *testing.T) {
 			Hint:      &proto.TruncInfo{Trunc: 1, Limit: 4096, Max: 4096},
 		}),
 	}
-	res, err := toolResult(rsp)
+	res, err := toolResult("grep", rsp, "")
 	if err != nil {
 		t.Fatalf("toolResult: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestToolResultNoTruncation(t *testing.T) {
 		OK:   true,
 		Data: proto.MustData(resultWithTrunc{Count: 42}),
 	}
-	res, err := toolResult(rsp)
+	res, err := toolResult("grep", rsp, "")
 	if err != nil {
 		t.Fatalf("toolResult: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestTruncationSentinelMatchesProto(t *testing.T) {
 			Hint:      &proto.TruncInfo{Trunc: 1, Limit: 100, Max: 4096},
 		}),
 	}
-	res, err := toolResult(rsp)
+	res, err := toolResult("grep", rsp, "")
 	if err != nil {
 		t.Fatalf("toolResult: %v", err)
 	}
@@ -163,5 +163,170 @@ func TestTruncationSentinelMatchesProto(t *testing.T) {
 	tc, ok := res.Content[0].(*mcp.TextContent)
 	if !ok || tc.Text != want {
 		t.Errorf("first content block = %q; want exact match with proto.MCPTruncationSentinel = %q", tc.Text, want)
+	}
+}
+
+// TestDecodeArgsStripsFormat exercises ASH-146: ashmcp must peel the
+// MCP-only `format` knob off the args map before the request reaches
+// the daemon. Verb-level ParseArgs would reject the unknown key under
+// the additionalProperties:false guard added in ASH-116, so a leak
+// would surface as a runtime regression that schema-level validation
+// cannot catch.
+func TestDecodeArgsStripsFormat(t *testing.T) {
+	cases := []struct {
+		name       string
+		body       string
+		wantArgs   map[string]any
+		wantFormat string
+	}{
+		{
+			name:       "format=pretty stripped, opts into pretty",
+			body:       `{"path":"README.md","format":"pretty"}`,
+			wantArgs:   map[string]any{"path": "README.md"},
+			wantFormat: "pretty",
+		},
+		{
+			name:       "format=json stripped, stays json",
+			body:       `{"path":"README.md","format":"json"}`,
+			wantArgs:   map[string]any{"path": "README.md"},
+			wantFormat: "json",
+		},
+		{
+			name:       "no format key, defaults to json",
+			body:       `{"path":"README.md"}`,
+			wantArgs:   map[string]any{"path": "README.md"},
+			wantFormat: "json",
+		},
+		{
+			name:       "unknown format coerced to json",
+			body:       `{"path":"README.md","format":"yaml"}`,
+			wantArgs:   map[string]any{"path": "README.md"},
+			wantFormat: "json",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			args, format, err := decodeArgs(json.RawMessage(tc.body))
+			if err != nil {
+				t.Fatalf("decodeArgs: %v", err)
+			}
+			if format != tc.wantFormat {
+				t.Errorf("format = %q; want %q", format, tc.wantFormat)
+			}
+			if _, leaked := args["format"]; leaked {
+				t.Errorf("args still carry format key after decodeArgs: %+v", args)
+			}
+			if len(args) != len(tc.wantArgs) {
+				t.Errorf("args = %+v; want %+v", args, tc.wantArgs)
+			}
+			for k, v := range tc.wantArgs {
+				if args[k] != v {
+					t.Errorf("args[%q] = %v; want %v", k, args[k], v)
+				}
+			}
+		})
+	}
+}
+
+// TestToolResultPrettyMode covers the ASH-146 pretty-emit shape: the
+// daemon-pretty render rides as the sole TextContent, structuredContent
+// is omitted (the JSON/pretty divergence would be a footgun), and the
+// IsError flag still mirrors rsp.OK.
+func TestToolResultPrettyMode(t *testing.T) {
+	rsp := &proto.Response{
+		V:  proto.ProtocolVersion,
+		ID: 42,
+		OK: true,
+		Data: proto.MustData(map[string]any{
+			"path":  "README.md",
+			"size":  int64(123),
+			"mtime": int64(0),
+			"type":  "file",
+		}),
+	}
+	resJSON, err := toolResult("stat", rsp, "")
+	if err != nil {
+		t.Fatalf("toolResult json: %v", err)
+	}
+	if len(resJSON.Content) != 1 {
+		t.Fatalf("json mode: Content count = %d, want 1", len(resJSON.Content))
+	}
+	envBody, err := proto.MCPEnvelope(rsp)
+	if err != nil {
+		t.Fatalf("envelope: %v", err)
+	}
+	tcJSON := resJSON.Content[0].(*mcp.TextContent)
+	if tcJSON.Text != string(envBody) {
+		t.Errorf("json mode text diverged from MCPEnvelope (drift would break tokens_out_emit accounting)")
+	}
+	if resJSON.StructuredContent == nil {
+		t.Error("json mode: StructuredContent must be populated (clients rely on outputSchema)")
+	}
+
+	resPretty, err := toolResult("stat", rsp, "pretty")
+	if err != nil {
+		t.Fatalf("toolResult pretty: %v", err)
+	}
+	if resPretty.StructuredContent != nil {
+		t.Error("pretty mode: StructuredContent must be omitted (the JSON/pretty divergence makes it inconsistent)")
+	}
+	if len(resPretty.Content) != 1 {
+		t.Fatalf("pretty mode: Content count = %d, want 1", len(resPretty.Content))
+	}
+	tcPretty := resPretty.Content[0].(*mcp.TextContent)
+	if tcPretty.Text == tcJSON.Text {
+		t.Errorf("pretty mode text == json mode text; pretty renderer was not used")
+	}
+	if len(tcPretty.Text) >= len(tcJSON.Text) {
+		t.Errorf("pretty (%d bytes) not shorter than json (%d bytes) — ASH-146 only buys a win if pretty is cheaper for stat", len(tcPretty.Text), len(tcJSON.Text))
+	}
+}
+
+// TestToolResultPrettyModeFallback guards the safety net: if a verb has
+// no pretty renderer (unlikely today, but the map could ship missing an
+// entry), pretty mode must not silently emit empty content. Falling
+// back to the JSON envelope keeps the harness from receiving a black
+// hole when the human hits a bug.
+func TestToolResultPrettyModeFallback(t *testing.T) {
+	rsp := &proto.Response{
+		V:    proto.ProtocolVersion,
+		ID:   1,
+		OK:   true,
+		Data: proto.MustData(map[string]any{"k": "v"}),
+	}
+	res, err := toolResult("nonexistent-verb", rsp, "pretty")
+	if err != nil {
+		t.Fatalf("toolResult: %v", err)
+	}
+	if len(res.Content) != 1 {
+		t.Fatalf("fallback: Content count = %d, want 1", len(res.Content))
+	}
+	if tc, ok := res.Content[0].(*mcp.TextContent); !ok || tc.Text == "" {
+		t.Errorf("fallback: expected non-empty TextContent, got %+v", res.Content[0])
+	}
+}
+
+// TestToolResultPrettyModeError keeps error envelopes consistent across
+// formats — failure shape is small enough that the JSON/pretty distinction
+// would only add complexity. Both paths produce "<code>: <msg>".
+func TestToolResultPrettyModeError(t *testing.T) {
+	rsp := &proto.Response{
+		V:   proto.ProtocolVersion,
+		ID:  1,
+		OK:  false,
+		Err: &proto.Error{Code: "path_denied", Msg: "outside jail"},
+	}
+	for _, mode := range []string{"", "pretty"} {
+		res, err := toolResult("read", rsp, mode)
+		if err != nil {
+			t.Fatalf("toolResult format=%q: %v", mode, err)
+		}
+		if !res.IsError {
+			t.Errorf("format=%q: IsError must be true on error responses", mode)
+		}
+		tc := res.Content[0].(*mcp.TextContent)
+		if tc.Text != "path_denied: outside jail" {
+			t.Errorf("format=%q: error text = %q; want \"path_denied: outside jail\"", mode, tc.Text)
+		}
 	}
 }

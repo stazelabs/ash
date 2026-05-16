@@ -6,26 +6,59 @@ Same intent, two transports. CLI = daemon-pretty render; MCP = JSON envelope ash
 >
 > Daemon paths in production (CLI → ashd, ashmcp → ashd) are unaffected: both send strings or JSON-decoded `float64`s, never raw Go `int`s. The hardening of `argutil.ToInt` to accept the full set of msgpack integer types is tracked separately in [ASH-149](https://linear.app/stazelabs/issue/ASH-149).
 
-## Latest snapshot (post-ASH-148)
+## Latest snapshot (post-ASH-146)
 
-`bin/wirecmp -claude -repeat 5` against this repo, daemon at HEAD post-ASH-147 with fixtures fixed to pass numeric args as strings.
+Two snapshots, same fixtures: the default JSON-envelope MCP shape (pre-ASH-146 baseline; what a harness sees when it does not pass `format`) and the `format=pretty` opt-in (ASH-146; what a harness sees when it sets the MCP-only `format` knob to "pretty"). Both `bin/wirecmp -claude -repeat 5` against the daemon at HEAD post-ASH-146 with the post-ASH-148 fixture corrections in place.
+
+### Default JSON envelope (pre-ASH-146 baseline; format unset or "json")
 
 | fixture | CLI bytes | CLI cl100k | CLI claude | MCP bytes | MCP cl100k | MCP claude | Δ bytes | Δ cl100k | Δ claude | CLI p50 | MCP p50 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| read README:1-60 | 4829 | 1101 | 1221 | 5005 | 1183 | 1317 | +176 (+4%) | +82 (+7%) | +96 (+8%) | 2.4ms | 4.0ms |
-| find **/*.go (20) | 548 | 195 | 250 | 1920 | 638 | 733 | +1372 (+250%) | +443 (+227%) | +483 (+193%) | 2.0ms | 1.9ms |
-| find **/*.go --meta (20) | 911 | 415 | 490 | 1920 | 638 | 733 | +1009 (+111%) | +223 (+54%) | +243 (+50%) | 2.4ms | 2.5ms |
-| grep ^func Run | 2317 | 757 | 941 | 2861 | 905 | 1072 | +544 (+23%) | +148 (+20%) | +131 (+14%) | 8.7ms | 8.6ms |
-| stat README.md | 35 | 14 | 26 | 113 | 37 | 48 | +78 (+223%) | +23 (+164%) | +22 (+85%) | 1.3ms | 1.7ms |
-| git status† | 137 | 46 | 65 | 204 | 58 | 80 | +67 (+49%) | +12 (+26%) | +15 (+23%) | 9.3ms | 8.4ms |
-| help | 1614 | 391 | 463 | 17505 | 4076 | 4696 | +15891 (+985%) | +3685 (+942%) | +4233 (+914%) | 2.1ms | 4.9ms |
+| read README:1-60 | 4829 | 1101 | 1221 | 5005 | 1183 | 1317 | +176 (+4%) | +82 (+7%) | +96 (+8%) | 2.2ms | 2.9ms |
+| find **/*.go (20) | 548 | 195 | 250 | 1922 | 638 | 733 | +1374 (+251%) | +443 (+227%) | +483 (+193%) | 1.9ms | 1.8ms |
+| find **/*.go --meta (20) | 913 | 415 | 490 | 1922 | 638 | 733 | +1009 (+111%) | +223 (+54%) | +243 (+50%) | 1.8ms | 1.9ms |
+| grep ^func Run | 2317 | 757 | 941 | 2861 | 905 | 1072 | +544 (+23%) | +148 (+20%) | +131 (+14%) | 8.2ms | 8.4ms |
+| stat README.md | 35 | 14 | 26 | 113 | 37 | 48 | +78 (+223%) | +23 (+164%) | +22 (+85%) | 1.7ms | 2.2ms |
+| git status† | 324 | 108 | 142 | 552 | 155 | 199 | +228 (+70%) | +47 (+44%) | +57 (+40%) | 10.0ms | 8.9ms |
+| help | 1614 | 391 | 463 | 17505 | 4076 | 4696 | +15891 (+985%) | +3685 (+942%) | +4233 (+914%) | 1.6ms | 5.4ms |
 
-**Totals** — CLI 10391B / 2919 cl100k, MCP 29528B / 7535 cl100k. Δ +19137B (+184.2%) / +4616 cl100k tokens (+158.1%).
-Claude: CLI 3456, MCP 8679, Δ +5223 (+151.1%).
+**Totals** — CLI 10580B / 2981 cl100k, MCP 29880B / 7632 cl100k. Δ +19300B (+182.4%) / +4651 cl100k tokens (+156.0%).
+Claude: CLI 3533, MCP 8798, Δ +5265 (+149.0%).
 
-Excluding the `help` outlier: CLI 2993 claude, MCP 3983 claude, Δ +990 (+33%) — the read-side surface (find, grep, stat, git, read) costs ~1/3 more over MCP than CLI. Earlier snapshots reported ~+10% here, but those numbers were dominated by find+grep returning empty error envelopes; the real number is +33%.
+### `format=pretty` opt-in (ASH-146)
 
-† `git status` workload is sensitive to tree state. This run captured the post-ASH-147 dirty tree (in-flight ASH-148 edits to `cmd/wirecmp/main.go`). The `Δ vs CLI` ratio is the load-bearing comparison.
+`bin/wirecmp -claude -repeat 5 -pretty` — same fixtures, but the MCP column is now the daemon-pretty render ashmcp surfaces inside TextContent when the harness sets `format: "pretty"`. By construction this is byte-identical to the CLI render except for the ASH-127 truncation sentinel, which still rides as a separate TextContent block on truncated calls.
+
+| fixture | CLI bytes | CLI cl100k | CLI claude | MCP bytes | MCP cl100k | MCP claude | Δ bytes | Δ cl100k | Δ claude | CLI p50 | MCP p50 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| read README:1-60 | 4829 | 1101 | 1221 | 4829 | 1101 | 1221 | +0 (+0%) | +0 (+0%) | +0 (+0%) | 2.4ms | 3.6ms |
+| find **/*.go (20)‡ | 548 | 195 | 250 | 633 | 219 | 276 | +85 (+16%) | +24 (+12%) | +26 (+10%) | 1.8ms | 1.9ms |
+| find **/*.go --meta (20)‡ | 913 | 415 | 490 | 998 | 439 | 516 | +85 (+9%) | +24 (+6%) | +26 (+5%) | 2.8ms | 1.6ms |
+| grep ^func Run‡ | 2317 | 757 | 941 | 2402 | 781 | 967 | +85 (+4%) | +24 (+3%) | +26 (+3%) | 9.7ms | 8.6ms |
+| stat README.md | 35 | 14 | 26 | 35 | 14 | 26 | +0 (+0%) | +0 (+0%) | +0 (+0%) | 2.8ms | 3.2ms |
+| git status† | 324 | 108 | 142 | 324 | 108 | 142 | +0 (+0%) | +0 (+0%) | +0 (+0%) | 11.8ms | 9.9ms |
+| help | 1614 | 391 | 463 | 1614 | 391 | 463 | +0 (+0%) | +0 (+0%) | +0 (+0%) | 1.4ms | 4.7ms |
+
+**Totals** — CLI 10580B / 2981 cl100k, MCP 10835B / 3053 cl100k. Δ +255B (+2.4%) / +72 cl100k tokens (+2.4%).
+Claude: CLI 3533, MCP 3611, Δ +78 (+2.2%).
+
+### What the opt-in buys (per-fixture Claude-token deltas)
+
+| fixture | json claude | pretty claude | drop | ratio |
+|---|---:|---:|---:|---:|
+| help | 4696 | 463 | -4233 | -90% |
+| find **/*.go (20) | 733 | 276 | -457 | -62% |
+| find **/*.go --meta (20) | 733 | 516 | -217 | -30% |
+| grep ^func Run | 1072 | 967 | -105 | -10% |
+| stat README.md | 48 | 26 | -22 | -46% |
+| git status | 199 | 142 | -57 | -29% |
+| read README:1-60 | 1317 | 1221 | -96 | -7% |
+
+Aggregate Claude tokens drop from 8798 (json envelope, +149% vs CLI) to 3611 (pretty, +2.2% vs CLI). The remaining +2.2% is the truncation sentinel that fires on `find`/`grep` because the fixtures pass `limit=20` and `max=20` is the hard cap; non-truncated calls match CLI cost exactly.
+
+† `git status` workload is sensitive to tree state. The two snapshots above were taken from the same in-flight ASH-146 tree, so the row is comparable across them; the absolute byte count is not directly comparable to earlier snapshots in this doc.
+
+‡ The `find`/`grep` Δ over CLI in pretty mode (+85 bytes, +26 Claude tokens) is the ASH-127 truncation sentinel that ashmcp prepends as a separate TextContent block when the verb hit `limit==max`. The CLI does not emit this sentinel because the truncation hint is already inside the pretty body. Closing this gap further is its own design problem — folding the sentinel into the body would change the body shape, which a separate ticket can pick up if the +26 tokens per truncated call matters at scale.
 
 ## Linear-scaling check on list-of-records verbs (ASH-148)
 
@@ -75,29 +108,33 @@ Tax 1 (the `{"ok":...,"data":...,"metrics":...}` envelope wrapper, ~30–50 toke
 - **`git status`** dropped from +70% to +23% Δ claude. (Workload-dependent; numbers compare like-for-like on small status outputs.)
 - **(find, grep)** post-ASH-148: the pre-ASH-124 numbers for these rows were measuring error envelopes (same wirecmp fixture bug as today). The closed-tax-1 win on terse responses claimed in earlier text was not real — those rows weren't measuring real verb output until ASH-148 fixed the fixtures.
 
-## Where tax 2 still bites
+## How ASH-146 closed tax 2
 
-Tax 2 — JSON-vs-pretty, with field names spelled out for every record — is untouched by ASH-124, ASH-147, or ASH-148. ASH-148 confirmed the prediction with measurement:
+Tax 2 — JSON-vs-pretty, with field names spelled out for every record — was the load-bearing remaining cost after ASH-124, ASH-147, and ASH-148. ASH-148 quantified it: ~10× the Claude tokens for schema-dump verbs (`help`), ~12–24 Claude tokens per record for list-of-records verbs (`find --meta` over the Go tree would cost ~2400 extra tokens, `lang outline`/`lang refs` would land in the same shape).
 
-1. **Schema-dump verbs (`help`).** Even after ASH-147 stripped `Long`, every verb still ships every arg's structured form (`name`, `type`, `default`, `description`, `PH`, `mode`, `op`, `values`). Result: ~10× the Claude tokens over MCP.
-2. **List-of-records verbs.** Confirmed at ~12–24 Claude tokens per record (above). `find --meta` over the full Go tree (~200 files) would cost ~2400 extra Claude tokens via MCP vs CLI's pretty form. `lang outline` / `lang refs` over a workspace would land in the same shape.
+ASH-146 added a transport-level `format` knob to every MCP tool's input schema (Option 1 from the design ticket). Harnesses that pass `format: "pretty"` receive the daemon-pretty render — the exact text the CLI prints — as the sole TextContent. Structured access is dropped in that mode (the JSON/pretty divergence would be a footgun); harnesses that need programmatic field access keep the default `format: "json"` and pay the existing structured-record cost.
 
-Closing this is its own design problem — tracked in [ASH-146](https://linear.app/stazelabs/issue/ASH-146). Two candidate shapes:
+The numbers (from the snapshots above):
 
-- A `--format pretty|json` knob on the ashmcp path that ships the daemon-pretty text inside the JSON envelope for harnesses that prefer it. Loses structured access but matches CLI cost.
-- A structured-pretty hybrid: compact tuple form (e.g. `{"cols":["path","size","mtime"],"rows":[[…],[…]]}`) for repeated records. Keeps structured access; pays the field-name cost once per call instead of once per record. The post-ASH-148 per-record cost (~12 claude/record) is the design target this would attack.
+- **Aggregate Claude tokens drop from 8798 → 3611** (+149% → +2.2% vs CLI; -59% absolute).
+- **Help drops 4233 → 463 Claude** (-90%); the ~10× schema-dump cost is fully eliminated for opt-in callers.
+- **Stat drops 48 → 26 Claude** (-46%); the named-field framing is gone.
+- **Find/grep retain a ~26-token sentinel cost** when truncated (the ASH-127 hint ashmcp prepends as a separate TextContent), so they sit a few percent above CLI rather than at parity. Non-truncated calls match CLI exactly.
+
+What ASH-146 *did not* attack: harnesses that need both structured access *and* CLI-equivalent cost on list-of-records verbs (Option 2 from the original design — the `{"cols":[…],"rows":[[…],[…]]}` compact-tuple hybrid). That tradeoff is captured in [ASH-153](https://linear.app/stazelabs/issue/ASH-153) — keep Option 2 on the shelf for when a harness lands that genuinely wants both, instead of speculatively widening the surface now.
 
 ## Method
 
-`bin/wirecmp -claude -repeat 5` against the local daemon. Per fixture: one canonical roundtrip whose `Response` feeds *both* renderings (CLI = `verbs.PrettyHandlers()[verb](req, rsp)`; MCP = `proto.MCPEnvelope(rsp)`) so the comparison isolates transport overhead from verb behavior; five additional roundtrips per transport for the latency median. Tokenizers: `cl100k_base` for the local proxy, Anthropic `count_tokens` against `claude-sonnet-4-5` for ground truth — they agree within 7% at aggregate post-ASH-148 (+158.1% cl100k vs +151.1% Claude; the spread comes from JSON-formatting tokens like quotes and commas, which cl100k counts more aggressively than Claude's tokenizer).
+`bin/wirecmp -claude -repeat 5` against the local daemon. Per fixture: one canonical roundtrip whose `Response` feeds *both* renderings (CLI = `verbs.PrettyHandlers()[verb](req, rsp)`; MCP = `proto.MCPEnvelope(rsp)` by default, `cliText` under `-pretty`) so the comparison isolates transport overhead from verb behavior; five additional roundtrips per transport for the latency median. Tokenizers: `cl100k_base` for the local proxy, Anthropic `count_tokens` against `claude-sonnet-4-5` for ground truth — they agree within 7% at aggregate (post-ASH-146 default snapshot: +156.0% cl100k vs +149.0% Claude; the spread comes from JSON-formatting tokens like quotes and commas, which cl100k counts more aggressively than Claude's tokenizer).
 
-Reproduce:
+Reproduce both snapshots:
 
 ```sh
 make all && go build -o bin/wirecmp ./cmd/wirecmp
 set -a; . ./.env.local; set +a
 bin/ash help --verb help >/dev/null  # auto-start the daemon
-bin/wirecmp -claude -out docs/mcp/wire-cost.snapshot.md
+bin/wirecmp -claude -out docs/mcp/wire-cost.snapshot.md            # default JSON envelope
+bin/wirecmp -claude -pretty -out docs/mcp/wire-cost.snapshot-pretty.md  # format=pretty
 ```
 
 The snapshot table is hand-merged into this doc rather than overwritten in place, because the doc also carries the pre/post deltas and the narrative — which `wirecmp` itself doesn't emit.

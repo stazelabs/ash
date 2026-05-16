@@ -19,6 +19,15 @@
             "description": "Max bytes to return; hard cap 8 MiB.",
             "default": 262144
           },
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty"
+            ],
+            "default": "json"
+          },
           "meta": {
             "type": "boolean",
             "description": "Include encoding and mtime in the pretty header.",
@@ -133,6 +142,15 @@
           "exclude": {
             "type": "string",
             "description": "Doublestar pattern; matching entries are skipped."
+          },
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty"
+            ],
+            "default": "json"
           },
           "gi": {
             "type": "boolean",
@@ -297,6 +315,15 @@
             "type": "boolean",
             "description": "Return only paths of files with at least one match.",
             "default": false
+          },
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty"
+            ],
+            "default": "json"
           },
           "gi": {
             "type": "boolean",
@@ -471,6 +498,15 @@
             "type": "integer",
             "description": "[op=diff|show] Unified diff context lines; max 50.",
             "default": 3
+          },
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty"
+            ],
+            "default": "json"
           },
           "ignored": {
             "type": "boolean",
@@ -992,6 +1028,15 @@
             ],
             "default": "utf-8"
           },
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty"
+            ],
+            "default": "json"
+          },
           "mkdir": {
             "type": "boolean",
             "description": "Create missing parent directories.",
@@ -1043,6 +1088,15 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty"
+            ],
+            "default": "json"
+          },
           "last": {
             "type": "integer",
             "description": "Most-recent calls to return; max 200.",
@@ -1159,6 +1213,15 @@
             "type": "boolean",
             "description": "Aggregate across every installed repo; includes per-root breakdown.",
             "default": false
+          },
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty"
+            ],
+            "default": "json"
           },
           "last": {
             "type": "integer",
@@ -1515,6 +1578,15 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty"
+            ],
+            "default": "json"
+          },
           "since": {
             "type": "string",
             "description": "Time window (e.g. 15m, 1h, 24h); supports Go duration + d.",
@@ -1651,6 +1723,15 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty"
+            ],
+            "default": "json"
+          },
           "recent": {
             "type": "integer",
             "description": "Cap on file/search lists; max 50.",
@@ -1795,6 +1876,15 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty"
+            ],
+            "default": "json"
+          },
           "limit": {
             "type": "integer",
             "description": "Cap on calls replayed; 0 is no cap, hard ceiling 5000.",
@@ -2065,6 +2155,15 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty"
+            ],
+            "default": "json"
+          },
           "verb": {
             "type": "string",
             "description": "Verb name to describe; omit for all verbs."
@@ -2187,6 +2286,15 @@
             "type": "string",
             "description": "Read/Edit/Write target file path."
           },
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty"
+            ],
+            "default": "json"
+          },
           "glob": {
             "type": "string",
             "description": "Grep file glob filter."
@@ -2261,6 +2369,15 @@
             "type": "boolean",
             "description": "Resolve symlinks; broken symlinks produce error=broken_symlink per entry.",
             "default": false
+          },
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty"
+            ],
+            "default": "json"
           },
           "path": {
             "type": "string",
@@ -2353,6 +2470,15 @@
             "description": "Compute the replacement without writing; result includes unified diff.",
             "default": false
           },
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty"
+            ],
+            "default": "json"
+          },
           "new": {
             "type": "string",
             "description": "[mode=string] Replacement text; empty string deletes the match. / [mode=range] Replacement lines; empty string deletes the range."
@@ -2433,6 +2559,15 @@
             "type": "integer",
             "description": "Context lines per hunk; max 50.",
             "default": 3
+          },
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty"
+            ],
+            "default": "json"
           },
           "other": {
             "type": "string",
@@ -2515,6 +2650,15 @@
             "type": "boolean",
             "description": "Render latest bench run as Markdown.",
             "default": false
+          },
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty"
+            ],
+            "default": "json"
           },
           "limit": {
             "type": "integer",
@@ -2786,6 +2930,15 @@
             "description": "go test -count; 1 bypasses cache, 0 uses cache.",
             "default": 1
           },
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty"
+            ],
+            "default": "json"
+          },
           "packages": {
             "type": "string",
             "description": "Comma-separated package patterns for go test.",
@@ -2956,6 +3109,15 @@
             "description": "Overwrite conflicting PreToolUse or CLAUDE.md sections.",
             "default": false
           },
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty"
+            ],
+            "default": "json"
+          },
           "no-registry": {
             "type": "boolean",
             "description": "Skip writing the installed-repos registry.",
@@ -3017,6 +3179,15 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty"
+            ],
+            "default": "json"
+          },
           "no-registry": {
             "type": "boolean",
             "description": "Skip the registry removal.",
@@ -3077,7 +3248,17 @@
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
-        "properties": {},
+        "properties": {
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty"
+            ],
+            "default": "json"
+          }
+        },
         "additionalProperties": false
       },
       "outputSchema": {

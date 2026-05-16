@@ -188,4 +188,102 @@ func TestIntegration_AllVerbs(t *testing.T) {
 			}
 		})
 	}
+
+	// ASH-146: an MCP request with EmitFormat="pretty" must record
+	// tokens_out_emit using the daemon-pretty render (== tokens_out),
+	// not the JSON envelope. The default (EmitFormat="") path is
+	// unchanged: tokens_out_emit tokenizes the JSON envelope, which
+	// for structured-record verbs costs more than the pretty form.
+	t.Run("emit_format_pretty", func(t *testing.T) {
+		sendCustom := func(t *testing.T, c net.Conn, req *proto.Request) *proto.Response {
+			t.Helper()
+			buf, err := proto.EncodeRequest(req)
+			if err != nil {
+				t.Fatalf("EncodeRequest: %v", err)
+			}
+			_ = c.SetWriteDeadline(time.Now().Add(5 * time.Second))
+			if err := proto.WriteFrame(c, buf); err != nil {
+				t.Fatalf("WriteFrame: %v", err)
+			}
+			_ = c.SetReadDeadline(time.Now().Add(15 * time.Second))
+			rspBuf, err := proto.ReadFrame(c)
+			if err != nil {
+				t.Fatalf("ReadFrame: %v", err)
+			}
+			rsp, err := proto.DecodeResponse(rspBuf)
+			if err != nil {
+				t.Fatalf("DecodeResponse: %v", err)
+			}
+			return rsp
+		}
+		statReq := func(format string) *proto.Request {
+			return &proto.Request{
+				V:          proto.ProtocolVersion,
+				ID:         reqID.Add(1),
+				Verb:       "stat",
+				Args:       map[string]any{"paths": goMod},
+				Transport:  proto.TransportMCP,
+				EmitFormat: format,
+			}
+		}
+		jsonReq := statReq("")
+		jsonRsp := sendCustom(t, dial(t), jsonReq)
+		if !jsonRsp.OK {
+			t.Fatalf("json mode: %+v", jsonRsp.Err)
+		}
+		prettyReq := statReq("pretty")
+		prettyRsp := sendCustom(t, dial(t), prettyReq)
+		if !prettyRsp.OK {
+			t.Fatalf("pretty mode: %+v", prettyRsp.Err)
+		}
+
+		// QueryRecent does not project request_id, so we cannot
+		// match rows by Request.ID. Instead, rely on the dispatch
+		// order: jsonReq is sent first, prettyReq second. The two
+		// most-recent stat rows in reverse-chrono order are pretty
+		// then json. The handler commits UpdateMCPEmit synchronously
+		// before the response write, so a completed roundtrip means
+		// the row is on disk; the bounded retry keeps the test robust
+		// to scheduler quirks.
+		var jsonRow, prettyRow *ledger.Call
+		deadline := time.Now().Add(2 * time.Second)
+		for time.Now().Before(deadline) {
+			calls, err := led.QueryRecent(20, "stat")
+			if err != nil {
+				t.Fatalf("QueryRecent: %v", err)
+			}
+			if len(calls) >= 2 {
+				p := calls[0]
+				j := calls[1]
+				prettyRow = &p
+				jsonRow = &j
+				break
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		if jsonRow == nil {
+			t.Fatal("ledger missing the json-mode stat row")
+		}
+		if prettyRow == nil {
+			t.Fatal("ledger missing the pretty-mode stat row")
+		}
+		if jsonRow.TokensOutEmit == 0 || prettyRow.TokensOutEmit == 0 {
+			t.Fatalf("tokens_out_emit unpopulated: json=%d pretty=%d (Transport=mcp should populate it)", jsonRow.TokensOutEmit, prettyRow.TokensOutEmit)
+		}
+		// stat is the canonical structured-record fixture: the JSON
+		// envelope costs substantially more than the pretty render.
+		// If this ever stops being true (e.g. pretty grows a structured
+		// section larger than the JSON envelope) the bound below will
+		// catch it.
+		if prettyRow.TokensOutEmit >= jsonRow.TokensOutEmit {
+			t.Errorf("pretty tokens_out_emit (%d) not below json tokens_out_emit (%d); ASH-146 only buys a win when pretty is cheaper", prettyRow.TokensOutEmit, jsonRow.TokensOutEmit)
+		}
+		// Pretty emit must equal pretty tokens_out by construction
+		// (they tokenize the same text). Drift would mean the daemon
+		// is using a different rendering for accounting than for the
+		// wire — the exact fidelity bug ASH-123 set out to fix.
+		if prettyRow.TokensOutEmit != prettyRow.TokensOut {
+			t.Errorf("pretty: tokens_out_emit (%d) != tokens_out (%d); both should tokenize the daemon-pretty render", prettyRow.TokensOutEmit, prettyRow.TokensOut)
+		}
+	})
 }

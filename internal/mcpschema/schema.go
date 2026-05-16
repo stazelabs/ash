@@ -123,6 +123,19 @@ func toolForVerb(vs help.VerbSchema) (Tool, error) {
 	if err != nil {
 		return Tool{}, err
 	}
+	// ASH-146: every MCP tool exposes a transport-level `format` knob so
+	// harnesses can opt into the daemon-pretty rendering (CLI-equivalent
+	// token cost) instead of the JSON envelope. Stripped by ashmcp before
+	// dispatch — the daemon never sees it, so it can't collide with verb
+	// args. Lives in mcpschema (not help.Registry) because it has no
+	// meaning for the CLI surface, which carries its own out-of-band
+	// `--format` flag.
+	props[FormatArg] = Property{
+		Type:        "string",
+		Description: "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+		Enum:        []string{FormatJSON, FormatPretty},
+		Default:     FormatJSON,
+	}
 	return Tool{
 		Name:        ToolNamePrefix + vs.Verb,
 		Description: vs.Description,
@@ -135,6 +148,17 @@ func toolForVerb(vs help.VerbSchema) (Tool, error) {
 		},
 	}, nil
 }
+
+// FormatArg is the MCP-only knob name harnesses set to choose between the
+// JSON envelope (default) and the daemon-pretty text rendering. Stripped
+// by ashmcp before the request reaches the daemon (ASH-146).
+const FormatArg = "format"
+
+// FormatJSON / FormatPretty are the two enum values FormatArg accepts.
+const (
+	FormatJSON   = "json"
+	FormatPretty = "pretty"
+)
 
 // propertiesForVerb collapses help.ArgSchema entries into JSON Schema
 // properties. Duplicate Name entries (edit's `new` appears once per mode)
