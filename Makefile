@@ -2,7 +2,7 @@
 
 PREFIX ?= $(HOME)/.local/bin
 
-all: bin/ash bin/ashd bin/ashmcp
+all: bin/ash bin/ashd bin/ashmcp bin/ashd-clean
 
 bin/ash: $(shell find cmd/ash internal -name '*.go')
 	go build -o bin/ash ./cmd/ash
@@ -17,6 +17,14 @@ bin/ashd: $(shell find cmd/ashd internal -name '*.go')
 bin/ashmcp: cmd/ashmcp/tools.json $(shell find cmd/ashmcp internal -name '*.go')
 	go build -o bin/ashmcp ./cmd/ashmcp
 
+# bin/ashd-clean: cross-project daemon cleanup (ASH-155). Walks the host
+# process table for every ashd, classifies each as alive/zombie/unknown
+# (from --root and --socket in argv), and optionally SIGTERMs zombies.
+# Distinct from `ash stop`, which is per-project by design. Safe to run
+# from cron / login-hook — report-only unless --cleanup is passed.
+bin/ashd-clean: $(shell find cmd/ashd-clean internal -name '*.go')
+	go build -o bin/ashd-clean ./cmd/ashd-clean
+
 restart: all
 	pkill -f bin/ashd 2>/dev/null || true
 
@@ -27,15 +35,16 @@ install: all
 	mkdir -p $(PREFIX)
 	ln -sf $(CURDIR)/bin/ash    $(PREFIX)/ash
 	ln -sf $(CURDIR)/bin/ashd   $(PREFIX)/ashd
-	ln -sf $(CURDIR)/bin/ashmcp $(PREFIX)/ashmcp
-	@echo "installed: $(PREFIX)/{ash,ashd,ashmcp}"
+	ln -sf $(CURDIR)/bin/ashmcp      $(PREFIX)/ashmcp
+	ln -sf $(CURDIR)/bin/ashd-clean $(PREFIX)/ashd-clean
+	@echo "installed: $(PREFIX)/{ash,ashd,ashmcp,ashd-clean}"
 	@case ":$$PATH:" in *":$(PREFIX):"*) ;; *) echo "warning: $(PREFIX) is not on PATH" ;; esac
 
 uninstall:
-	rm -f $(PREFIX)/ash $(PREFIX)/ashd $(PREFIX)/ashmcp
+	rm -f $(PREFIX)/ash $(PREFIX)/ashd $(PREFIX)/ashmcp $(PREFIX)/ashd-clean
 
 clean:
-	rm -f bin/ash bin/ashd bin/ashmcp
+	rm -f bin/ash bin/ashd bin/ashmcp bin/ashd-clean
 
 # bench: run the canonical case list with repeat=5/warmup=2 and dump the
 # raw JSON to bench/latest.json. The file is gitignored — it is a
