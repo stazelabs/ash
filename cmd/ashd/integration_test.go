@@ -272,16 +272,16 @@ func TestIntegration_AllVerbs(t *testing.T) {
 		if prettyRow == nil {
 			t.Fatal("ledger missing the pretty-mode stat row")
 		}
-		if jsonRow.TokensOutEmit == 0 || prettyRow.TokensOutEmit == 0 {
-			t.Fatalf("tokens_out_emit unpopulated: json=%d pretty=%d (Transport=mcp should populate it)", jsonRow.TokensOutEmit, prettyRow.TokensOutEmit)
+		// Post-ASH-156: json-mode success ships StructuredContent
+		// only — no TextContent body. The daemon's emit accounting
+		// mirrors that, so tokens_out_emit collapses to 0 for a
+		// non-truncated json-mode success. The stat fixture above is
+		// not truncated, so the json row should read exactly 0.
+		if jsonRow.TokensOutEmit != 0 {
+			t.Errorf("json mode (ASH-156): tokens_out_emit = %d; want 0 since success TextContent was dropped", jsonRow.TokensOutEmit)
 		}
-		// stat is the canonical structured-record fixture: the JSON
-		// envelope costs substantially more than the pretty render.
-		// If this ever stops being true (e.g. pretty grows a structured
-		// section larger than the JSON envelope) the bound below will
-		// catch it.
-		if prettyRow.TokensOutEmit >= jsonRow.TokensOutEmit {
-			t.Errorf("pretty tokens_out_emit (%d) not below json tokens_out_emit (%d); ASH-146 only buys a win when pretty is cheaper", prettyRow.TokensOutEmit, jsonRow.TokensOutEmit)
+		if prettyRow.TokensOutEmit == 0 {
+			t.Fatalf("pretty mode: tokens_out_emit unpopulated (Transport=mcp should populate it)")
 		}
 		// Pretty emit must equal pretty tokens_out by construction
 		// (they tokenize the same text). Drift would mean the daemon

@@ -1,12 +1,35 @@
 # wirecmp: CLI vs MCP wire cost
 
-Same intent, two transports. CLI = daemon-pretty render; MCP = JSON envelope ashmcp emits as TextContent. Both renders are computed from a single daemon roundtrip per fixture; latency is the median of `-repeat` trials per transport.
+Same intent, two transports. CLI = daemon-pretty render; MCP = the bytes ashmcp emits as TextContent. Both renders are computed from a single daemon roundtrip per fixture; latency is the median of `-repeat` trials per transport.
+
+> **Post-ASH-156 wire shape.** json-mode success no longer emits a TextContent JSON fallback — the verb's typed payload rides as StructuredContent only. The MCP column below is *only* TextContent (empty for non-truncated json-mode success, the ASH-127 sentinel for truncated rows, the short prose envelope on errors, the daemon-pretty render in `format=pretty` mode). The bytes the model still sees via StructuredContent are out of frame for this measurement; the column reflects ashmcp's `tokens_out_emit` accounting by construction.
 
 > **Correction (ASH-148):** All `find` and `grep` rows in the post-ASH-123, post-ASH-124, and post-ASH-147 snapshots below were measuring the `args: limit must be a positive integer` error envelope, not real verb output. wirecmp's fixtures passed numeric args as Go `int`, which msgpack-encodes as positive fixints; the daemon decoded those to `uint8`, which `argutil.ToInt` does not currently accept (it handles `int`/`int64`/`uint64`/`float64`/`string`). Result: `--limit 20` and `--max 20` were rejected, and both CLI and MCP rendered the error. The "find and grep are cheaper over MCP than CLI" claim in earlier wire-cost narrative was an artifact of that — the bug rendered short on both sides. The post-ASH-148 snapshot below uses string-typed args (matching what the CLI's `parseFlags` produces, and what ashmcp's `decodeArgs` produces via `json.Unmarshal`), so it's the first real comparison for those rows.
 >
 > Daemon paths in production (CLI → ashd, ashmcp → ashd) are unaffected: both send strings or JSON-decoded `float64`s, never raw Go `int`s. The hardening of `argutil.ToInt` to accept the full set of msgpack integer types is tracked separately in [ASH-149](https://linear.app/stazelabs/issue/ASH-149).
 
-## Latest snapshot (post-ASH-146)
+## Latest snapshot (post-ASH-156)
+
+`bin/wirecmp -claude -repeat 5` against the daemon at HEAD post-ASH-156. The MCP column models the TextContent ashmcp emits — empty for non-truncated json-mode success, the ASH-127 sentinel for truncated rows. Numeric args use string types (ASH-148 fixture correction).
+
+| fixture | CLI bytes | CLI cl100k | CLI claude | MCP bytes | MCP cl100k | MCP claude | Δ bytes | Δ cl100k | Δ claude | CLI p50 | MCP p50 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| read README:1-60 | 4877 | 1115 | 1231 | 0 | 0 | 0 | -4877 (-100%) | -1115 (-100%) | -1231 (-100%) | 2.0ms | 2.1ms |
+| find **/*.go (20)‡ | 557 | 200 | 254 | 85 | 24 | 32 | -472 (-85%) | -176 (-88%) | -222 (-87%) | 1.7ms | 1.5ms |
+| find **/*.go --meta (20)‡ | 923 | 420 | 494 | 85 | 24 | 32 | -838 (-91%) | -396 (-94%) | -462 (-94%) | 2.8ms | 1.6ms |
+| grep ^func Run‡ | 2317 | 757 | 941 | 85 | 24 | 32 | -2232 (-96%) | -733 (-97%) | -909 (-97%) | 8.1ms | 7.6ms |
+| stat README.md | 35 | 14 | 26 | 0 | 0 | 0 | -35 (-100%) | -14 (-100%) | -26 (-100%) | 1.2ms | 1.6ms |
+| git status† | 266 | 94 | 116 | 0 | 0 | 0 | -266 (-100%) | -94 (-100%) | -116 (-100%) | 9.1ms | 7.8ms |
+| help | 1693 | 410 | 485 | 0 | 0 | 0 | -1693 (-100%) | -410 (-100%) | -485 (-100%) | 1.8ms | 1.5ms |
+
+**Totals** — CLI 10668B / 3010 cl100k, MCP 255B / 72 cl100k. Δ -10413B (-97.6%) / -2938 cl100k tokens (-97.6%).
+Claude: CLI 3547, MCP 96, Δ -3451 (-97.3%).
+
+The non-zero MCP rows (find / grep) are entirely the ASH-127 truncation sentinel that fires because the fixtures call `limit=20` against `max=20`. Non-truncated calls go to zero TextContent — the model still sees the verb's typed payload via StructuredContent, but ashmcp pays nothing in the TextContent channel that `tokens_out_emit` counts. Non-zero "Claude" values for sentinel-only rows come from `count_tokens` against the 85-byte sentinel string; empty-content rows record 0 because the Anthropic API rejects an empty user message, and an empty payload's token cost is 0 by construction anyway.
+
+The `format=pretty` opt-in (ASH-146) is unchanged by this work — it already shipped single-emit TextContent. See the historical post-ASH-146 snapshot below for that column.
+
+## Historical snapshot (pre-ASH-156)
 
 Two snapshots, same fixtures: the default JSON-envelope MCP shape (pre-ASH-146 baseline; what a harness sees when it does not pass `format`) and the `format=pretty` opt-in (ASH-146; what a harness sees when it sets the MCP-only `format` knob to "pretty"). Both `bin/wirecmp -claude -repeat 5` against the daemon at HEAD post-ASH-146 with the post-ASH-148 fixture corrections in place.
 

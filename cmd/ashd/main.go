@@ -451,15 +451,23 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 			if err := led.UpdateSerializeStats(rowID, len(final), serUs); err != nil {
 				log.Printf("ashd: ledger update serialize: %v", err)
 			}
-			// ASH-123: MCP-transport emit accounting. For requests
-			// that arrived via ashmcp, the bytes the harness actually
-			// consumes are the JSON envelope ashmcp re-wraps the
-			// response into — not the pretty-rendered text that
-			// drives tokens_out. Recompute the envelope here using
-			// the same helper ashmcp will call. We mirror exactly the
-			// one mutation ashmcp performs on rsp before emit —
-			// rsp.Metrics.BytesOut = len(frame_payload) — so the two
-			// envelopes are byte-identical by construction.
+			// ASH-123 / ASH-156: MCP-transport emit accounting. For
+			// requests that arrived via ashmcp, the bytes the harness
+			// actually consumes vary by emit shape:
+			//
+			//   - pretty mode (ASH-146): TextContent carries the
+			//     daemon-pretty render — reuse prettyRsp (already
+			//     tokenized above for tokens_out).
+			//   - error envelope: TextContent carries "<code>: <msg>"
+			//     from proto.MCPEnvelope; tokenize that.
+			//   - json-mode success (post-ASH-156): no TextContent —
+			//     the verb Result rides as StructuredContent only.
+			//     emitBody stays empty; only the truncation sentinel
+			//     (when present) costs tokens.
+			//
+			// We mirror exactly the one mutation ashmcp performs on
+			// rsp before emit — rsp.Metrics.BytesOut = len(frame_payload)
+			// — so the two byte counts agree by construction.
 			// LatencySerializeUs and other post-encode stats stay 0
 			// in both places: ashmcp never sees serUs, so neither do
 			// we when modeling its emit.
@@ -467,19 +475,12 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 				if metrics != nil {
 					metrics.BytesOut = len(final)
 				}
-				// ASH-146: a request with EmitFormat=="pretty" tells
-				// the daemon ashmcp will surface the daemon-pretty
-				// text inside TextContent instead of the JSON
-				// envelope. Tokenize the pretty form for emit
-				// accounting so tokens_out_emit still equals what
-				// the harness consumed. The pretty bytes are already
-				// computed above for tokens_out; reuse them rather
-				// than rendering twice.
 				emitBody := ""
 				emitErr := error(nil)
-				if req.EmitFormat == "pretty" {
+				switch {
+				case req.EmitFormat == "pretty":
 					emitBody = prettyRsp
-				} else {
+				case !rsp.OK:
 					env, eerr := proto.MCPEnvelope(rsp)
 					if eerr == nil {
 						emitBody = string(env)
@@ -487,6 +488,8 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 						emitErr = eerr
 					}
 				}
+				// json-mode success leaves emitBody empty: ashmcp
+				// emits no TextContent block for that case (ASH-156).
 				if emitErr == nil {
 					emitBytes := len(emitBody)
 					emitTokens := led.Counter().Count(emitBody)

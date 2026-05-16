@@ -125,19 +125,21 @@ func main() {
 		cliBytes := len(cliText)
 		cliTokens := counter.Count(cliText)
 
-		// MCP shape: what ashmcp would actually emit as TextContent. In
-		// the default JSON envelope mode (the pre-ASH-146 surface) this
-		// is proto.MCPEnvelope. Under -pretty, ashmcp ships the
-		// daemon-pretty render instead — same text the CLI prints — so
-		// the harness pays CLI-equivalent token cost. Truncated
+		// MCP shape: what ashmcp would actually emit as TextContent.
+		// Post-ASH-156 json-mode success ships StructuredContent only;
+		// no TextContent fallback rides — wirecmp models that as an
+		// empty mcpText. Pretty mode (ASH-146) still surfaces the
+		// daemon-pretty render as TextContent. Errors still ship the
+		// short "<code>: <msg>" envelope as TextContent. Truncated
 		// responses gain a prepended sentinel TextContent block
 		// (ASH-127) in either mode; we mirror its cost here so wirecmp
 		// stays byte-identical to the daemon's tokens_out_emit
 		// accounting.
 		var mcpText string
-		if *prettyFlag {
+		switch {
+		case *prettyFlag:
 			mcpText = cliText
-		} else {
+		case !rsp.OK:
 			env, err := proto.MCPEnvelope(rsp)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "wirecmp: %s envelope: %v\n", f.Name, err)
@@ -145,12 +147,18 @@ func main() {
 			}
 			mcpText = string(env)
 		}
+		// json-mode success leaves mcpText empty — single-emit
+		// StructuredContent is not part of TextContent's token bill.
 		mcpBytes := len(mcpText)
 		mcpTokens := counter.Count(mcpText)
 		if sentinel := proto.MCPTruncationSentinel(rsp); sentinel != "" {
 			mcpBytes += len(sentinel)
 			mcpTokens += counter.Count(sentinel)
-			mcpText = sentinel + "\n" + mcpText
+			if mcpText == "" {
+				mcpText = sentinel
+			} else {
+				mcpText = sentinel + "\n" + mcpText
+			}
 		}
 
 		// Latency: median of N roundtrips per transport.

@@ -248,13 +248,13 @@ func streamingRoundtrip(ctx context.Context, conn net.Conn, ss *mcp.ServerSessio
 // proto.Error payload as TextContent — the harness sees "the tool ran
 // and reported an error", not "the transport blew up".
 //
-// On success in JSON-emit mode (ASH-124) the response is dual-emitted:
-// the decoded data rides as both StructuredContent (for harnesses that
-// validate against the tool's outputSchema and skip the parse) and a
-// TextContent fallback carrying the same JSON bytes (for harnesses that
-// ignore structuredContent). The bytes in both places are byte-identical
-// to what proto.MCPEnvelope produces, so ashd's tokens_out_emit accounting
-// models exactly what the harness consumes.
+// On success in JSON-emit mode (ASH-156, post-ASH-124) the response is
+// single-emit: the decoded data rides only as StructuredContent. The
+// TextContent JSON fallback was retired after ASH-130's smoke-test
+// settled that neither Claude Code (drops TextContent when
+// StructuredContent is present) nor Claude Desktop (consumes both,
+// doubling model tokens) benefits from dual-emit. Harnesses outside
+// those two that consume only TextContent must opt into pretty mode.
 //
 // On success in pretty-emit mode (ASH-146) the structured fallback is
 // dropped: TextContent carries the daemon-pretty render — the same text
@@ -271,33 +271,41 @@ func streamingRoundtrip(ctx context.Context, conn net.Conn, ss *mcp.ServerSessio
 // can detect "this response is partial" programmatically without
 // parsing the envelope. A short sentinel TextContent is also prepended
 // so harnesses that ignore _meta still see the signal in the model-
-// visible content. IsError stays false — truncation is a partial
-// success, not a failure.
+// visible content — this is the only TextContent block a JSON-mode
+// success response carries post-ASH-156. IsError stays false —
+// truncation is a partial success, not a failure.
 func toolResult(verb string, rsp *proto.Response, emitFormat string) (*mcp.CallToolResult, error) {
-	body, err := mcpBody(verb, rsp, emitFormat)
-	if err != nil {
-		return nil, fmt.Errorf("marshal tool result: %w", err)
-	}
 	out := &mcp.CallToolResult{
 		IsError: !rsp.OK,
-		Content: []mcp.Content{&mcp.TextContent{Text: body}},
+		Content: []mcp.Content{},
+	}
+	// Error envelope and pretty-mode success both surface their body as
+	// TextContent. JSON-mode success ships StructuredContent only
+	// (ASH-156): the verb's typed Result rides as the structured payload
+	// with no TextContent fallback — neither Claude Code nor Claude
+	// Desktop benefits from the duplication.
+	if !rsp.OK || emitFormat == mcpschema.FormatPretty {
+		body, err := mcpBody(verb, rsp, emitFormat)
+		if err != nil {
+			return nil, fmt.Errorf("marshal tool result: %w", err)
+		}
+		out.Content = []mcp.Content{&mcp.TextContent{Text: body}}
 	}
 	var trunc *proto.TruncInfo
 	if rsp.OK {
-		// StructuredContent is paired with the JSON envelope: it shares
-		// the same field shape as the TextContent in JSON mode. In
-		// pretty mode the TextContent diverges from the structured
-		// payload, so we drop StructuredContent rather than serve two
-		// inconsistent views; harnesses that need structured access can
-		// re-call with format=json.
+		// StructuredContent rides in JSON mode only. In pretty mode the
+		// TextContent diverges from the structured payload, so we drop
+		// StructuredContent rather than serve two inconsistent views;
+		// harnesses that need structured access can re-call with
+		// format=json.
 		if emitFormat != mcpschema.FormatPretty {
 			data, derr := proto.MCPStructuredData(rsp)
 			if derr == nil {
 				// MCP requires StructuredContent to marshal to a JSON
 				// object. Every verb Result type in ash decodes to a
-				// top-level map; non-object payloads are dropped from
-				// structured emission and the TextContent fallback
-				// continues to carry them.
+				// top-level map; non-object payloads are silently
+				// dropped from structured emission — there is no
+				// TextContent fallback to catch them anymore (ASH-156).
 				if m, ok := data.(map[string]any); ok {
 					out.StructuredContent = m
 				}

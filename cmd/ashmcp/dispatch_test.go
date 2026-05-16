@@ -65,8 +65,10 @@ func TestToolResultTruncationMeta(t *testing.T) {
 	if got := string(b); got != `{"trunc":1,"limit":256,"max":4096}` {
 		t.Errorf("Meta TruncInfo JSON = %s; want lowercase keys matching outputSchema", got)
 	}
-	if len(res.Content) < 2 {
-		t.Fatalf("expected sentinel + body, got %d content blocks", len(res.Content))
+	// Post-ASH-156: json-mode success carries the truncation sentinel
+	// as the sole TextContent block — the JSON body fallback is gone.
+	if len(res.Content) != 1 {
+		t.Fatalf("expected sentinel-only TextContent, got %d content blocks", len(res.Content))
 	}
 	tc, ok := res.Content[0].(*mcp.TextContent)
 	if !ok {
@@ -131,8 +133,13 @@ func TestToolResultNoTruncation(t *testing.T) {
 			t.Errorf("_meta.ash.truncated set on a non-truncated response")
 		}
 	}
-	if len(res.Content) != 1 {
-		t.Errorf("Content count = %d; want 1 (no sentinel for non-truncated)", len(res.Content))
+	// Post-ASH-156: json-mode success with no truncation carries zero
+	// TextContent blocks — the JSON body lives in StructuredContent.
+	if len(res.Content) != 0 {
+		t.Errorf("Content count = %d; want 0 (json-mode success is single-emit StructuredContent)", len(res.Content))
+	}
+	if res.StructuredContent == nil {
+		t.Errorf("StructuredContent must be populated for json-mode success")
 	}
 }
 
@@ -248,16 +255,10 @@ func TestToolResultPrettyMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("toolResult json: %v", err)
 	}
-	if len(resJSON.Content) != 1 {
-		t.Fatalf("json mode: Content count = %d, want 1", len(resJSON.Content))
-	}
-	envBody, err := proto.MCPEnvelope(rsp)
-	if err != nil {
-		t.Fatalf("envelope: %v", err)
-	}
-	tcJSON := resJSON.Content[0].(*mcp.TextContent)
-	if tcJSON.Text != string(envBody) {
-		t.Errorf("json mode text diverged from MCPEnvelope (drift would break tokens_out_emit accounting)")
+	// Post-ASH-156: json-mode success carries no TextContent — the
+	// verb's typed payload rides as StructuredContent only.
+	if len(resJSON.Content) != 0 {
+		t.Fatalf("json mode: Content count = %d, want 0 (single-emit StructuredContent)", len(resJSON.Content))
 	}
 	if resJSON.StructuredContent == nil {
 		t.Error("json mode: StructuredContent must be populated (clients rely on outputSchema)")
@@ -274,11 +275,21 @@ func TestToolResultPrettyMode(t *testing.T) {
 		t.Fatalf("pretty mode: Content count = %d, want 1", len(resPretty.Content))
 	}
 	tcPretty := resPretty.Content[0].(*mcp.TextContent)
-	if tcPretty.Text == tcJSON.Text {
-		t.Errorf("pretty mode text == json mode text; pretty renderer was not used")
+	if tcPretty.Text == "" {
+		t.Errorf("pretty mode: empty TextContent — pretty renderer was not used")
 	}
-	if len(tcPretty.Text) >= len(tcJSON.Text) {
-		t.Errorf("pretty (%d bytes) not shorter than json (%d bytes) — ASH-146 only buys a win if pretty is cheaper for stat", len(tcPretty.Text), len(tcJSON.Text))
+	// Pretty render must still be the daemon-pretty text, not the JSON
+	// envelope. Recomputing the JSON form here keeps the assertion
+	// honest without leaning on the (now-absent) json-mode TextContent.
+	envBody, err := proto.MCPEnvelope(rsp)
+	if err != nil {
+		t.Fatalf("envelope: %v", err)
+	}
+	if tcPretty.Text == string(envBody) {
+		t.Errorf("pretty mode text == JSON envelope; pretty renderer was not used")
+	}
+	if len(tcPretty.Text) >= len(envBody) {
+		t.Errorf("pretty (%d bytes) not shorter than JSON envelope (%d bytes) — ASH-146 only buys a win if pretty is cheaper for stat", len(tcPretty.Text), len(envBody))
 	}
 }
 

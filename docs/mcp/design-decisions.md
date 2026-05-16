@@ -72,17 +72,23 @@ draft had ashmcp compute tokens after emit and write back via a follow-up
 RPC; rejected because it would have introduced two callers of envelope-
 building code that had to stay in sync forever.
 
-## Wire shape (post-ASH-124)
+## Wire shape (post-ASH-156)
 
-**Success.** `CallToolResult` carries:
+**Success (json mode, default).** `CallToolResult` carries:
 
 - `StructuredContent` — `rsp.Data` decoded into a generic object. Every
   verb's `Result` marshals to a top-level object, which is what the MCP
   spec wants here.
-- `TextContent` — same data re-emitted as JSON. Harnesses that ignore
-  `structuredContent` still get the payload, not a sentinel.
+- `Content` — empty array. The TextContent JSON fallback shipped by
+  ASH-124 was retired in ASH-156 after ASH-130's smoke-test settled
+  that no shipping harness benefits from dual-emit (Claude Code drops
+  TextContent when StructuredContent is present; Claude Desktop
+  consumes both and pays double).
 - `Meta = {"ash": {"metrics": ...}}` — metrics ride as MCP-reserved
   metadata. Cooperating harnesses don't count it against the model.
+
+**Success (pretty mode, ASH-146 opt-in).** Same as before — single
+TextContent block with the daemon-pretty render, no StructuredContent.
 
 **Errors.** `IsError=true` + `TextContent("<code>: <msg>")`. No
 StructuredContent on the error path.
@@ -129,10 +135,14 @@ actually consumes because the harness never sees the pretty form.
 The two-column resolution:
 
 - `tokens_out` — pretty-render view, unchanged. Replay-deterministic.
-- `tokens_out_emit` — what the harness consumes (the JSON envelope on
-  MCP, equal to `tokens_out` on CLI). Populated daemon-side via
-  `proto.MCPEnvelope` so it stays byte-equal to ashmcp's actual emit by
-  construction.
+- `tokens_out_emit` — what the harness consumes as TextContent. On the
+  CLI it equals `tokens_out` (same pretty render). On MCP it depends on
+  shape: pretty mode tokenizes the daemon-pretty render (`prettyRsp`);
+  errors tokenize the `"<code>: <msg>"` envelope; json-mode success
+  collapses to just the ASH-127 truncation sentinel (and reads `0` when
+  the verb did not truncate) because the JSON body now rides as
+  StructuredContent only (ASH-156). The accounting follows ashmcp's
+  actual emit shape by construction.
 
 Same shape: `bytes_out` (daemon-side bytes) + `bytes_out_emit`
 (harness-side bytes). `ash report` adds a `mcp emit:` line and `ash
@@ -284,11 +294,6 @@ this triggers the single-emit follow-up ([ASH-156](https://linear.app/stazelabs/
 
 ## Open follow-ups
 
-- **ASH-156 (single-emit json mode).** Drop the json-mode TextContent
-  fallback in `cmd/ashmcp/dispatch.go`'s `toolResult`. Saves ~2× model
-  tokens on Claude Desktop per json-mode call; drops dead wire bytes on
-  Claude Code. Truncation sentinel + error envelope keep their
-  TextContent emission. Filed off ASH-130's smoke-test finding.
 - **ASH-146 (tax-2 closure).** With per-record cost pinned at ~12 Claude
   tokens (find --meta), `--format pretty|json` or structured-pretty
   tuple form have a concrete target to beat.
