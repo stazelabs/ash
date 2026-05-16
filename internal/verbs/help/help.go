@@ -23,7 +23,7 @@ type ArgSchema struct {
 	Required    bool     `msgpack:"required,omitempty"`
 	Default     string   `msgpack:"default,omitempty"`
 	Description string   `msgpack:"description"`
-	Long        string   `msgpack:"-"`                // verbose-only prose; not on wire
+	Long        string   `msgpack:"long,omitempty"`   // verbose-only prose; shipped when non-empty so client renderer can surface it
 	Values      []string `msgpack:"values,omitempty"` // valid enum values
 	Ops         []string `msgpack:"ops,omitempty"`    // [git] which ops this arg applies to; empty = global
 	Mode        string   `msgpack:"mode,omitempty"`   // [edit] which mode (string/range/patch); empty = all modes

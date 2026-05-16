@@ -2100,6 +2100,10 @@
                       "description": {
                         "type": "string"
                       },
+                      "long": {
+                        "type": "string",
+                        "description": "verbose-only prose; shipped when non-empty so client renderer can surface it"
+                      },
                       "mode": {
                         "type": "string",
                         "description": "[edit] which mode (string/range/patch); empty = all modes"
