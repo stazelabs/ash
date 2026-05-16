@@ -214,7 +214,7 @@
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 248
+            "line": 256
           }
         ]
       },
@@ -572,15 +572,15 @@
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 240
+            "line": 248
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 250
+            "line": 258
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 286
+            "line": 294
           }
         ]
       },
@@ -648,11 +648,11 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 306
+            "line": 314
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 308
+            "line": 316
           }
         ]
       },
@@ -1224,7 +1224,7 @@
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 298
+            "line": 306
           }
         ]
       },
@@ -1350,7 +1350,7 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 280
+            "line": 288
           }
         ]
       },
@@ -1802,7 +1802,7 @@
         "sites": [
           {
             "file": "cmd/ash/main.go",
-            "line": 231
+            "line": 241
           }
         ]
       },
@@ -2086,7 +2086,7 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 646
+            "line": 654
           }
         ]
       },
@@ -2138,7 +2138,7 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 280
+            "line": 288
           }
         ]
       },
@@ -2246,7 +2246,7 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 240
+            "line": 248
           }
         ]
       },
@@ -2278,7 +2278,7 @@
         "sites": [
           {
             "file": "cmd/ash/main.go",
-            "line": 226
+            "line": 236
           }
         ]
       },
@@ -2308,7 +2308,7 @@
         "sites": [
           {
             "file": "cmd/ash/main.go",
-            "line": 216
+            "line": 226
           }
         ]
       },
@@ -2362,7 +2362,7 @@
         "sites": [
           {
             "file": "cmd/ash/main.go",
-            "line": 219
+            "line": 229
           }
         ]
       },
@@ -2382,7 +2382,7 @@
         "sites": [
           {
             "file": "cmd/ash/main.go",
-            "line": 222
+            "line": 232
           }
         ]
       },
@@ -2420,7 +2420,7 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 250
+            "line": 258
           }
         ]
       },
@@ -2430,7 +2430,7 @@
         "sites": [
           {
             "file": "cmd/ash/main.go",
-            "line": 209
+            "line": 219
           }
         ]
       },
@@ -2450,7 +2450,7 @@
         "sites": [
           {
             "file": "cmd/ash/main.go",
-            "line": 213
+            "line": 223
           }
         ]
       },
@@ -2460,7 +2460,7 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 286
+            "line": 294
           }
         ]
       },

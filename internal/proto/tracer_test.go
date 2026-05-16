@@ -57,6 +57,27 @@ func TestTracer_ContextHonorsCancel(t *testing.T) {
 	}
 }
 
+func TestTracer_EnvRoundTrip(t *testing.T) {
+	// ASH-132: SetEnv/Env carries the client shell's env through to a
+	// verb that shells out. A bare or nil *Tracer returns nil so verbs
+	// fall back to os.Environ()'s implicit-inherit path.
+	var nilTr *Tracer
+	if nilTr.Env() != nil {
+		t.Errorf("nil Tracer Env should be nil, got %v", nilTr.Env())
+	}
+	tr := &Tracer{}
+	if tr.Env() != nil {
+		t.Errorf("zero Tracer Env should be nil, got %v", tr.Env())
+	}
+	nilTr.SetEnv([]string{"X=1"}) // must not panic on nil receiver
+	want := []string{"FOO=bar", "BAZ=qux"}
+	tr.SetEnv(want)
+	got := tr.Env()
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Errorf("Env() = %v, want %v", got, want)
+	}
+}
+
 // recordingEmitter is a test double that captures every Emit call. Used
 // across proto tests and (in commit 2) verb-level streaming tests.
 type recordingEmitter struct {

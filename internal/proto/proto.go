@@ -77,6 +77,15 @@ type Request struct {
 	// transports ignore this field. Set by ashmcp from the MCP-only
 	// `format` tool arg.
 	EmitFormat string `msgpack:"emit_format,omitempty" json:"emit_format,omitempty"`
+	// Env carries the client shell's environment forward to verbs that
+	// shell out (ASH-132). Only `ash test` populates it today; the
+	// daemon's own env was captured at startup and doesn't reflect
+	// per-call shell vars like UPDATE_GOLDEN or GO* toggles, so a
+	// subprocess that inherits the daemon's env silently misses them.
+	// Absent / nil means "use the daemon's environment" (legacy). Not
+	// persisted to the ledger: it can carry shell secrets and would
+	// inflate args rows otherwise.
+	Env []string `msgpack:"env,omitempty" json:"env,omitempty"`
 }
 
 

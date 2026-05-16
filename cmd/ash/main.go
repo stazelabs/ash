@@ -105,6 +105,16 @@ func main() {
 		Args: args,
 		Argv: os.Args[1:],
 	}
+	// ASH-132: forward the calling shell's environment for verbs that
+	// shell out to a subprocess. The daemon's env was frozen at startup,
+	// so without this UPDATE_GOLDEN / GO* / DEBUG toggles set by the
+	// agent's shell never reach `go test`. Limited to `test` today —
+	// other verbs don't shell out, and sending env unconditionally would
+	// inflate request size and surface client secrets to verbs that
+	// shouldn't see them.
+	if verb == "test" {
+		req.Env = os.Environ()
+	}
 	encoded, err := proto.EncodeRequest(req)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "ash: encode:", err)

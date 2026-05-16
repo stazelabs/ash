@@ -235,6 +235,14 @@ func (goDriver) run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	}
 
 	cmd := exec.CommandContext(ctx, "go", args...)
+	// ASH-132: if the client forwarded its shell env, use that instead
+	// of the daemon's (which is frozen at startup and misses per-call
+	// vars like UPDATE_GOLDEN or GO* toggles). Nil falls through to
+	// os.Environ()'s implicit-inherit, preserving legacy behavior for
+	// callers that don't supply env.
+	if env := tr.Env(); env != nil {
+		cmd.Env = env
+	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, &proto.Error{Code: "go_failed", Msg: "stdout pipe: " + err.Error()}

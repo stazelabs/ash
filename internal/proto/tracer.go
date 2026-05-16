@@ -30,6 +30,7 @@ type Tracer struct {
 	regexCompileUs atomic.Int64
 	emitter        Emitter
 	ctx            context.Context
+	env            []string
 }
 
 // Emitter is the daemon-side streaming sink. Implementations buffer
@@ -70,6 +71,28 @@ func (t *Tracer) Context() context.Context {
 		return context.Background()
 	}
 	return t.ctx
+}
+
+// SetEnv attaches the request's client-shell environment to the tracer.
+// Used today only by the `test` verb, which forwards it to the `go test`
+// subprocess so env-driven test patterns (UPDATE_GOLDEN, GO*, etc.) see
+// the calling shell's values instead of the long-lived daemon's env.
+// See ASH-132. Safe on a nil receiver.
+func (t *Tracer) SetEnv(env []string) {
+	if t != nil {
+		t.env = env
+	}
+}
+
+// Env returns the client-shell environment attached via SetEnv, or nil
+// if none was set. A verb that shells out should use os.Environ() (the
+// daemon's env) when this returns nil, preserving legacy behavior.
+// Safe on a nil receiver.
+func (t *Tracer) Env() []string {
+	if t == nil {
+		return nil
+	}
+	return t.env
 }
 
 // Emit forwards chunk to the attached emitter, if any. Safe on a nil

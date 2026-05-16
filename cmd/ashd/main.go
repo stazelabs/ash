@@ -237,6 +237,10 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 
 		execStart := time.Now()
 		tracer := &proto.Tracer{}
+		// ASH-132: forward the client's shell env to verbs that shell
+		// out (today: only `test`). Nil-safe; legacy clients leave
+		// req.Env empty and the subprocess falls back to os.Environ().
+		tracer.SetEnv(req.Env)
 		runner, ok := runners[req.Verb]
 		var dispatchUs int64
 		// typedData holds the verb's in-process result for the truncation
