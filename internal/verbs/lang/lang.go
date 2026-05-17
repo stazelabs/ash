@@ -550,8 +550,15 @@ func runCallers(d Deps, a *Args) (*Result, *proto.Error) {
 	if err := json.Unmarshal(inRaw, &incoming); err != nil {
 		return nil, &proto.Error{Code: "lsp_decode", Msg: err.Error()}
 	}
+	// ASH-159: one reader for the whole loop. Multiple call sites in
+	// the same file share one os.ReadFile.
+	var lr *lineReader
+	if a.Context {
+		lr = newLineReader()
+	}
 	out := make([]SymbolRecord, 0, len(incoming))
 	for _, ic := range incoming {
+		callerPath := uriToPath(ic.From.URI)
 		// Each fromRange marks a call site inside ic.From. Emit one row
 		// per call site so a caller that invokes the target twice shows
 		// both lines. Cap by a.MaxRefs.
@@ -563,14 +570,14 @@ func runCallers(d Deps, a *Args) (*Result, *proto.Error) {
 				Name:      ic.From.Name,
 				Kind:      lspKindName(ic.From.Kind),
 				Container: ic.From.Detail,
-				Path:      relPath(uriToPath(ic.From.URI), d.ProjectRoot),
+				Path:      relPath(callerPath, d.ProjectRoot),
 				Line:      fr.Start.Line + 1,
 				Col:       fr.Start.Character + 1,
 				EndLine:   fr.End.Line + 1,
 				EndCol:    fr.End.Character + 1,
 			}
 			if a.Context {
-				rec.ContextLine = readContextLine(uriToPath(ic.From.URI), fr.Start.Line)
+				rec.ContextLine = lr.Line(callerPath, fr.Start.Line)
 			}
 			out = append(out, rec)
 		}
@@ -605,6 +612,12 @@ func locationsToRecords(locs []lspLocation, projectRoot string, maxRefs int, inc
 	if len(locs) > maxRefs {
 		locs = locs[:maxRefs]
 	}
+	// ASH-159: one reader per call so files referenced by multiple
+	// matches are read once, not N times.
+	var lr *lineReader
+	if includeContext {
+		lr = newLineReader()
+	}
 	out := make([]SymbolRecord, 0, len(locs))
 	for _, l := range locs {
 		abs := uriToPath(l.URI)
@@ -616,37 +629,79 @@ func locationsToRecords(locs []lspLocation, projectRoot string, maxRefs int, inc
 			EndCol:  l.Range.End.Character + 1,
 		}
 		if includeContext {
-			rec.ContextLine = readContextLine(abs, l.Range.Start.Line)
+			rec.ContextLine = lr.Line(abs, l.Range.Start.Line)
 		}
 		out = append(out, rec)
 	}
 	return out
 }
 
-// readContextLine returns the (0-based) line at path, trimmed of
-// leading whitespace and capped at 200 chars. Empty string on any
-// failure — context is best-effort decoration, not load-bearing.
-func readContextLine(path string, line int) string {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return ""
+// lineReader is a per-call cache of file bodies for context-line
+// extraction (ASH-159). A refs result that spans 30+ files with
+// multiple matches per file used to re-read every file once per match;
+// the reader caches the body once and serves subsequent line lookups
+// from memory. Total cached bytes are capped so a refs sweep over a
+// vendored tree cannot balloon memory.
+//
+// The cache is per-call and discarded when the verb returns — no
+// invalidation concerns, no cross-call sharing.
+type lineReader struct {
+	cap   int
+	used  int
+	cache map[string][]byte
+}
+
+// defaultLineReaderCap is the per-call body-bytes budget. 8 MiB covers
+// the working set for any reasonable refs sweep on this repo (~100
+// Go files of ~30 KiB each); larger workloads fall through to direct
+// reads without caching, which preserves correctness with no extra
+// memory pressure.
+const defaultLineReaderCap = 8 << 20
+
+func newLineReader() *lineReader {
+	return &lineReader{cap: defaultLineReaderCap, cache: map[string][]byte{}}
+}
+
+// Line returns the (0-based) line at path, trimmed of leading
+// whitespace and capped at ~200 chars. Empty string on any failure
+// (file unreadable, line out of bounds) — context is best-effort
+// decoration, not load-bearing.
+func (lr *lineReader) Line(path string, line int) string {
+	body, cached := lr.cache[path]
+	if !cached {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return ""
+		}
+		body = data
+		if lr.cap == 0 || lr.used+len(body) <= lr.cap {
+			lr.cache[path] = body
+			lr.used += len(body)
+		}
+		// Over the cap: body is still used for THIS lookup; we just
+		// do not cache it, so subsequent calls on the same path
+		// re-read. That's the bounded-memory side of the trade.
 	}
-	// Walk to the target line via a byte scan; cheaper than splitting
-	// the whole file on a workspace-wide refs sweep.
-	var start, idx int
+	return extractLine(body, line)
+}
+
+// extractLine pulls out a single line (0-based) from a body, trimmed
+// and length-capped. Pure function over a buffer; the byte-scan walk
+// is cheaper than strings.Split on a large file.
+func extractLine(body []byte, line int) string {
+	var start int
 	for i := 0; i < line; i++ {
-		nl := bytesIndexByteFrom(data, '\n', start)
+		nl := bytesIndexByteFrom(body, '\n', start)
 		if nl < 0 {
 			return ""
 		}
 		start = nl + 1
-		idx++
 	}
-	end := bytesIndexByteFrom(data, '\n', start)
+	end := bytesIndexByteFrom(body, '\n', start)
 	if end < 0 {
-		end = len(data)
+		end = len(body)
 	}
-	raw := strings.TrimLeft(string(data[start:end]), " \t")
+	raw := strings.TrimLeft(string(body[start:end]), " \t")
 	if len(raw) > 200 {
 		raw = raw[:200] + "…"
 	}

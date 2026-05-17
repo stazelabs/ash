@@ -303,6 +303,73 @@ func TestDef_WorkspaceSymbol(t *testing.T) {
 	}
 }
 
+// TestLineReader_Cache covers the ASH-159 contract: a file is read
+// once even when multiple lines are requested from it.
+func TestLineReader_Cache(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "x.go")
+	mustWrite(t, path, "line 0\nline 1\nline 2\nline 3\n")
+
+	lr := newLineReader()
+	if got := lr.Line(path, 0); got != "line 0" {
+		t.Errorf("line 0: got %q want \"line 0\"", got)
+	}
+	if got := lr.Line(path, 2); got != "line 2" {
+		t.Errorf("line 2: got %q want \"line 2\"", got)
+	}
+	// After two Line calls on the same path, the cache should hold one
+	// entry, not two.
+	if len(lr.cache) != 1 {
+		t.Errorf("cache size after 2 calls: %d want 1", len(lr.cache))
+	}
+	if lr.used == 0 {
+		t.Errorf("used bytes should be > 0 after cached reads")
+	}
+}
+
+func TestLineReader_BoundedMemory(t *testing.T) {
+	dir := t.TempDir()
+	pathA := filepath.Join(dir, "a.txt")
+	pathB := filepath.Join(dir, "b.txt")
+	bodyA := strings.Repeat("a", 1000)
+	bodyB := strings.Repeat("b", 1000)
+	mustWrite(t, pathA, bodyA)
+	mustWrite(t, pathB, bodyB)
+
+	lr := newLineReader()
+	lr.cap = 1500 // fits one file (1000 bytes) but not both
+	_ = lr.Line(pathA, 0)
+	// pathA is cached.
+	_ = lr.Line(pathB, 0)
+	// pathB exceeds the remaining 500-byte budget — should be served
+	// directly without caching.
+	if _, ok := lr.cache[pathB]; ok {
+		t.Errorf("expected pathB to not be cached after cap exceeded")
+	}
+}
+
+func TestExtractLine_OutOfBounds(t *testing.T) {
+	body := []byte("line 0\nline 1\n")
+	if got := extractLine(body, 99); got != "" {
+		t.Errorf("out-of-bounds line: got %q want \"\"", got)
+	}
+	if got := extractLine(body, 0); got != "line 0" {
+		t.Errorf("line 0: got %q want \"line 0\"", got)
+	}
+}
+
+func TestExtractLine_TrimsAndCaps(t *testing.T) {
+	long := strings.Repeat("x", 250)
+	body := []byte("   " + long + "\n")
+	got := extractLine(body, 0)
+	if !strings.HasPrefix(got, "x") {
+		t.Errorf("leading whitespace not trimmed: %q", got[:10])
+	}
+	if !strings.HasSuffix(got, "…") {
+		t.Errorf("cap not applied: %q", got[len(got)-5:])
+	}
+}
+
 // TestMatchesIn covers the multi-path --in matcher: prefix match with
 // a path-boundary guard so /a/foo does not match /a/foobar.
 func TestMatchesIn(t *testing.T) {
