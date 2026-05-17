@@ -150,11 +150,11 @@
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 514
+            "line": 520
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 517
+            "line": 523
           },
           {
             "file": "internal/verbs/read/read.go",
@@ -260,7 +260,7 @@
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 482
+            "line": 488
           }
         ]
       },
@@ -328,11 +328,11 @@
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 377
+            "line": 383
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 462
+            "line": 468
           }
         ]
       },
@@ -590,7 +590,7 @@
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 169
+            "line": 170
           },
           {
             "file": "internal/verbs/read/read.go",
@@ -598,7 +598,7 @@
           },
           {
             "file": "internal/verbs/write/write.go",
-            "line": 92
+            "line": 93
           }
         ],
         "hints": [
@@ -662,7 +662,7 @@
         "sites": [
           {
             "file": "internal/verbs/write/write.go",
-            "line": 115
+            "line": 116
           }
         ],
         "hints": [
@@ -726,7 +726,7 @@
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 161
+            "line": 162
           },
           {
             "file": "internal/verbs/find/find.go",
@@ -764,19 +764,19 @@
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 403
+            "line": 409
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 422
+            "line": 428
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 440
+            "line": 446
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 453
+            "line": 459
           }
         ]
       },
@@ -858,7 +858,7 @@
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 485
+            "line": 491
           }
         ],
         "hints": [
@@ -930,27 +930,27 @@
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 131
+            "line": 132
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 133
+            "line": 134
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 142
+            "line": 143
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 500
+            "line": 506
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 505
+            "line": 511
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 508
+            "line": 514
           },
           {
             "file": "internal/verbs/find/find.go",
@@ -1066,7 +1066,7 @@
           },
           {
             "file": "internal/verbs/write/write.go",
-            "line": 84
+            "line": 85
           }
         ]
       },
@@ -1118,7 +1118,7 @@
         "sites": [
           {
             "file": "internal/verbs/write/write.go",
-            "line": 99
+            "line": 100
           }
         ],
         "hints": [
@@ -1234,7 +1234,7 @@
         "sites": [
           {
             "file": "internal/verbs/write/write.go",
-            "line": 111
+            "line": 112
           }
         ]
       },
@@ -1274,11 +1274,11 @@
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 164
+            "line": 165
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 231
+            "line": 232
           },
           {
             "file": "internal/verbs/find/find.go",
@@ -1294,11 +1294,11 @@
           },
           {
             "file": "internal/verbs/write/write.go",
-            "line": 109
+            "line": 110
           },
           {
             "file": "internal/verbs/write/write.go",
-            "line": 124
+            "line": 125
           }
         ]
       },
@@ -1316,7 +1316,7 @@
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 176
+            "line": 177
           },
           {
             "file": "internal/verbs/read/read.go",
@@ -1340,7 +1340,7 @@
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 166
+            "line": 167
           },
           {
             "file": "internal/verbs/find/find.go",
@@ -1366,7 +1366,7 @@
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 565
+            "line": 571
           }
         ],
         "hints": [
@@ -1406,11 +1406,11 @@
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 233
+            "line": 234
           },
           {
             "file": "internal/verbs/write/write.go",
-            "line": 126
+            "line": 127
           }
         ]
       }
@@ -1904,7 +1904,7 @@
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 631
+            "line": 637
           }
         ]
       },
@@ -2056,7 +2056,7 @@
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 653
+            "line": 659
           }
         ]
       },
@@ -2168,7 +2168,7 @@
         "sites": [
           {
             "file": "internal/verbs/write/write.go",
-            "line": 158
+            "line": 165
           }
         ]
       },

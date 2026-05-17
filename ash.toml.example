@@ -85,3 +85,23 @@
 # #
 # # Valid values: "grep", "find", "read", "edit", "write", "stat", "git", "test"
 # exclude_verbs = []
+
+# [lsp]
+# # ASH-136: Language Server Protocol broker. When enabled, ashd spawns a
+# # gopls subprocess on the first write/edit and routes textDocument
+# # notifications so gopls's in-memory view stays in sync with disk. This
+# # is infrastructure for future `ash lang ...` verbs — no current verb
+# # consumes it, so leaving the broker disabled has zero behavioral
+# # impact.
+# #
+# # Default false: the broker performs no work and write/edit emit no
+# # notifications.
+# enabled = false
+#
+# # Executable used for the gopls subprocess. Default "gopls" — relies
+# # on $PATH at daemon startup. Set to an absolute path to pin a
+# # specific build (e.g. "/usr/local/bin/gopls" or a per-project
+# # toolchain). When enabled is true but the binary is not found, the
+# # broker fails with code gopls_not_found and write/edit continue to
+# # succeed without the LSP sync.
+# gopls_path = "gopls"

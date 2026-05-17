@@ -25,6 +25,7 @@ import (
 
 	"github.com/stazelabs/ash/internal/atomicwrite"
 	"github.com/stazelabs/ash/internal/jail"
+	"github.com/stazelabs/ash/internal/lsp"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
@@ -125,6 +126,12 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		}
 		return nil, &proto.Error{Code: "write", Msg: err.Error()}
 	}
+
+	// ASH-136: notify the LSP broker after a successful atomic write so
+	// gopls's in-memory view stays in sync. The sink is a no-op when the
+	// broker is disabled, so the cost on the default config is one
+	// atomic.Pointer load.
+	lsp.Notify(a.Path)
 
 	res := &Result{
 		Path:         a.Path,

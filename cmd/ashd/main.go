@@ -19,6 +19,7 @@ import (
 	"github.com/stazelabs/ash/internal/config"
 	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/ledger"
+	"github.com/stazelabs/ash/internal/lsp"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/session"
 	"github.com/stazelabs/ash/internal/verbs"
@@ -82,6 +83,22 @@ func main() {
 		log.Printf("ashd: ledger cleanup: deleted %d calls, %d sessions", cr.DeletedCalls, cr.DeletedSessions)
 	}
 
+	// ASH-136: LSP broker for the daemon. Disabled by default; when
+	// [lsp].enabled=true in ash.toml, the broker spawns gopls lazily on
+	// the first write/edit and writes a synthetic verb="lsp.init" row
+	// to the ledger so init latency is queryable separately from
+	// per-call latency (`ash report --verb lsp.init`).
+	broker := lsp.New(
+		lsp.Config{Enabled: cfg.LSP.Enabled, GoplsPath: cfg.LSP.GoplsPath, Root: rootFlag},
+		lsp.WithInitCallback(func(d time.Duration, initErr error) {
+			recordLSPInit(led, d, initErr)
+		}),
+	)
+	defer broker.Close()
+	if cfg.LSP.Enabled {
+		lsp.SetSink(lsp.NotifyBroker(broker))
+	}
+
 	runners := verbs.Runners(led, cfg, daemonStart, rootFlag)
 	pretty := verbs.PrettyHandlers()
 
@@ -122,6 +139,12 @@ func main() {
 	go func() {
 		<-sigCh
 		log.Println("ashd: shutting down")
+		// Close the LSP broker BEFORE the listener so a slow gopls
+		// shutdown does not extend the drain window for verb handlers
+		// — Close has its own 2s grace and ashd's shutdown_grace
+		// (default 5s) follows it.
+		lsp.SetSink(nil)
+		broker.Close()
 		listener.Close()
 	}()
 
@@ -586,6 +609,38 @@ func checkNoOtherAshd(sockPath string) error {
 		return nil
 	}
 	return fmt.Errorf("another ashd is bound to this socket (pid=%v); refusing to double-bind — run `ash stop` to clean up", pids)
+}
+
+// recordLSPInit writes a synthetic ledger row for an LSP broker
+// initialization (success or failure). The verb name "lsp.init" is
+// outside the verb registry on purpose: it stays separate from per-call
+// latency so `ash report --verb lsp.init` answers "how long did gopls
+// take to come up?" without polluting verb p50/p95 aggregates.
+func recordLSPInit(led *ledger.Ledger, d time.Duration, initErr error) {
+	if led == nil {
+		return
+	}
+	ok := initErr == nil
+	errCode, errMsg := "", ""
+	if !ok {
+		errCode = "lsp_init"
+		errMsg = initErr.Error()
+		if lerr := (*lsp.Error)(nil); errors.As(initErr, &lerr) && lerr.Code != "" {
+			errCode = lerr.Code
+		}
+	}
+	if _, err := led.Record(&ledger.Call{
+		RequestID:     0,
+		Timestamp:     time.Now(),
+		Verb:          "lsp.init",
+		OK:            ok,
+		ErrCode:       errCode,
+		ErrMsg:        errMsg,
+		LatencyExecUs: d.Microseconds(),
+		TokensMethod:  ledger.TokensMethod,
+	}); err != nil {
+		log.Printf("ashd: ledger lsp.init record: %v", err)
+	}
 }
 
 func writeErrFrame(conn net.Conn, id uint64, code, msg string) {

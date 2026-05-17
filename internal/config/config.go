@@ -27,6 +27,7 @@ type Config struct {
 	Git    GitConfig    `toml:"git"`
 	Ledger LedgerConfig `toml:"ledger"`
 	Hook   HookConfig   `toml:"hook"`
+	LSP    LSPConfig    `toml:"lsp"`
 }
 
 // DaemonConfig collects daemon-process knobs. None of these are
@@ -98,6 +99,27 @@ type HookConfig struct {
 	ExcludeVerbs []string `toml:"exclude_verbs"`
 }
 
+// LSPConfig controls the optional Language Server Protocol broker that
+// ashd owns on behalf of the project. The broker spawns a per-language
+// server subprocess (today: gopls only, ASH-136) and routes textDocument
+// notifications on every successful ash write / ash edit so the server's
+// in-memory view stays in sync with disk.
+//
+// The broker is infrastructure for future `ash lang ...` verbs and is
+// disabled by default — no current verb consumes it, so leaving it off
+// has zero behavioral impact.
+type LSPConfig struct {
+	// Enabled is the master switch. Default false: ashd never spawns
+	// gopls, and write/edit emit no notifications.
+	Enabled bool `toml:"enabled"`
+	// GoplsPath is the executable used for the gopls subprocess. Default
+	// "gopls" (resolved via $PATH). An absolute path is honored as-is.
+	// When the broker is enabled and the binary cannot be found,
+	// initialization fails with a clear error code instead of crashing
+	// the daemon.
+	GoplsPath string `toml:"gopls_path"`
+}
+
 const (
 	// GitBackendShellout is the default backend value. Everything that
 	// works today continues to work without an ash.toml entry.
@@ -137,8 +159,13 @@ func Defaults() *Config {
 		Jail:   JailConfig{},
 		Git:    GitConfig{Backend: GitBackendGoGit},
 		Ledger: LedgerConfig{MaxAge: Duration(DefaultLedgerMaxAge)},
+		LSP:    LSPConfig{Enabled: false, GoplsPath: DefaultGoplsPath},
 	}
 }
+
+// DefaultGoplsPath is the resolver hint used when [lsp].gopls_path is
+// unset. Bare "gopls" relies on $PATH at daemon startup.
+const DefaultGoplsPath = "gopls"
 
 // Duration wraps time.Duration so TOML strings like "30s" parse via the
 // standard library's time.ParseDuration. Zero value means "unset"; the
