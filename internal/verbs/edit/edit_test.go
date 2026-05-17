@@ -864,6 +864,45 @@ func okResponse(r *Result) *proto.Response {
 	return &proto.Response{OK: true, Data: proto.MustData(r)}
 }
 
+// -- ASH-96: --quiet ack mode --------------------------------------------
+
+func TestPrettyResponse_QuietCollapsesAck_Edit(t *testing.T) {
+	r := &Result{Path: "a.go", BytesWritten: 100, LinesTotal: 10, Occurrences: 3}
+	req := &proto.Request{Verb: "edit", Args: map[string]any{"old": "x", "new": "y", "quiet": true}}
+	got := PrettyResponse(req, okResponse(r))
+	if got != "ok" {
+		t.Errorf("quiet pretty=%q want \"ok\"", got)
+	}
+}
+
+// Dry-run should ignore --quiet: the diff body is the WHOLE point of a
+// dry run, so silencing the response would be useless.
+func TestPrettyResponse_QuietIgnoredOnDryRun(t *testing.T) {
+	r := &Result{Path: "a.go", LinesTotal: 10, Occurrences: 1, DryRun: true, Patch: "--- a/a.go\n+++ b/a.go\n@@ -1 +1 @@\n-old\n+new\n"}
+	req := &proto.Request{Verb: "edit", Args: map[string]any{"old": "x", "new": "y", "dry": true, "quiet": true}}
+	got := PrettyResponse(req, okResponse(r))
+	if got == "ok" {
+		t.Errorf("quiet should NOT silence a dry run; got %q", got)
+	}
+}
+
+func TestParseArgs_QuietFlag_Edit(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{"path": "a.go", "old": "x", "new": "y", "quiet": true})
+	if perr != nil {
+		t.Fatalf("unexpected error: %v", perr)
+	}
+	if !a.Quiet {
+		t.Error("Quiet: want true")
+	}
+	a2, perr := ParseArgs(map[string]any{"path": "a.go", "old": "x", "new": "y"})
+	if perr != nil {
+		t.Fatalf("unexpected error: %v", perr)
+	}
+	if a2.Quiet {
+		t.Error("Quiet default: want false")
+	}
+}
+
 // -- ASH-88: error messages strip project-root prefix ---------------------
 
 func TestRun_NotFoundErrorStripsPrefix_Edit(t *testing.T) {

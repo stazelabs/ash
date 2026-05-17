@@ -306,6 +306,43 @@ func okResponse(r *Result) *proto.Response {
 	return &proto.Response{OK: true, Data: proto.MustData(r)}
 }
 
+// -- ASH-96: --quiet ack mode --------------------------------------------
+
+func TestPrettyResponse_QuietCollapsesAck(t *testing.T) {
+	r := &Result{Path: "foo/bar.go", BytesWritten: 42, Created: true}
+	req := &proto.Request{Verb: "write", Args: map[string]any{"quiet": true}}
+	got := PrettyResponse(req, okResponse(r))
+	if got != "ok" {
+		t.Errorf("quiet pretty=%q want \"ok\"", got)
+	}
+}
+
+func TestPrettyResponse_QuietFalseKeepsFullAck(t *testing.T) {
+	r := &Result{Path: "foo/bar.go", BytesWritten: 42, Created: true}
+	req := &proto.Request{Verb: "write", Args: map[string]any{"quiet": false}}
+	got := PrettyResponse(req, okResponse(r))
+	if got != "§write: foo/bar.go [42B, created]" {
+		t.Errorf("quiet=false pretty should match default; got %q", got)
+	}
+}
+
+func TestParseArgs_QuietFlag_Write(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{"path": "out.txt", "content": "x", "quiet": true})
+	if perr != nil {
+		t.Fatalf("unexpected error: %v", perr)
+	}
+	if !a.Quiet {
+		t.Error("Quiet: want true")
+	}
+	a2, perr := ParseArgs(map[string]any{"path": "out.txt", "content": "x"})
+	if perr != nil {
+		t.Fatalf("unexpected error: %v", perr)
+	}
+	if a2.Quiet {
+		t.Error("Quiet default: want false")
+	}
+}
+
 // -- ASH-88: error messages strip project-root prefix ---------------------
 
 func TestRun_IsDirErrorStripsPrefix_Write(t *testing.T) {

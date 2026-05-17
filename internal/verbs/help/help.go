@@ -225,6 +225,9 @@ var registry = []VerbSchema{
 			{Name: "absolute", Type: "bool", Default: "false",
 				Description: "Emit absolute paths instead of repo-root-relative.",
 				Long:        "When true, Result.Path is the original absolute path. Default (false) strips the project-root prefix (ASH-86)."},
+			{Name: "quiet", Type: "bool", Default: "false",
+				Description: "Emit a bare \"ok\" instead of the byte/created/overwritten ack.",
+				Long:        "[ASH-96] For bulk-write sweeps. Saves ~16 tokens per call by collapsing the structured ack to \"ok\". The wire Result still carries bytes_written + created, so structured consumers are unaffected."},
 		},
 	},
 	{
@@ -400,6 +403,9 @@ var registry = []VerbSchema{
 			{Name: "absolute", Type: "bool", Default: "false",
 				Description: "Emit absolute paths instead of repo-root-relative.",
 				Long:        "When true, Result.Path is the original absolute path. Default (false) strips the project-root prefix (ASH-86)."},
+			{Name: "quiet", Type: "bool", Default: "false",
+				Description: "Emit a bare \"ok\" instead of the byte/replacement ack.",
+				Long:        "[ASH-96] For bulk-edit sweeps. Saves ~19 tokens per call by collapsing the structured ack to \"ok\". The wire Result still carries bytes_written + occurrences. Honored only when --dry=false (a dry run's whole point is the patch + count, so silencing it would be useless)."},
 		},
 	},
 	{

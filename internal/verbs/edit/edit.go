@@ -57,7 +57,7 @@ import (
 // empty NewContent — silently deleting the requested range.
 var knownArgs = map[string]struct{}{
 	"path": {}, "old": {}, "new": {}, "range": {}, "patch": {},
-	"all": {}, "dry": {}, "absolute": {},
+	"all": {}, "dry": {}, "absolute": {}, "quiet": {},
 }
 
 type Args struct {
@@ -70,6 +70,7 @@ type Args struct {
 	ReplaceAll bool
 	DryRun     bool
 	Absolute   bool
+	Quiet      bool // ASH-96: "ok" instead of the full byte/replacement ack
 }
 
 type Result struct {
@@ -111,6 +112,9 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 		return nil, perr
 	}
 	if a.Absolute, perr = argutil.OptionalBool(in, "absolute", false); perr != nil {
+		return nil, perr
+	}
+	if a.Quiet, perr = argutil.OptionalBool(in, "quiet", false); perr != nil {
 		return nil, perr
 	}
 
@@ -613,6 +617,17 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	var r Result
 	if err := proto.UnmarshalData(rsp, &r); err != nil {
 		return "ok\n<unrecognized edit result>"
+	}
+
+	// ASH-96: --quiet collapses the full ack to a bare "ok". Dry-run
+	// keeps its detailed render (the patch text + replacement count is
+	// the WHOLE point of a dry run, so silencing it would be useless).
+	if !r.DryRun && req != nil {
+		if v, ok := req.Args["quiet"]; ok {
+			if got, ok := argutil.ToBool(v); ok && got {
+				return "ok"
+			}
+		}
 	}
 
 	// Detect mode from request args for descriptive labels.

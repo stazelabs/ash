@@ -37,6 +37,7 @@ type Args struct {
 	Mkdir      bool
 	CreateOnly bool
 	Absolute   bool
+	Quiet      bool // ASH-96: "ok" instead of the full byte/created/overwritten ack
 }
 
 type Result struct {
@@ -64,6 +65,9 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 		return nil, perr
 	}
 	if a.Absolute, perr = argutil.OptionalBool(in, "absolute", false); perr != nil {
+		return nil, perr
+	}
+	if a.Quiet, perr = argutil.OptionalBool(in, "quiet", false); perr != nil {
 		return nil, perr
 	}
 	if perr := jail.CheckPaths(map[string]string{
@@ -157,6 +161,17 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	var r Result
 	if err := proto.UnmarshalData(rsp, &r); err != nil {
 		return "ok\n<unrecognized write result>"
+	}
+	// ASH-96: --quiet swaps the structured ack for a bare "ok". Callers
+	// doing a bulk-write sweep can opt in to drop ~16 tokens per call;
+	// the structured Result on the wire still carries bytes_written +
+	// created, so machine consumers are unaffected.
+	if req != nil {
+		if v, ok := req.Args["quiet"]; ok {
+			if got, ok := argutil.ToBool(v); ok && got {
+				return "ok"
+			}
+		}
 	}
 	verb := "overwritten"
 	if r.Created {

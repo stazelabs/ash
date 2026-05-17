@@ -1087,6 +1087,11 @@
           "path": {
             "type": "string",
             "description": "File to write."
+          },
+          "quiet": {
+            "type": "boolean",
+            "description": "Emit a bare \"ok\" instead of the byte/created/overwritten ack.",
+            "default": false
           }
         },
         "required": [
@@ -2624,6 +2629,11 @@
           "path": {
             "type": "string",
             "description": "File to edit."
+          },
+          "quiet": {
+            "type": "boolean",
+            "description": "Emit a bare \"ok\" instead of the byte/replacement ack.",
+            "default": false
           },
           "range": {
             "type": "string",
