@@ -130,9 +130,10 @@ ASH-108 added two more, populator deferred:
   schema artifact self-document which tools emit progress.
 - **Configurable batch thresholds.** Once a streaming bench case lands,
   consider `[daemon.streaming]` in `ash.toml`.
-- **`test` verb in ashmcp surface.** Per ASH-104, `test` is currently
-  excluded from `readSideVerbs` (side-effecting). When it joins the
-  MCP surface, streaming activates with zero additional code —
+- **`test` verb in ashmcp surface.** `test` is currently excluded
+  from `exposedVerbs` (side-effecting; ASH-161 shipped write-side
+  verbs but kept orchestration CLI-only). When it joins the MCP
+  surface, streaming activates with zero additional code —
   `streamingVerbs["test"] = true` is already wired.
 - **Token cost of streaming chunks.** Today's `tokens_out` counts only
   the Final frame's pretty render. Chunk frames carry msgpack bytes

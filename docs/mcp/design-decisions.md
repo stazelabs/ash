@@ -9,33 +9,39 @@ Companion to:
 This doc captures *why* `ashmcp` looks the way it does — the load-bearing
 design choices and the operational findings that shaped them.
 
-## v1 surface scope
+## Exposed surface
 
-The eight read-side verbs: `ash_read`, `ash_find`, `ash_grep`, `ash_stat`,
-`ash_git`, `ash_report`, `ash_metrics`, `ash_help`. Writes (`write`,
-`edit`, `diff`) deferred to phase 2 per the ASH-104 ticket.
+`ashmcp` serves the read-side verbs (`ash_read`, `ash_find`,
+`ash_grep`, `ash_stat`, `ash_git`, `ash_report`, `ash_metrics`,
+`ash_help`, `ash_recap`, `ash_workspace`, `ash_lang`) and the
+write-side verbs (`ash_write`, `ash_edit`, `ash_diff`).
 
-**`ash_test` is *not* in v1 despite being read-only-ish.** Three reasons
-to wait for phase 2:
+The original ASH-104 v1 scope was read-side only; ASH-161 closed the
+write asymmetry once stdio MCP behavior had been observed in production
+(ledger rows agree CLI vs MCP, no harness pathology, no deferred-UX
+regret). Preview-before-apply uses `ash_edit` with `dry=true` (returns
+the unified patch without writing) or `ash_diff` against the existing
+file — neither requires bespoke MCP-side machinery.
 
-1. `test` invokes `go test` — mutates the build cache, can write coverage
-   files, runs arbitrary test code. "Presumed safe" is a different
-   category from "cannot touch state." Mixing categories in v1 muddies
-   the contract that made `readSideVerbs` easy to reason about.
+**`ash_test` is *not* exposed despite being read-only-ish.** Three
+reasons:
+
+1. `test` invokes `go test` — mutates the build cache, can write
+   coverage files, runs arbitrary test code. "Presumed safe" is a
+   different category from "cannot touch state."
 2. `test` has the most verbose, structurally-repetitive output we ship
    (per-package pass/fail/skip + `file:line`). Without measuring it
    under `cmd/wirecmp` first, exposing it over MCP risks landing the
    worst-case wire cost in a heavily-used surface.
 3. Streaming for `test` is gated on the MCP client supplying a
-   `progressToken` (ASH-106). Harnesses that don't take the cumulative
-   path — one huge frame — which is exactly the failure mode ASH-123
-   warned about.
+   `progressToken` (ASH-106). Harnesses that don't supply one take the
+   cumulative path — one huge frame — which is exactly the failure mode
+   ASH-123 warned about.
 
-Phase-2 revisit checklist: add `test` to `readSideVerbs` (or rename — it
-becomes a misnomer once writers join); add a `wirecmp` fixture; confirm
-Claude Code's MCP client sends a `progressToken` for `tools/call ash_test`;
-update [adoption/claude-code.md](../adoption/claude-code.md) and
-[adoption/claude-desktop.md](../adoption/claude-desktop.md).
+Orchestration verbs (`test`, `bench`, `hook`, `init`, `uninit`,
+`stop`) ship over MCP if/when a real session pattern demands it.
+Adding one is a single-line edit in `exposedVerbs` plus a `wirecmp`
+fixture; the daemon already dispatches identically by transport.
 
 ## Architecture
 

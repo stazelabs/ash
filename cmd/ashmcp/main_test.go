@@ -41,10 +41,10 @@ func TestEmbeddedToolsParse(t *testing.T) {
 	}
 }
 
-// TestReadSideVerbsPresent ensures every verb ashmcp claims to expose in
-// v1 actually has a matching definition in the embedded schema. Catches a
-// future schema regeneration that renames or drops one of the eight.
-func TestReadSideVerbsPresent(t *testing.T) {
+// TestExposedVerbsPresent ensures every verb ashmcp claims to expose
+// actually has a matching definition in the embedded schema. Catches a
+// future schema regeneration that renames or drops one of the entries.
+func TestExposedVerbsPresent(t *testing.T) {
 	tools, err := loadEmbeddedTools(toolsJSON)
 	if err != nil {
 		t.Fatalf("loadEmbeddedTools: %v", err)
@@ -57,9 +57,9 @@ func TestReadSideVerbsPresent(t *testing.T) {
 		}
 		have[v] = true
 	}
-	for v := range readSideVerbs {
+	for v := range exposedVerbs {
 		if !have[v] {
-			t.Errorf("read-side verb %q missing from embedded tools.json", v)
+			t.Errorf("exposed verb %q missing from embedded tools.json", v)
 		}
 	}
 }
@@ -90,7 +90,7 @@ func TestStripToolPrefix(t *testing.T) {
 
 // TestServerRegistersTools wires the real schema into a real mcp.Server
 // against an in-memory transport, completes the MCP handshake, then calls
-// tools/list to confirm the server advertises exactly the read-side
+// tools/list to confirm the server advertises exactly the exposed
 // verbs ashmcp claims. This is the closest we can get to "does ashmcp
 // actually serve" without spawning a real ashd.
 //
@@ -106,7 +106,7 @@ func TestServerRegistersTools(t *testing.T) {
 	srv := mcp.NewServer(&mcp.Implementation{Name: "ashmcp-test", Version: "test"}, nil)
 	for _, tt := range tools {
 		verb, ok := stripToolPrefix(tt.Name)
-		if !ok || !readSideVerbs[verb] {
+		if !ok || !exposedVerbs[verb] {
 			continue
 		}
 		srv.AddTool(&mcp.Tool{
@@ -142,15 +142,15 @@ func TestServerRegistersTools(t *testing.T) {
 	for _, tt := range list.Tools {
 		got[tt.Name] = true
 	}
-	for v := range readSideVerbs {
+	for v := range exposedVerbs {
 		want := mcpschema.ToolNamePrefix + v
 		if !got[want] {
 			t.Errorf("server did not advertise %q", want)
 		}
 	}
-	if len(list.Tools) != len(readSideVerbs) {
-		t.Errorf("server advertised %d tools, want exactly %d (writes deferred to phase 2)",
-			len(list.Tools), len(readSideVerbs))
+	if len(list.Tools) != len(exposedVerbs) {
+		t.Errorf("server advertised %d tools, want exactly %d (orchestration verbs stay CLI-only)",
+			len(list.Tools), len(exposedVerbs))
 	}
 }
 

@@ -61,6 +61,12 @@ var fixtures = []fixture{
 	{"stat README.md", "stat", map[string]any{"path": "README.md"}},
 	{"git status", "git", map[string]any{"op": "status"}},
 	{"help", "help", map[string]any{}},
+	// ASH-161 write-side coverage. diff stays read-only; edit dry-runs;
+	// write overwrites a deterministic .ash/ path each run. The edit
+	// fixture file is primed in main() so the 'before' substring exists.
+	{"diff README vs CLAUDE --stat", "diff", map[string]any{"path": "README.md", "other": "CLAUDE.md", "stat": true}},
+	{"edit dry", "edit", map[string]any{"path": ".ash/wirecmp-edit-fixture.txt", "old": "before", "new": "after", "dry": true}},
+	{"write tiny", "write", map[string]any{"path": ".ash/wirecmp-write-fixture.txt", "content": "hello\n"}},
 }
 
 func main() {
@@ -90,6 +96,16 @@ func main() {
 		if apiKey == "" {
 			die("-claude requires ANTHROPIC_API_KEY")
 		}
+	}
+
+	// ASH-161: prime the edit-verb fixture file so the dry run finds
+	// the expected 'before' substring on every run. The write fixture
+	// is self-priming (each run overwrites it).
+	if err := os.MkdirAll(".ash", 0o755); err != nil {
+		die("setup .ash: %v", err)
+	}
+	if err := os.WriteFile(".ash/wirecmp-edit-fixture.txt", []byte("before\n"), 0o644); err != nil {
+		die("setup edit fixture: %v", err)
 	}
 
 	type row struct {

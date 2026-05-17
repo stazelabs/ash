@@ -25,9 +25,10 @@ import (
 // Adding a verb here is sufficient to wire it up — daemon-side support
 // follows from the same Request.Stream flag.
 //
-// Note: 'test' is NOT in v1 readSideVerbs so this entry is presently
-// dormant. It's listed here so when test joins the MCP surface (deferred
-// per ASH-104) streaming comes online with no extra wiring.
+// Note: 'test' is NOT in exposedVerbs (side-effecting; ASH-161 closed
+// the read/write asymmetry but orchestration verbs stay CLI-only). This
+// entry is presently dormant — listed so streaming comes online with no
+// extra wiring if/when test joins the MCP surface.
 var streamingVerbs = map[string]bool{
 	"grep": true,
 	"find": true,

@@ -147,4 +147,4 @@ Each `tools/call` result is the same envelope `ash` itself emits — `ok`, `data
 
 ## What rolls out next
 
-v1 exposes the eight read-side verbs only. Writes (`ash_write`, `ash_edit`, `ash_diff`) and the long-running verbs (`ash_test`, `ash_bench`) roll out as the Phase 2 ship list closes — same `ashmcp` binary, no config change. Streaming responses for `ash_grep` / `ash_find` activate automatically when the harness sends a `progressToken`.
+ASH-161 closed the read/write asymmetry: `ashmcp` now exposes 11 read-side verbs (`ash_read`, `ash_find`, `ash_grep`, `ash_stat`, `ash_git`, `ash_report`, `ash_metrics`, `ash_help`, `ash_recap`, `ash_workspace`, `ash_lang`) and 3 write-side (`ash_write`, `ash_edit`, `ash_diff`). For preview-before-apply, use `ash_edit` with `dry=true` (returns the unified patch without writing) or `ash_diff` against the existing file — neither requires bespoke MCP UX. Orchestration verbs (`ash_test`, `ash_bench`, `ash_init`, `ash_hook`, etc.) stay CLI-only; they ship over MCP if/when a real session pattern demands it. Streaming responses for `ash_grep` / `ash_find` activate automatically when the harness sends a `progressToken`.

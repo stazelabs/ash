@@ -11,10 +11,12 @@
 // reach outside the package directory. `make schema` regenerates both at once
 // and `make schema-check` gates either drifting.
 //
-// Per ASH-104 scope, only read-side verbs are exposed in v1 (writes phase 2).
-// Phase 1 verbs exposed (8): read, find, grep, stat, git, report, metrics, help.
-// Phase 2 (deferred): write, edit, diff once stdio MCP behavior is understood
-// in production sessions.
+// ashmcp exposes both read-side and write-side verbs. The original ASH-104
+// v1 scope was read-side only; ASH-161 closed the asymmetry once stdio MCP
+// behavior had been observed in production (ledger rows agree CLI vs MCP,
+// no harness pathology). Side-effecting / orchestration verbs (bench, hook,
+// init, uninit, stop, test) remain CLI-only — they ship over MCP if/when a
+// real session pattern demands it.
 package main
 
 import (
@@ -35,14 +37,13 @@ import (
 //go:embed tools.json
 var toolsJSON []byte
 
-// readSideVerbs lists the verbs ashmcp exposes in v1. Keys are wire-verb
-// names (the proto.Request.Verb the daemon dispatches on); MCP tool names
-// are derived by prefixing with mcpschema.ToolNamePrefix (e.g. read ->
-// ash_read). Per ASH-104 the writing verbs (write, edit, diff) and
-// side-effecting verbs (bench, hook, init, uninit, stop, test) are
-// deliberately omitted from v1 — they roll out after stdio MCP behavior
-// is observed on real sessions.
-var readSideVerbs = map[string]bool{
+// exposedVerbs lists the verbs ashmcp serves as MCP tools. Keys are
+// wire-verb names (the proto.Request.Verb the daemon dispatches on);
+// MCP tool names are derived by prefixing with mcpschema.ToolNamePrefix
+// (e.g. read -> ash_read). Side-effecting / orchestration verbs (bench,
+// hook, init, uninit, stop, test) are deliberately omitted — they ship
+// over MCP if/when a real session pattern demands it.
+var exposedVerbs = map[string]bool{
 	"read":      true,
 	"find":      true,
 	"grep":      true,
@@ -55,8 +56,17 @@ var readSideVerbs = map[string]bool{
 	"workspace": true,
 	// ASH-140: lang is a read-side verb. The five ops (outline, def,
 	// refs, callers, impl) all dispatch through the LSP broker without
-	// mutating workspace state, so they fit v1's read-side surface.
+	// mutating workspace state, so they fit cleanly alongside the
+	// read-side surface.
 	"lang": true,
+	// ASH-161: write-side verbs. Each write goes through the same
+	// daemon dispatch + jail policy as the CLI; the row in
+	// .ash/ledger.db is row-shape-identical (Transport=mcp the only
+	// discriminator). edit.dry + diff cover the preview pattern for
+	// MCP harnesses that lack built-in write-UX preview.
+	"write": true,
+	"edit":  true,
+	"diff":  true,
 }
 
 func main() {
@@ -81,7 +91,7 @@ func run() error {
 	registered := 0
 	for _, t := range tools {
 		verb, ok := stripToolPrefix(t.Name)
-		if !ok || !readSideVerbs[verb] {
+		if !ok || !exposedVerbs[verb] {
 			continue
 		}
 		tool := &mcp.Tool{
