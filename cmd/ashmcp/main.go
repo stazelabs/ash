@@ -53,6 +53,10 @@ var readSideVerbs = map[string]bool{
 	"help":      true,
 	"recap":     true,
 	"workspace": true,
+	// ASH-140: lang is a read-side verb. The five ops (outline, def,
+	// refs, callers, impl) all dispatch through the LSP broker without
+	// mutating workspace state, so they fit v1's read-side surface.
+	"lang": true,
 }
 
 func main() {
