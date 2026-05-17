@@ -80,6 +80,7 @@ type Args struct {
 	Exclude          string
 	MaxDepth         int
 	Absolute         bool // emit absolute paths instead of repo-root-relative
+	Multiline        bool // ASH-30: run pattern against whole file body, not per-line
 }
 
 type Match struct {
@@ -167,6 +168,15 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	}
 	if a.Absolute, perr = argutil.OptionalBool(in, "absolute", false); perr != nil {
 		return nil, perr
+	}
+	if a.Multiline, perr = argutil.OptionalBool(in, "multiline", false); perr != nil {
+		return nil, perr
+	}
+	// ASH-30: per-line context flags don't apply when matching against
+	// the whole body — a single multi-line match already spans lines.
+	// Reject the combo loudly rather than silently dropping context.
+	if a.Multiline && (a.ContextBefore > 0 || a.ContextAfter > 0) {
+		return nil, &proto.Error{Code: "args", Msg: "--multiline is incompatible with --cb/--ca/--context (context lines are line-oriented; multiline matches span lines by definition)"}
 	}
 	if !doublestar.ValidatePathPattern(a.Glob) {
 		return nil, &proto.Error{Code: "args", Msg: "glob is not a valid pattern: " + a.Glob}
@@ -366,6 +376,10 @@ func (s *state) searchOne(path string) bool {
 
 // searchBody scans body line-by-line and appends records. Returns true if the
 // global cap was hit and the walk should stop.
+//
+// ASH-30: when a.Multiline is true the routing splits off to
+// searchMultiline below, which runs the regex against the whole file
+// body so patterns can span line boundaries (e.g. "^func.*\\n.*return").
 func (s *state) searchBody(path string, body []byte) bool {
 	matchStart := time.Now()
 	defer func() { s.tr.AddRegex(time.Since(matchStart)) }()
@@ -386,6 +400,10 @@ func (s *state) searchBody(path string, body []byte) bool {
 			return true
 		}
 		return false
+	}
+
+	if a.Multiline {
+		return s.searchMultiline(path, body)
 	}
 
 	lines := splitLines(body)
@@ -466,6 +484,64 @@ func (s *state) searchBody(path string, body []byte) bool {
 		pendingAfter = a.ContextAfter
 	}
 	return false
+}
+
+// searchMultiline runs the regex against the whole file body, emitting
+// one record per leftmost-longest match (RE2 default). The record's
+// Line is the 1-based start line, Col is the 1-based column relative
+// to that line's start, and Text is the full matched span clipped at
+// maxLineTextBytes so a runaway "(?s).*" cannot blow up tokens_out.
+//
+// Context lines (--cb/--ca) are rejected at ParseArgs time when
+// --multiline is set, so this path has no before/after emission to
+// worry about.
+func (s *state) searchMultiline(path string, body []byte) bool {
+	a := s.a
+	re := s.re
+	matches := re.FindAllIndex(body, -1)
+	if len(matches) == 0 {
+		return false
+	}
+	for _, m := range matches {
+		startOff, endOff := m[0], m[1]
+		line, col := offsetToLineCol(body, startOff)
+		text := ""
+		if !a.NoText {
+			text = clipText(body[startOff:endOff])
+		}
+		rec := Match{Path: path, Line: line, Col: col, Text: text}
+		s.res.Matches = append(s.res.Matches, rec)
+		s.tr.Emit(rec)
+		s.matchCount++
+		s.matchedFiles[path] = struct{}{}
+		s.fileMatches[path]++
+		if len(s.res.Matches) >= a.MaxMatches {
+			s.limitHit = true
+			return true
+		}
+		if a.MaxPerFile > 0 && s.fileMatches[path] >= a.MaxPerFile {
+			return false // stop this file, keep walking
+		}
+	}
+	return false
+}
+
+// offsetToLineCol returns the 1-based (line, col) for a byte offset
+// into body. col is bytes from the most recent '\n' (or start of file)
+// to the offset, inclusive of the offset itself.
+func offsetToLineCol(body []byte, off int) (line, col int) {
+	line = 1
+	lineStart := 0
+	if off > len(body) {
+		off = len(body)
+	}
+	for i := 0; i < off; i++ {
+		if body[i] == '\n' {
+			line++
+			lineStart = i + 1
+		}
+	}
+	return line, off - lineStart + 1
 }
 
 // compilePattern builds the final RE2 pattern from the user's args.

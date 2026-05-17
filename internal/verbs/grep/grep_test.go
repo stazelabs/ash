@@ -1102,3 +1102,186 @@ func TestRun_NotFoundErrorStripsPrefix_Grep(t *testing.T) {
 		t.Errorf("error Msg should not contain project root, got %q", perr.Msg)
 	}
 }
+
+// -- ASH-30: --multiline cross-line matches -------------------------------
+
+// makeMultilineTree builds a fixture with a Go file whose function spans
+// multiple lines so cross-line patterns have something to bind to.
+func makeMultilineTree(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	files := map[string]string{
+		"a.go": "package main\n\nfunc Foo() error {\n\treturn nil\n}\n\nfunc Bar() error {\n\treturn errSomething\n}\n",
+		"b.go": "package main\n\n// single-line baseline so per-line\n// scans still find this.\nfunc Baz() {}\n",
+	}
+	for rel, body := range files {
+		full := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return root
+}
+
+// TestRun_MultilineCrossLinePattern is the headline ASH-30 case: a
+// pattern that requires \n between the func declaration and the return
+// statement only matches when --multiline is true.
+func TestRun_MultilineCrossLinePattern(t *testing.T) {
+	root := makeMultilineTree(t)
+
+	resLine, perr := Run(&Args{
+		Pattern:          `(?m)^func.*\n.*return`,
+		Path:             root,
+		Glob:             DefaultGlob,
+		Case:             "sensitive",
+		MaxMatches:       DefaultMaxMatches,
+		RespectGitignore: true,
+	}, nil)
+	if perr != nil {
+		t.Fatalf("per-line: unexpected error: %+v", perr)
+	}
+	if len(resLine.Matches) != 0 {
+		t.Errorf("per-line match should be impossible; got %d matches", len(resLine.Matches))
+	}
+
+	res, perr := Run(&Args{
+		Pattern:          `(?m)^func.*\n.*return`,
+		Path:             root,
+		Glob:             DefaultGlob,
+		Case:             "sensitive",
+		MaxMatches:       DefaultMaxMatches,
+		RespectGitignore: true,
+		Multiline:        true,
+	}, nil)
+	if perr != nil {
+		t.Fatalf("multiline: unexpected error: %+v", perr)
+	}
+	if len(res.Matches) != 2 {
+		t.Fatalf("want 2 multiline matches; got %d: %+v", len(res.Matches), res.Matches)
+	}
+	for _, m := range res.Matches {
+		if !strings.Contains(m.Text, "\n") {
+			t.Errorf("multiline match Text should span lines; got %q", m.Text)
+		}
+		if !strings.HasPrefix(m.Text, "func ") {
+			t.Errorf("multiline match Text should start at func; got %q", m.Text)
+		}
+	}
+	first := res.Matches[0]
+	if first.Line != 3 {
+		t.Errorf("first match line=%d want 3", first.Line)
+	}
+	if first.Col != 1 {
+		t.Errorf("first match col=%d want 1", first.Col)
+	}
+}
+
+func TestRun_MultilineNoTextOmitsSpan(t *testing.T) {
+	root := makeMultilineTree(t)
+	res, perr := Run(&Args{
+		Pattern:          `(?m)^func.*\n.*return`,
+		Path:             root,
+		Glob:             DefaultGlob,
+		Case:             "sensitive",
+		MaxMatches:       DefaultMaxMatches,
+		RespectGitignore: true,
+		Multiline:        true,
+		NoText:           true,
+	}, nil)
+	if perr != nil {
+		t.Fatalf("multiline+no-text: %+v", perr)
+	}
+	if len(res.Matches) == 0 {
+		t.Fatal("expected matches")
+	}
+	for _, m := range res.Matches {
+		if m.Text != "" {
+			t.Errorf("--no-text=true should produce empty Text; got %q", m.Text)
+		}
+		if m.Line == 0 || m.Col == 0 {
+			t.Errorf("Line/Col should still be set; got %d:%d", m.Line, m.Col)
+		}
+	}
+}
+
+func TestRun_MultilineMaxCaps(t *testing.T) {
+	root := makeMultilineTree(t)
+	res, perr := Run(&Args{
+		Pattern:          `(?m)^func.*\n.*return`,
+		Path:             root,
+		Glob:             DefaultGlob,
+		Case:             "sensitive",
+		MaxMatches:       1,
+		RespectGitignore: true,
+		Multiline:        true,
+	}, nil)
+	if perr != nil {
+		t.Fatalf("multiline+max: %+v", perr)
+	}
+	if len(res.Matches) != 1 {
+		t.Errorf("max=1 should cap at one match; got %d", len(res.Matches))
+	}
+	if !res.Truncated {
+		t.Errorf("expected Truncated=true at max=1")
+	}
+}
+
+func TestRun_MultilineFilesOnly(t *testing.T) {
+	root := makeMultilineTree(t)
+	res, perr := Run(&Args{
+		Pattern:          `(?m)^func.*\n.*return`,
+		Path:             root,
+		Glob:             DefaultGlob,
+		Case:             "sensitive",
+		MaxMatches:       DefaultMaxMatches,
+		RespectGitignore: true,
+		Multiline:        true,
+		FilesOnly:        true,
+	}, nil)
+	if perr != nil {
+		t.Fatalf("multiline+fo: %+v", perr)
+	}
+	if len(res.Files) != 1 {
+		t.Fatalf("want 1 file (a.go has both matches); got %d: %+v", len(res.Files), res.Files)
+	}
+}
+
+func TestParseArgs_MultilineRejectsContext(t *testing.T) {
+	root := t.TempDir()
+	cases := []map[string]any{
+		{"pattern": "x", "path": root, "multiline": true, "cb": 2},
+		{"pattern": "x", "path": root, "multiline": true, "ca": 2},
+		{"pattern": "x", "path": root, "multiline": true, "context": 3},
+	}
+	for _, c := range cases {
+		_, perr := ParseArgs(c)
+		if perr == nil || perr.Code != "args" {
+			t.Errorf("expected args error for %+v; got %+v", c, perr)
+		}
+	}
+}
+
+func TestRun_MultilineDotMatchesNewline(t *testing.T) {
+	root := makeMultilineTree(t)
+	res, perr := Run(&Args{
+		Pattern:          `(?s)func Foo.*return nil`,
+		Path:             root,
+		Glob:             DefaultGlob,
+		Case:             "sensitive",
+		MaxMatches:       DefaultMaxMatches,
+		RespectGitignore: true,
+		Multiline:        true,
+	}, nil)
+	if perr != nil {
+		t.Fatalf("multiline+(?s): %+v", perr)
+	}
+	if len(res.Matches) != 1 {
+		t.Fatalf("want 1 match for Foo; got %d", len(res.Matches))
+	}
+	if !strings.Contains(res.Matches[0].Text, "return nil") {
+		t.Errorf("match Text should include the return statement; got %q", res.Matches[0].Text)
+	}
+}

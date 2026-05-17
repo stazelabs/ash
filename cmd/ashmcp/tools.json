@@ -355,6 +355,11 @@
             "description": "Max match records per file; 0 is unlimited.",
             "default": 0
           },
+          "multiline": {
+            "type": "boolean",
+            "description": "Match against the whole file body so patterns can span lines.",
+            "default": false
+          },
           "no-text": {
             "type": "boolean",
             "description": "Omit matched line text; render path:line:col only.",

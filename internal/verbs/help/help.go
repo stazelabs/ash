@@ -155,6 +155,9 @@ var registry = []VerbSchema{
 			{Name: "absolute", Type: "bool", Default: "false",
 				Description: "Emit absolute paths instead of repo-root-relative.",
 				Long:        "When true, match paths are absolute. Default (false) strips the project-root prefix so output is repo-root-relative regardless of --path form (ASH-71)."},
+			{Name: "multiline", Type: "bool", Default: "false",
+				Description: "Match against the whole file body so patterns can span lines.",
+				Long:        "[ASH-30] Run the regex against each file's whole body instead of line-by-line, so patterns like '^func.*\\n.*return' can match across line boundaries. Use (?s) for dot-matches-newline and (?m) for ^/$-per-line semantics inside the pattern. One record per leftmost-longest hit; record.line is the start line, record.text is the matched span (clipped at 4 KiB). Incompatible with --cb/--ca/--context — those are line-oriented and a multiline match already spans lines."},
 		},
 	},
 	{

@@ -18,7 +18,7 @@ verbs (phase 2):
   grep    --pattern <re> --path <p> [--glob <pattern>] [--case smart|sensitive|insensitive]
           [--lit true|false] [--max N] [--mpf N] [--cb N] [--ca N] [--context N] [--fo true|false]
           [--no-text true|false] [--depth N] [--hidden true|false] [--gi true|false]
-          [--absolute true|false]
+          [--absolute true|false] [--multiline true|false]
   git     --op status|log|diff|show [--path <p>] [op-specific flags]
                ops: status [--untracked true|false] [--ignored true|false]
                     log    [--limit N] [--range <rev>] [--author <s>] [--since <dur>]
