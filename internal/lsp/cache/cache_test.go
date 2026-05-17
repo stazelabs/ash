@@ -214,6 +214,123 @@ func TestCache_InvalidateAfterWrite(t *testing.T) {
 	}
 }
 
+// TestWorkspace_GetMissOnFresh covers cold-start: GetWorkspace before
+// any Put returns a miss because the watermark is unseeded.
+func TestWorkspace_GetMissOnFresh(t *testing.T) {
+	c, _ := newCache(t, 0)
+	got, hit, err := c.GetWorkspace("refs", map[string]any{"symbol": "X"})
+	if err != nil {
+		t.Fatalf("GetWorkspace: %v", err)
+	}
+	if hit {
+		t.Fatalf("cold cache should miss; got %s", got)
+	}
+	if s := c.Snapshot(); s.WorkspaceMisses != 1 || s.WorkspaceHits != 0 {
+		t.Errorf("counters: %+v want misses=1 hits=0", s)
+	}
+}
+
+// TestWorkspace_PutThenGetHit covers the headline case: a Put seeds the
+// watermark and a subsequent Get with the same args is a hit.
+func TestWorkspace_PutThenGetHit(t *testing.T) {
+	c, _ := newCache(t, 0)
+	resp := []byte(`{"rows":["a","b"]}`)
+	if err := c.PutWorkspace("refs", map[string]any{"symbol": "X"}, resp); err != nil {
+		t.Fatalf("PutWorkspace: %v", err)
+	}
+	if c.WorkspaceMtime() == 0 {
+		t.Errorf("Put should have seeded the workspace mtime")
+	}
+	got, hit, err := c.GetWorkspace("refs", map[string]any{"symbol": "X"})
+	if err != nil {
+		t.Fatalf("GetWorkspace: %v", err)
+	}
+	if !hit {
+		t.Fatalf("expected hit after Put")
+	}
+	if string(got) != string(resp) {
+		t.Errorf("response mismatch: got %s want %s", got, resp)
+	}
+	if s := c.Snapshot(); s.WorkspaceHits != 1 || s.WorkspacePuts != 1 {
+		t.Errorf("counters: %+v want WorkspaceHits=1 WorkspacePuts=1", s)
+	}
+}
+
+// TestWorkspace_BumpInvalidates is the ASH-157 correctness story: a
+// write/edit-side BumpWorkspace call advances the watermark and the
+// next Get misses on a row that was a hit moments before.
+func TestWorkspace_BumpInvalidates(t *testing.T) {
+	c, _ := newCache(t, 0)
+	resp := []byte(`{"rows":["a"]}`)
+	if err := c.PutWorkspace("refs", map[string]any{"symbol": "X"}, resp); err != nil {
+		t.Fatalf("PutWorkspace: %v", err)
+	}
+	// Sleep so the next time.Now is strictly greater than the seeded mtime.
+	time.Sleep(2 * time.Millisecond)
+	c.BumpWorkspace("/tmp/foo.go")
+	if _, hit, _ := c.GetWorkspace("refs", map[string]any{"symbol": "X"}); hit {
+		t.Fatalf("Get after Bump should miss (watermark advanced)")
+	}
+}
+
+// TestWorkspace_BumpIgnoresNonGo confirms the bump is gated on file
+// extension: a write to README.md (or any non-Go file) leaves the
+// workspace watermark untouched and existing hits stay valid.
+func TestWorkspace_BumpIgnoresNonGo(t *testing.T) {
+	c, _ := newCache(t, 0)
+	if err := c.PutWorkspace("refs", nil, []byte("body")); err != nil {
+		t.Fatalf("PutWorkspace: %v", err)
+	}
+	before := c.WorkspaceMtime()
+	c.BumpWorkspace("/tmp/README.md")
+	c.BumpWorkspace("/tmp/data.json")
+	c.BumpWorkspace("/tmp/Makefile")
+	if c.WorkspaceMtime() != before {
+		t.Errorf("non-Go bumps shifted watermark: before=%d after=%d", before, c.WorkspaceMtime())
+	}
+	if _, hit, _ := c.GetWorkspace("refs", nil); !hit {
+		t.Errorf("Get after non-Go bumps should still hit")
+	}
+}
+
+func TestWorkspace_TTL(t *testing.T) {
+	c, _ := newCache(t, 10*time.Millisecond)
+	if err := c.PutWorkspace("refs", nil, []byte("body")); err != nil {
+		t.Fatalf("PutWorkspace: %v", err)
+	}
+	if _, hit, _ := c.GetWorkspace("refs", nil); !hit {
+		t.Fatalf("immediate hit expected")
+	}
+	time.Sleep(20 * time.Millisecond)
+	if _, hit, _ := c.GetWorkspace("refs", nil); hit {
+		t.Fatalf("hit after TTL expiry; want miss")
+	}
+}
+
+func TestWorkspace_NilSafety(t *testing.T) {
+	var c *Cache
+	if _, hit, err := c.GetWorkspace("refs", nil); hit || err != nil {
+		t.Errorf("nil cache GetWorkspace: hit=%v err=%v", hit, err)
+	}
+	if err := c.PutWorkspace("refs", nil, []byte("body")); err != nil {
+		t.Errorf("nil cache PutWorkspace: %v", err)
+	}
+	c.BumpWorkspace("/x.go")
+	if c.WorkspaceMtime() != 0 {
+		t.Errorf("nil cache mtime: got %d want 0", c.WorkspaceMtime())
+	}
+}
+
+func TestWorkspace_HitRatio(t *testing.T) {
+	s := Stats{WorkspaceHits: 3, WorkspaceMisses: 1}
+	if got, want := s.WorkspaceHitRatio(), 0.75; got != want {
+		t.Errorf("WorkspaceHitRatio=%v want %v", got, want)
+	}
+	if (Stats{}).WorkspaceHitRatio() != 0 {
+		t.Errorf("empty Stats.WorkspaceHitRatio should be 0")
+	}
+}
+
 func TestCache_NilSafety(t *testing.T) {
 	var c *Cache
 	if _, hit, _ := c.Get("/x", "op", nil); hit {

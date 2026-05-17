@@ -237,9 +237,12 @@ func runOutline(d Deps, a *Args) (*Result, *proto.Error) {
 }
 
 func runDef(d Deps, a *Args) (*Result, *proto.Error) {
+	cacheArgs := map[string]any{"symbol": a.Symbol, "in": a.In}
+	if r, ok := workspaceCacheGet(d, "def", cacheArgs); ok {
+		return r, nil
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
-	// workspace/symbol is workspace-scoped — not cached. See package doc.
 	var raw json.RawMessage
 	if err := d.Broker.Request(ctx, "workspace/symbol", map[string]any{
 		"query": a.Symbol,
@@ -267,7 +270,9 @@ func runDef(d Deps, a *Args) (*Result, *proto.Error) {
 		}
 		filtered = append(filtered, s)
 	}
-	return &Result{Op: "def", Symbols: filtered}, nil
+	result := &Result{Op: "def", Symbols: filtered}
+	workspaceCachePut(d, "def", cacheArgs, result)
+	return result, nil
 }
 
 func brokerError(err error) *proto.Error {
@@ -275,6 +280,43 @@ func brokerError(err error) *proto.Error {
 		return &proto.Error{Code: lerr.Code, Msg: lerr.Msg, Hint: lerr.Hint}
 	}
 	return &proto.Error{Code: "lsp_request", Msg: err.Error()}
+}
+
+// workspaceCacheGet attempts to serve op from the workspace-scoped
+// cache. A nil-or-disabled cache returns ok=false silently so callers
+// can fall through to the live gopls round-trip. Sets CacheHit=true on
+// the returned Result so the agent (and ash report) can tell a cache
+// hit apart from a fresh response.
+func workspaceCacheGet(d Deps, op string, args any) (*Result, bool) {
+	if d.Cache == nil {
+		return nil, false
+	}
+	raw, hit, err := d.Cache.GetWorkspace(op, args)
+	if err != nil || !hit {
+		return nil, false
+	}
+	var r Result
+	if err := json.Unmarshal(raw, &r); err != nil {
+		// Stale or corrupt cached payload — fall through to a fresh
+		// round-trip rather than serve garbage.
+		return nil, false
+	}
+	r.CacheHit = true
+	return &r, true
+}
+
+// workspaceCachePut stores op's response under the current workspace
+// watermark. Errors are logged-and-swallowed: a failed cache write must
+// not propagate back into the verb's success path.
+func workspaceCachePut(d Deps, op string, args any, r *Result) {
+	if d.Cache == nil || r == nil {
+		return
+	}
+	body, err := json.Marshal(r)
+	if err != nil {
+		return
+	}
+	_ = d.Cache.PutWorkspace(op, args, body)
 }
 
 // resolveSymbolPosition takes a symbol name and returns a (uri, line, col)
@@ -339,6 +381,10 @@ func resolveSymbolPosition(ctx context.Context, d Deps, name, inFile string) (st
 var matched []symbolInformation
 
 func runRefs(d Deps, a *Args) (*Result, *proto.Error) {
+	cacheArgs := map[string]any{"symbol": a.Symbol, "in": a.In, "max": a.MaxRefs, "context": a.Context}
+	if r, ok := workspaceCacheGet(d, "refs", cacheArgs); ok {
+		return r, nil
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
 	uri, line, col, perr := resolveSymbolPosition(ctx, d, a.Symbol, a.In)
@@ -358,10 +404,16 @@ func runRefs(d Deps, a *Args) (*Result, *proto.Error) {
 		return nil, &proto.Error{Code: "lsp_decode", Msg: "could not parse references response"}
 	}
 	records := locationsToRecords(locs, d.ProjectRoot, a.MaxRefs, a.Context)
-	return &Result{Op: "refs", Symbols: records}, nil
+	result := &Result{Op: "refs", Symbols: records}
+	workspaceCachePut(d, "refs", cacheArgs, result)
+	return result, nil
 }
 
 func runImpl(d Deps, a *Args) (*Result, *proto.Error) {
+	cacheArgs := map[string]any{"interface": a.Interface, "in": a.In, "max": a.MaxRefs, "context": a.Context}
+	if r, ok := workspaceCacheGet(d, "impl", cacheArgs); ok {
+		return r, nil
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
 	uri, line, col, perr := resolveSymbolPosition(ctx, d, a.Interface, a.In)
@@ -383,10 +435,16 @@ func runImpl(d Deps, a *Args) (*Result, *proto.Error) {
 	for i := range records {
 		records[i].Kind = "impl"
 	}
-	return &Result{Op: "impl", Symbols: records}, nil
+	result := &Result{Op: "impl", Symbols: records}
+	workspaceCachePut(d, "impl", cacheArgs, result)
+	return result, nil
 }
 
 func runCallers(d Deps, a *Args) (*Result, *proto.Error) {
+	cacheArgs := map[string]any{"symbol": a.Symbol, "in": a.In, "max": a.MaxRefs, "context": a.Context}
+	if r, ok := workspaceCacheGet(d, "callers", cacheArgs); ok {
+		return r, nil
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
 	uri, line, col, perr := resolveSymbolPosition(ctx, d, a.Symbol, a.In)
@@ -445,7 +503,9 @@ func runCallers(d Deps, a *Args) (*Result, *proto.Error) {
 			break
 		}
 	}
-	return &Result{Op: "callers", Symbols: out}, nil
+	result := &Result{Op: "callers", Symbols: out}
+	workspaceCachePut(d, "callers", cacheArgs, result)
+	return result, nil
 }
 
 // decodeLocations parses textDocument/references and

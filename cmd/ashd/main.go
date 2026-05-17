@@ -128,6 +128,13 @@ func main() {
 				if _, err := langCache.Invalidate(path); err != nil {
 					log.Printf("ashd: lang-cache invalidate %s: %v", path, err)
 				}
+				// ASH-157: bump the workspace watermark so workspace-
+				// scoped lang cache rows (def/refs/callers/impl) are
+				// invalidated by the next Go-relevant write. BumpWorkspace
+				// is itself gated on .go/.mod/.sum suffixes — non-Go
+				// writes do not move the watermark, so an agent editing
+				// a README between two lang refs calls still hits.
+				langCache.BumpWorkspace(path)
 			}
 		})
 	}

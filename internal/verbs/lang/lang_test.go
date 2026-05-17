@@ -165,6 +165,45 @@ func TestRefs_Roundtrip(t *testing.T) {
 	}
 }
 
+// TestRefs_WorkspaceCacheHit covers the ASH-157 contract on the lang
+// side: a second identical refs call serves from the workspace cache
+// and surfaces CacheHit=true.
+func TestRefs_WorkspaceCacheHit(t *testing.T) {
+	goplsAvailable(t)
+	root := goModWorkspace(t)
+	mustWrite(t, filepath.Join(root, "caller.go"), "package p\n\nfunc CallSite() error { return Run() }\n")
+	broker := lsp.New(lsp.Config{Enabled: true, Root: root})
+	t.Cleanup(func() { _ = broker.Close() })
+	c, err := cache.Open(cache.Options{Path: filepath.Join(root, "lang-cache.db")})
+	if err != nil {
+		t.Fatalf("cache.Open: %v", err)
+	}
+	t.Cleanup(func() { _ = c.Close() })
+	deps := Deps{Broker: broker, Cache: c, ProjectRoot: root}
+
+	res1, perr := RunWithDeps(deps, &Args{Op: "refs", Symbol: "Run", MaxRefs: 256, Context: true})
+	if perr != nil {
+		t.Fatalf("first refs: %v", perr)
+	}
+	if res1.CacheHit {
+		t.Errorf("first call should be a miss")
+	}
+
+	res2, perr := RunWithDeps(deps, &Args{Op: "refs", Symbol: "Run", MaxRefs: 256, Context: true})
+	if perr != nil {
+		t.Fatalf("second refs: %v", perr)
+	}
+	if !res2.CacheHit {
+		t.Errorf("second call should hit the workspace cache")
+	}
+	if len(res1.Symbols) != len(res2.Symbols) {
+		t.Errorf("cached row count differs: first=%d cached=%d", len(res1.Symbols), len(res2.Symbols))
+	}
+	if s := c.Snapshot(); s.WorkspaceHits != 1 || s.WorkspacePuts != 1 {
+		t.Errorf("counters: %+v want WorkspaceHits=1 WorkspacePuts=1", s)
+	}
+}
+
 // TestRefs_NotFound covers the lsp_not_found path: a name that doesn't
 // resolve via workspace/symbol returns a typed error, not an empty
 // success.
