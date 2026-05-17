@@ -32,7 +32,7 @@ func TestIntegration_AllVerbs(t *testing.T) {
 	}
 	defer led.Close()
 
-	runners := verbs.Runners(led, nil, time.Time{}, "")
+	runners := verbs.Runners(led, nil, time.Time{}, "", nil, nil)
 	pretty := verbs.PrettyHandlers()
 
 	sockPath := filepath.Join(tmp, "ash-test.sock")
@@ -157,6 +157,12 @@ func TestIntegration_AllVerbs(t *testing.T) {
 		// bare hit/miss pair lands on one of them. Verifies the
 		// in-process ledger update path end-to-end.
 		{"usage", map[string]any{"hit": 1000, "miss": 50}, ""},
+		// ASH-138: lang dispatches through the LSP broker. Runners is
+		// invoked here with broker=nil, so RunWithDeps returns
+		// lsp_disabled — exactly the contract we want for a default
+		// (broker-off) daemon. The real LSP integration is covered by
+		// internal/verbs/lang/lang_test.go.
+		{"lang", map[string]any{"op": "outline", "path": goMod}, "lsp_disabled"},
 	}
 
 	// Fail loudly if a new verb is added to Runners without a corresponding

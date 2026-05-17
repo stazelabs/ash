@@ -69,6 +69,11 @@
         "context": "report:--session"
       },
       {
+        "literal": "def",
+        "cl100k_tokens": 1,
+        "context": "lang:--op"
+      },
+      {
         "literal": "diff",
         "cl100k_tokens": 1,
         "context": "git:--op"
@@ -92,6 +97,11 @@
         "literal": "log",
         "cl100k_tokens": 1,
         "context": "git:--op"
+      },
+      {
+        "literal": "outline",
+        "cl100k_tokens": 1,
+        "context": "lang:--op"
       },
       {
         "literal": "show",
@@ -165,6 +175,17 @@
             "line": 206
           }
         ]
+      },
+      {
+        "literal": "\u003ccomputed\u003e",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/lang/lang.go",
+            "line": 241
+          }
+        ],
+        "computed": true
       },
       {
         "literal": "git_not_found",
@@ -251,6 +272,46 @@
           {
             "file": "internal/verbs/initverb/template.go",
             "line": 145
+          }
+        ]
+      },
+      {
+        "literal": "lsp_decode",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/lang/lang.go",
+            "line": 197
+          },
+          {
+            "file": "internal/verbs/lang/lang.go",
+            "line": 217
+          }
+        ]
+      },
+      {
+        "literal": "lsp_disabled",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/lang/lang.go",
+            "line": 142
+          }
+        ],
+        "hints": [
+          {
+            "text": "set [lsp].enabled=true in ash.toml and run `ash stop`",
+            "cl100k_tokens": 17
+          }
+        ]
+      },
+      {
+        "literal": "lsp_request",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/lang/lang.go",
+            "line": 243
           }
         ]
       },
@@ -384,11 +445,11 @@
         "sites": [
           {
             "file": "internal/verbs/verbs.go",
-            "line": 151
+            "line": 155
           },
           {
             "file": "internal/verbs/verbs.go",
-            "line": 182
+            "line": 202
           }
         ]
       },
@@ -593,6 +654,10 @@
             "line": 170
           },
           {
+            "file": "internal/verbs/lang/lang.go",
+            "line": 164
+          },
+          {
             "file": "internal/verbs/read/read.go",
             "line": 96
           },
@@ -738,11 +803,15 @@
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 602
+            "line": 620
           },
           {
             "file": "internal/verbs/initverb/initverb.go",
             "line": 102
+          },
+          {
+            "file": "internal/verbs/lang/lang.go",
+            "line": 160
           },
           {
             "file": "internal/verbs/read/read.go",
@@ -997,6 +1066,30 @@
             "line": 97
           },
           {
+            "file": "internal/verbs/lang/lang.go",
+            "line": 96
+          },
+          {
+            "file": "internal/verbs/lang/lang.go",
+            "line": 109
+          },
+          {
+            "file": "internal/verbs/lang/lang.go",
+            "line": 115
+          },
+          {
+            "file": "internal/verbs/lang/lang.go",
+            "line": 119
+          },
+          {
+            "file": "internal/verbs/lang/lang.go",
+            "line": 150
+          },
+          {
+            "file": "internal/verbs/lang/lang.go",
+            "line": 156
+          },
+          {
             "file": "internal/verbs/read/read.go",
             "line": 164
           },
@@ -1067,6 +1160,12 @@
           {
             "file": "internal/verbs/write/write.go",
             "line": 85
+          }
+        ],
+        "hints": [
+          {
+            "text": "valid ops: outline, def",
+            "cl100k_tokens": 6
           }
         ]
       },
@@ -1353,6 +1452,10 @@
           {
             "file": "internal/verbs/initverb/initverb.go",
             "line": 104
+          },
+          {
+            "file": "internal/verbs/lang/lang.go",
+            "line": 162
           },
           {
             "file": "internal/verbs/read/read.go",
@@ -1662,6 +1765,11 @@
         "context": "git"
       },
       {
+        "literal": "--in",
+        "cl100k_tokens": 2,
+        "context": "lang"
+      },
+      {
         "literal": "--last",
         "cl100k_tokens": 2,
         "context": "metrics,report"
@@ -1719,7 +1827,7 @@
       {
         "literal": "--op",
         "cl100k_tokens": 2,
-        "context": "git"
+        "context": "git,lang"
       },
       {
         "literal": "--other",
@@ -1739,7 +1847,7 @@
       {
         "literal": "--path",
         "cl100k_tokens": 2,
-        "context": "diff,edit,find,git,grep,hook,init,read,stat,uninit,write"
+        "context": "diff,edit,find,git,grep,hook,init,lang,read,stat,uninit,write"
       },
       {
         "literal": "--paths",
@@ -1805,6 +1913,11 @@
         "literal": "--stat",
         "cl100k_tokens": 2,
         "context": "diff,git"
+      },
+      {
+        "literal": "--symbol",
+        "cl100k_tokens": 2,
+        "context": "lang"
       },
       {
         "literal": "--timeout",
@@ -2090,11 +2203,11 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 648
+            "line": 666
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 654
+            "line": 672
           }
         ]
       },
@@ -2179,6 +2292,16 @@
           {
             "file": "internal/verbs/git/diff.go",
             "line": 438
+          }
+        ]
+      },
+      {
+        "literal": "§lang",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/lang/lang.go",
+            "line": 422
           }
         ]
       },
@@ -2410,7 +2533,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 919
+            "line": 938
           }
         ]
       },
@@ -2532,7 +2655,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 659
+            "line": 677
           }
         ]
       },
@@ -2725,6 +2848,10 @@
       },
       {
         "literal": "init",
+        "cl100k_tokens": 1
+      },
+      {
+        "literal": "lang",
         "cl100k_tokens": 1
       },
       {

@@ -27,6 +27,7 @@ verbs (phase 2):
                            [--stat true|false] [--context N] [--bytes N]
                     show   [--ref <rev>] [--pathspec <p>] [--stat true|false] [--context N]
                            [--bytes N]
+  lang    --op outline|def [--path <p>] [--symbol <name>] [--in <p>]
   metrics [--last N] [--verb <verb>]
   report  [--session current|all|<id>] [--since <dur>] [--last N] [--verb <verb>] [--top N]
           [--root <p>] [--all true|false]

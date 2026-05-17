@@ -3512,6 +3512,106 @@
         ],
         "additionalProperties": false
       }
+    },
+    {
+      "name": "ash_lang",
+      "description": "Semantic queries via the LSP broker: outline (per-file symbols) and def (definition by name).",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty"
+            ],
+            "default": "json"
+          },
+          "in": {
+            "type": "string",
+            "description": "[op=def] Optional file scope for def — match only results in this path."
+          },
+          "op": {
+            "type": "string",
+            "description": "Subcommand to run.",
+            "enum": [
+              "outline",
+              "def"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "description": "[op=outline] File to outline; required for op=outline."
+          },
+          "symbol": {
+            "type": "string",
+            "description": "[op=def] Symbol name to find; required for op=def."
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "cache_hit": {
+            "type": "boolean"
+          },
+          "op": {
+            "type": "string"
+          },
+          "symbols": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "col": {
+                  "type": "integer"
+                },
+                "container": {
+                  "type": "string"
+                },
+                "detail": {
+                  "type": "string"
+                },
+                "end_col": {
+                  "type": "integer"
+                },
+                "end_line": {
+                  "type": "integer"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "line": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "name",
+                "path"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "additionalProperties": false
+      }
     }
   ]
 }

@@ -75,7 +75,7 @@ func TestIntegration_TestVerbEnvPassthrough(t *testing.T) {
 	}
 	defer led.Close()
 
-	runners := verbs.Runners(led, nil, time.Time{}, "")
+	runners := verbs.Runners(led, nil, time.Time{}, "", nil, nil)
 	pretty := verbs.PrettyHandlers()
 	sockPath := filepath.Join(tmp, "ash.sock")
 	ln, err := net.Listen("unix", sockPath)

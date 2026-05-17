@@ -12,6 +12,8 @@ import (
 
 	"github.com/stazelabs/ash/internal/config"
 	"github.com/stazelabs/ash/internal/ledger"
+	"github.com/stazelabs/ash/internal/lsp"
+	"github.com/stazelabs/ash/internal/lsp/cache"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/verbs/bench"
 	"github.com/stazelabs/ash/internal/verbs/diff"
@@ -22,6 +24,7 @@ import (
 	"github.com/stazelabs/ash/internal/verbs/help"
 	"github.com/stazelabs/ash/internal/verbs/hook"
 	"github.com/stazelabs/ash/internal/verbs/initverb"
+	"github.com/stazelabs/ash/internal/verbs/lang"
 	"github.com/stazelabs/ash/internal/verbs/metrics"
 	"github.com/stazelabs/ash/internal/verbs/read"
 	"github.com/stazelabs/ash/internal/verbs/recap"
@@ -82,6 +85,7 @@ func PrettyHandlers() map[string]Pretty {
 		"uninit":  uninit.PrettyResponse,
 		"stop":    stop.PrettyResponse,
 		"usage":   usage.PrettyResponse,
+		"lang":    lang.PrettyResponse,
 	}
 }
 
@@ -109,7 +113,7 @@ func CompactHandlers() map[string]Compact {
 // response. The closure binds the maps by reference; by the time bench
 // fires the maps are fully populated, so self-dispatch (`ash bench` →
 // `ash bench`) works too — though it's a degenerate case.
-func Runners(led *ledger.Ledger, cfg *config.Config, daemonStart time.Time, projectRoot string) map[string]Runner {
+func Runners(led *ledger.Ledger, cfg *config.Config, daemonStart time.Time, projectRoot string, broker *lsp.Broker, langCache *cache.Cache) map[string]Runner {
 	if cfg == nil {
 		cfg = config.Defaults()
 	}
@@ -165,6 +169,22 @@ func Runners(led *ledger.Ledger, cfg *config.Config, daemonStart time.Time, proj
 				ProjectRoot: projectRoot,
 			}
 			return bench.RunWithDeps(deps, a)
+		},
+	}
+	// ASH-138: lang verb closes over the LSP broker + cache. Both are
+	// nil-safe in lang.RunWithDeps — when the broker is disabled, the
+	// runner returns lsp_disabled rather than crashing.
+	runners["lang"] = Runner{
+		Run: func(args map[string]any, _ *proto.Tracer) (any, *proto.Error) {
+			a, perr := lang.ParseArgs(args)
+			if perr != nil {
+				return nil, perr
+			}
+			return lang.RunWithDeps(lang.Deps{
+				Broker:      broker,
+				Cache:       langCache,
+				ProjectRoot: projectRoot,
+			}, a)
 		},
 	}
 	runners["replay"] = Runner{

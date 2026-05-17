@@ -52,7 +52,7 @@ func startStreamingDaemon(t *testing.T) (sockPath string, dbPath string) {
 	}
 	t.Cleanup(func() { led.Close() })
 
-	runners := verbs.Runners(led, nil, time.Time{}, "")
+	runners := verbs.Runners(led, nil, time.Time{}, "", nil, nil)
 	pretty := verbs.PrettyHandlers()
 
 	sockPath = filepath.Join(tmp, "s")

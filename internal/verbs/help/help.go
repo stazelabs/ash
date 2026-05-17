@@ -556,6 +556,24 @@ var registry = []VerbSchema{
 				Long:        "When set, annotates the call recorded with this request_id in the current session. When omitted, the most recent non-usage call in the current session is annotated."},
 		},
 	},
+	{
+		Verb:        "lang",
+		Description: "Semantic queries via the LSP broker: outline (per-file symbols) and def (definition by name).",
+		Args: []ArgSchema{
+			{Name: "op", Type: "string", Required: true, Values: []string{"outline", "def"},
+				Description: "Subcommand to run.",
+				Long:        "Operation discriminator. outline returns one row per top-level decl in --path; def returns workspace definitions matching --symbol."},
+			{Name: "path", Type: "string", Default: "", PH: "<p>", Ops: []string{"outline"},
+				Description: "File to outline; required for op=outline.",
+				Long:        "[outline] file path. Routes to textDocument/documentSymbol and is cached per (path, mtime) so a follow-up call after no edits costs zero gopls round-trips."},
+			{Name: "symbol", Type: "string", Default: "", PH: "<name>", Ops: []string{"def"},
+				Description: "Symbol name to find; required for op=def.",
+				Long:        "[def] exact symbol name. Routes to workspace/symbol; results are filtered to an exact name match (substring matches are dropped)."},
+			{Name: "in", Type: "string", Default: "", PH: "<p>", Ops: []string{"def"},
+				Description: "Optional file scope for def — match only results in this path.",
+				Long:        "[def] when set, only definitions inside this file are returned. Useful when a name is overloaded across packages."},
+		},
+	},
 }
 
 // Registry returns the full verb schema registry (read-only view for tests and tooling).
@@ -693,6 +711,7 @@ func writeArg(b *strings.Builder, a ArgSchema, verbose bool) {
 var verbDisplayOrder = []string{
 	"read", "write", "edit", "diff",
 	"find", "grep", "git",
+	"lang",
 	"metrics", "report", "recap", "workspace", "replay", "stat", "bench", "test",
 	"help", "hook", "init", "uninit", "stop", "usage",
 }

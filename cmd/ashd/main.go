@@ -132,7 +132,7 @@ func main() {
 		})
 	}
 
-	runners := verbs.Runners(led, cfg, daemonStart, rootFlag)
+	runners := verbs.Runners(led, cfg, daemonStart, rootFlag, broker, langCache)
 	pretty := verbs.PrettyHandlers()
 
 	// ASH-154: refuse to double-bind. The client-side sweep should
