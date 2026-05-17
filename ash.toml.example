@@ -105,3 +105,11 @@
 # # broker fails with code gopls_not_found and write/edit continue to
 # # succeed without the LSP sync.
 # gopls_path = "gopls"
+#
+# # Soft expiry for cached LSP responses in .ash/lang-cache.db
+# # (ASH-137). mtime-keying is the canonical correctness story; this
+# # TTL is a safety net for cases the mtime path can't see — clock
+# # skew, files written by tools outside ash. Default "0s" disables
+# # it; rows are then retired only by mtime mismatch or by the
+# # write/edit invalidation hook.
+# cache_ttl = "0s"

@@ -59,6 +59,13 @@ func LedgerPath(root string) string {
 	return filepath.Join(root, ".ash", "ledger.db")
 }
 
+// LangCachePath returns where the LSP response cache (ASH-137) lives for
+// a project root. Kept separate from the ledger so the cache can be
+// blown away without losing call history.
+func LangCachePath(root string) string {
+	return filepath.Join(root, ".ash", "lang-cache.db")
+}
+
 // PIDPath returns the daemon PID file path for a project root.
 func PIDPath(root string) string {
 	return filepath.Join(root, ".ash", "ashd.pid")

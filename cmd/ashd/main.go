@@ -20,6 +20,7 @@ import (
 	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/ledger"
 	"github.com/stazelabs/ash/internal/lsp"
+	"github.com/stazelabs/ash/internal/lsp/cache"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/session"
 	"github.com/stazelabs/ash/internal/verbs"
@@ -95,8 +96,40 @@ func main() {
 		}),
 	)
 	defer broker.Close()
+
+	// ASH-137: lang-cache opens alongside the broker. It is daemon-owned
+	// so ash lang verbs (ASH-138+) can share one handle. We open it
+	// whenever the broker is enabled even though no caller exists yet —
+	// the write/edit invalidation hook still wants somewhere to send
+	// its DELETE calls. A failed open is non-fatal: log and continue
+	// uncached, since the broker itself can still answer requests.
+	var langCache *cache.Cache
 	if cfg.LSP.Enabled {
-		lsp.SetSink(lsp.NotifyBroker(broker))
+		var cerr error
+		langCache, cerr = cache.Open(cache.Options{
+			Path: session.LangCachePath(rootFlag),
+			TTL:  cfg.LSP.CacheTTL.AsDuration(),
+		})
+		if cerr != nil {
+			log.Printf("ashd: lang-cache open: %v (continuing uncached)", cerr)
+		}
+	}
+	defer langCache.Close()
+
+	if cfg.LSP.Enabled {
+		// Compose broker.Notify + cache.Invalidate into the single sink
+		// fired by write/edit. The broker call is async (NotifyBroker
+		// spawns a goroutine) so the inline cache.Invalidate completes
+		// in microseconds and write/edit latency stays unaffected.
+		notifyBroker := lsp.NotifyBroker(broker)
+		lsp.SetSink(func(path string) {
+			notifyBroker(path)
+			if langCache != nil {
+				if _, err := langCache.Invalidate(path); err != nil {
+					log.Printf("ashd: lang-cache invalidate %s: %v", path, err)
+				}
+			}
+		})
 	}
 
 	runners := verbs.Runners(led, cfg, daemonStart, rootFlag)
@@ -142,9 +175,11 @@ func main() {
 		// Close the LSP broker BEFORE the listener so a slow gopls
 		// shutdown does not extend the drain window for verb handlers
 		// — Close has its own 2s grace and ashd's shutdown_grace
-		// (default 5s) follows it.
+		// (default 5s) follows it. The lang-cache close is
+		// near-instantaneous (just a SQLite handle drop).
 		lsp.SetSink(nil)
 		broker.Close()
+		langCache.Close()
 		listener.Close()
 	}()
 

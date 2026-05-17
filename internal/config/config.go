@@ -118,6 +118,13 @@ type LSPConfig struct {
 	// initialization fails with a clear error code instead of crashing
 	// the daemon.
 	GoplsPath string `toml:"gopls_path"`
+	// CacheTTL is the soft expiry for cached LSP responses (ASH-137).
+	// mtime-keying is the canonical correctness story; TTL is a
+	// safety net for cases the mtime path misses (clock skew, files
+	// written by something other than ash write/edit). Zero (default)
+	// disables the TTL and relies entirely on mtime + the write/edit
+	// invalidation hook.
+	CacheTTL Duration `toml:"cache_ttl"`
 }
 
 const (
