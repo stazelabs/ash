@@ -554,35 +554,35 @@
           },
           {
             "file": "internal/verbs/git/gogit_diff.go",
-            "line": 64
+            "line": 65
           },
           {
             "file": "internal/verbs/git/gogit_diff.go",
-            "line": 72
+            "line": 73
           },
           {
             "file": "internal/verbs/git/gogit_diff.go",
-            "line": 78
+            "line": 79
           },
           {
             "file": "internal/verbs/git/gogit_diff.go",
-            "line": 126
+            "line": 127
           },
           {
             "file": "internal/verbs/git/gogit_diff.go",
-            "line": 176
+            "line": 182
           },
           {
             "file": "internal/verbs/git/gogit_diff.go",
-            "line": 223
+            "line": 221
           },
           {
             "file": "internal/verbs/git/gogit_diff.go",
-            "line": 232
+            "line": 233
           },
           {
             "file": "internal/verbs/git/gogit_diff.go",
-            "line": 236
+            "line": 237
           },
           {
             "file": "internal/verbs/git/gogit_diff.go",
@@ -590,11 +590,7 @@
           },
           {
             "file": "internal/verbs/git/gogit_diff.go",
-            "line": 269
-          },
-          {
-            "file": "internal/verbs/git/gogit_diff.go",
-            "line": 273
+            "line": 265
           },
           {
             "file": "internal/verbs/git/gogit_diff.go",
@@ -602,35 +598,43 @@
           },
           {
             "file": "internal/verbs/git/gogit_diff.go",
-            "line": 320
+            "line": 281
           },
           {
             "file": "internal/verbs/git/gogit_diff.go",
-            "line": 327
+            "line": 285
           },
           {
             "file": "internal/verbs/git/gogit_diff.go",
-            "line": 342
+            "line": 328
           },
           {
             "file": "internal/verbs/git/gogit_diff.go",
-            "line": 346
+            "line": 335
           },
           {
             "file": "internal/verbs/git/gogit_diff.go",
-            "line": 364
+            "line": 348
           },
           {
             "file": "internal/verbs/git/gogit_diff.go",
-            "line": 409
+            "line": 352
           },
           {
             "file": "internal/verbs/git/gogit_diff.go",
-            "line": 413
+            "line": 366
           },
           {
             "file": "internal/verbs/git/gogit_diff.go",
-            "line": 417
+            "line": 388
+          },
+          {
+            "file": "internal/verbs/git/gogit_diff.go",
+            "line": 392
+          },
+          {
+            "file": "internal/verbs/git/gogit_diff.go",
+            "line": 396
           },
           {
             "file": "internal/verbs/git/gogit_log.go",

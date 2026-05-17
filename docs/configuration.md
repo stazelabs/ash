@@ -181,7 +181,7 @@ ash report --verb hook     # :excluded suffix visible in the matched_rule column
 ## Out of scope (deliberately)
 
 - ~~ASH-49 enforcement: the schema lands but `daemon.max_concurrent_handlers`, `daemon.read_deadline`, `daemon.shutdown_grace` are not yet read by the accept loop. ASH-49 picks them up.~~ _Done — see acceptLoop / drainHandlers in [cmd/ashd/main.go](../cmd/ashd/main.go) and tests in [cmd/ashd/resilience_test.go](../cmd/ashd/resilience_test.go)._
-- ~~ASH-35 enforcement: `git.backend = "go-git"` returns a typed `not_implemented` error from the git verb until ASH-35 spikes go-git.~~ _Done — go-git is the default backend. shellout is now the opt-in for callers who need full patch text on `--staged` or unstaged worktree diffs (gogit returns counts only for those modes; range diffs and show have full patch text)._
+- ~~ASH-35 enforcement: `git.backend = "go-git"` returns a typed `not_implemented` error from the git verb until ASH-35 spikes go-git.~~ _Done — go-git is the default backend. ASH-66 then closed the counts-only-for-worktree-diffs gap: gogit produces full patch text for `--staged` and default unstaged diffs via a custom `format/diff.FilePatch` + `UnifiedEncoder` pipeline. The remaining shellout-only divergences are rename-detection thresholds and relative date forms (`--since "1 week ago"`)._
 - Per-verb default-knob overrides (`read.limit_bytes`, `find.limit`, etc.). Easy to add later; not needed for this rollout.
 - A new `ash config` verb (effective-config printer). Deferred.
 - Hot reload on `ash.toml` change. Deferred.

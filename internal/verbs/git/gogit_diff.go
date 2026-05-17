@@ -2,18 +2,19 @@ package git
 
 // Diff implementation against go-git/v5.
 //
-// Coverage matrix for this PR:
+// Coverage matrix:
 //
 //   --range A..B   (commit-to-commit)   — full patches.
 //   --range A      (single rev)         — full patches: A's parent..A.
-//   --staged true                       — counts only (Patch="").
-//   default        (unstaged worktree)  — counts only (Patch="").
+//   --staged true                       — full patches (ASH-66).
+//   default        (unstaged worktree)  — full patches (ASH-66).
 //   --stat true    (any mode)           — full per-file counts.
 //
-// Working-tree patch text (for --staged or default unstaged) requires
-// constructing custom go-git FilePatches and encoding with UnifiedEncoder.
-// That is not in scope for this PR; callers who need it set
-// [git].backend = "shellout".
+// Worktree patch text routes through the custom format/diff.FilePatch
+// implementation in gogit_diff_worktree.go (ASH-66): one (before,
+// after) pair per changed file → sergi/go-diff line-level diff →
+// []diff.Chunk → UnifiedEncoder → parseDiffUnified for cap + per-file
+// structure, identical to the range-diff code path.
 
 import (
 	"errors"
@@ -26,9 +27,9 @@ import (
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/format/diff"
 	"github.com/go-git/go-git/v5/plumbing/format/index"
 	"github.com/go-git/go-git/v5/plumbing/object"
-	"github.com/sergi/go-diff/diffmatchpatch"
 	"github.com/stazelabs/ash/internal/proto"
 )
 
@@ -79,7 +80,7 @@ func diffGogitRange(repo *git.Repository, a *Args) (*DiffResult, *proto.Error) {
 	}
 
 	if a.StatOnly {
-		return diffStatFromPatch(patch), nil
+		return diffStatFromFilePatches(patch.FilePatches()), nil
 	}
 	// Use Patch.String() to get a unified-diff rendering that our
 	// existing parseDiffUnified knows how to consume. This keeps caps
@@ -128,11 +129,13 @@ func resolveDiffEndpoints(repo *git.Repository, rng string) (*object.Commit, *ob
 	return parent, right, nil
 }
 
-// diffStatFromPatch walks an object.Patch's FilePatches and accumulates
+// diffStatFromFilePatches walks a []diff.FilePatch and accumulates
 // counts without producing patch text. Faster + token-cheaper.
-func diffStatFromPatch(p *object.Patch) *DiffResult {
+// Generalized from the old diffStatFromPatch helper to work with both
+// object.Patch (range diffs) and customPatch (worktree diffs, ASH-66).
+func diffStatFromFilePatches(fps []diff.FilePatch) *DiffResult {
 	res := &DiffResult{StatOnly: true}
-	for _, fp := range p.FilePatches() {
+	for _, fp := range fps {
 		from, to := fp.Files()
 		df := DiffFile{Binary: fp.IsBinary()}
 		switch {
@@ -154,9 +157,9 @@ func diffStatFromPatch(p *object.Patch) *DiffResult {
 		if !df.Binary {
 			for _, ch := range fp.Chunks() {
 				switch ch.Type() {
-				case 1: // diff.Add
+				case diff.Add:
 					df.Additions += countLines(ch.Content())
-				case 2: // diff.Delete
+				case diff.Delete:
 					df.Deletions += countLines(ch.Content())
 				}
 			}
@@ -168,8 +171,11 @@ func diffStatFromPatch(p *object.Patch) *DiffResult {
 	return res
 }
 
-// diffGogitStaged returns counts-only DiffFile records for every entry
-// that differs between the index and HEAD.
+// diffGogitStaged builds a unified-diff patch for every entry that
+// differs between the index and HEAD, then routes the encoded text
+// through parseDiffUnified for cap + per-file structure (same path as
+// range diffs). Stat-only mode short-circuits to diffStatFromFilePatches
+// to skip the encode pass.
 func diffGogitStaged(repo *git.Repository, a *Args) (*DiffResult, *proto.Error) {
 	idx, err := repo.Storer.Index()
 	if err != nil {
@@ -180,21 +186,19 @@ func diffGogitStaged(repo *git.Repository, a *Args) (*DiffResult, *proto.Error) 
 		return nil, perr
 	}
 
-	res := &DiffResult{StatOnly: a.StatOnly}
+	var fps []diff.FilePatch
 	seenInIndex := make(map[string]bool, len(idx.Entries))
 	for _, e := range idx.Entries {
 		seenInIndex[e.Name] = true
 		if a.Pathspec != "" && !pathspecMatches(a.Pathspec, e.Name) {
 			continue
 		}
-		df, perr := stagedDeltaForEntry(repo, headTree, e)
+		fp, perr := stagedFilePatch(repo, headTree, e)
 		if perr != nil {
 			return nil, perr
 		}
-		if df != nil {
-			res.Files = append(res.Files, *df)
-			res.TotalAdditions += df.Additions
-			res.TotalDeletions += df.Deletions
+		if fp != nil {
+			fps = append(fps, fp)
 		}
 	}
 	// Files in HEAD that the index dropped → staged deletes.
@@ -210,23 +214,20 @@ func diffGogitStaged(repo *git.Repository, a *Args) (*DiffResult, *proto.Error) 
 			if err != nil {
 				return err
 			}
-			lines := countLines(content)
-			res.Files = append(res.Files, DiffFile{
-				Path:      f.Name,
-				Status:    "D",
-				Deletions: lines,
-			})
-			res.TotalDeletions += lines
+			fps = append(fps, delFilePatch(f.Name, content))
 			return nil
 		})
 		if err != nil {
 			return nil, &proto.Error{Code: "git_failed", Msg: err.Error()}
 		}
 	}
-	return res, nil
+	return finalizeWorktreeResult(a, fps)
 }
 
-func stagedDeltaForEntry(repo *git.Repository, headTree *object.Tree, e *index.Entry) (*DiffFile, *proto.Error) {
+// stagedFilePatch builds a customFilePatch describing one (HEAD blob →
+// index blob) transition for the given index entry. Returns (nil, nil)
+// when the entry has the same contents on both sides (no change).
+func stagedFilePatch(repo *git.Repository, headTree *object.Tree, e *index.Entry) (*customFilePatch, *proto.Error) {
 	idxBlob, err := repo.BlobObject(e.Hash)
 	if err != nil {
 		return nil, &proto.Error{Code: "git_failed", Msg: err.Error()}
@@ -236,8 +237,7 @@ func stagedDeltaForEntry(repo *git.Repository, headTree *object.Tree, e *index.E
 		return nil, &proto.Error{Code: "git_failed", Msg: err.Error()}
 	}
 	if headTree != nil {
-		f, err := headTree.File(e.Name)
-		if err == nil {
+		if f, err := headTree.File(e.Name); err == nil {
 			headContent, err := f.Contents()
 			if err != nil {
 				return nil, &proto.Error{Code: "git_failed", Msg: err.Error()}
@@ -245,24 +245,32 @@ func stagedDeltaForEntry(repo *git.Repository, headTree *object.Tree, e *index.E
 			if headContent == idxContent {
 				return nil, nil
 			}
-			a, d := lineCounts(headContent, idxContent)
-			return &DiffFile{
-				Path:      e.Name,
-				Status:    "M",
-				Additions: a,
-				Deletions: d,
-			}, nil
+			return modFilePatch(e.Name, headContent, idxContent), nil
 		}
 	}
-	return &DiffFile{
-		Path:      e.Name,
-		Status:    "A",
-		Additions: countLines(idxContent),
-	}, nil
+	return addFilePatch(e.Name, idxContent), nil
 }
 
-// diffGogitUnstaged walks the worktree status and reports per-file
-// counts for every modified, deleted, or untracked file.
+// finalizeWorktreeResult drives the common tail of diffGogitStaged /
+// diffGogitUnstaged: in stat-only mode aggregate counts directly from
+// the FilePatches; in patch mode encode + reparse so size caps and
+// truncation flow through the same parseDiffUnified code path as range
+// diffs.
+func finalizeWorktreeResult(a *Args, fps []diff.FilePatch) (*DiffResult, *proto.Error) {
+	if a.StatOnly {
+		return diffStatFromFilePatches(fps), nil
+	}
+	encoded, err := encodeCustomPatches(fps, a.Context)
+	if err != nil {
+		return nil, &proto.Error{Code: "git_failed", Msg: err.Error()}
+	}
+	return parseDiffUnified([]byte(encoded), a.LimitBytes)
+}
+
+// diffGogitUnstaged builds a unified-diff patch for every modified,
+// deleted, or untracked file in the worktree, then routes through
+// parseDiffUnified so size caps and per-file structure flow through
+// the same code path as range/staged diffs.
 func diffGogitUnstaged(repo *git.Repository, a *Args) (*DiffResult, *proto.Error) {
 	wt, err := repo.Worktree()
 	if err != nil {
@@ -278,39 +286,39 @@ func diffGogitUnstaged(repo *git.Repository, a *Args) (*DiffResult, *proto.Error
 	}
 	repoRoot := wt.Filesystem.Root()
 
-	res := &DiffResult{StatOnly: a.StatOnly}
+	var fps []diff.FilePatch
 	for path, st := range status {
 		if a.Pathspec != "" && !pathspecMatches(a.Pathspec, path) {
 			continue
 		}
 		if st.Worktree == git.Untracked {
-			df, perr := untrackedFileDelta(repoRoot, path)
+			fp, perr := untrackedFilePatch(repoRoot, path)
 			if perr != nil {
 				return nil, perr
 			}
-			if df != nil {
-				res.Files = append(res.Files, *df)
-				res.TotalAdditions += df.Additions
+			if fp != nil {
+				fps = append(fps, fp)
 			}
 			continue
 		}
 		if st.Worktree == git.Unmodified {
 			continue
 		}
-		df, perr := unstagedDeltaForFile(repo, idx, repoRoot, path, st.Worktree)
+		fp, perr := unstagedFilePatch(repo, idx, repoRoot, path, st.Worktree)
 		if perr != nil {
 			return nil, perr
 		}
-		if df != nil {
-			res.Files = append(res.Files, *df)
-			res.TotalAdditions += df.Additions
-			res.TotalDeletions += df.Deletions
+		if fp != nil {
+			fps = append(fps, fp)
 		}
 	}
-	return res, nil
+	return finalizeWorktreeResult(a, fps)
 }
 
-func untrackedFileDelta(repoRoot, path string) (*DiffFile, *proto.Error) {
+// untrackedFilePatch reads a not-yet-staged file from disk and emits
+// an "add" FilePatch (from=nil). Returns (nil, nil) when the path
+// vanished between status() and stat (rare race).
+func untrackedFilePatch(repoRoot, path string) (*customFilePatch, *proto.Error) {
 	full := filepath.Join(repoRoot, path)
 	info, err := os.Stat(full)
 	if err != nil {
@@ -326,14 +334,12 @@ func untrackedFileDelta(repoRoot, path string) (*DiffFile, *proto.Error) {
 	if err != nil {
 		return nil, &proto.Error{Code: "git_failed", Msg: err.Error()}
 	}
-	return &DiffFile{
-		Path:      path,
-		Status:    "A",
-		Additions: countLines(string(data)),
-	}, nil
+	return addFilePatch(path, string(data)), nil
 }
 
-func unstagedDeltaForFile(repo *git.Repository, idx *index.Index, repoRoot, path string, code git.StatusCode) (*DiffFile, *proto.Error) {
+// unstagedFilePatch builds a FilePatch for one (index blob → worktree
+// content) transition. Handles the deleted-file case (to=nil) too.
+func unstagedFilePatch(repo *git.Repository, idx *index.Index, repoRoot, path string, code git.StatusCode) (*customFilePatch, *proto.Error) {
 	var beforeContent string
 	for _, e := range idx.Entries {
 		if e.Name == path {
@@ -349,11 +355,7 @@ func unstagedDeltaForFile(repo *git.Repository, idx *index.Index, repoRoot, path
 		}
 	}
 	if code == git.Deleted {
-		return &DiffFile{
-			Path:      path,
-			Status:    "D",
-			Deletions: countLines(beforeContent),
-		}, nil
+		return delFilePatch(path, beforeContent), nil
 	}
 	full := filepath.Join(repoRoot, path)
 	data, err := os.ReadFile(full)
@@ -363,30 +365,7 @@ func unstagedDeltaForFile(repo *git.Repository, idx *index.Index, repoRoot, path
 		}
 		return nil, &proto.Error{Code: "git_failed", Msg: err.Error()}
 	}
-	a, d := lineCounts(beforeContent, string(data))
-	return &DiffFile{
-		Path:      path,
-		Status:    "M",
-		Additions: a,
-		Deletions: d,
-	}, nil
-}
-
-// lineCounts returns (additions, deletions) per a line-level diff.
-// Uses sergi/go-diff's line preprocessor for speed on large files.
-func lineCounts(before, after string) (additions, deletions int) {
-	dmp := diffmatchpatch.New()
-	a, b, _ := dmp.DiffLinesToChars(before, after)
-	diffs := dmp.DiffMain(a, b, false)
-	for _, d := range diffs {
-		switch d.Type {
-		case diffmatchpatch.DiffInsert:
-			additions += len(d.Text)
-		case diffmatchpatch.DiffDelete:
-			deletions += len(d.Text)
-		}
-	}
-	return additions, deletions
+	return modFilePatch(path, beforeContent, string(data)), nil
 }
 
 func countLines(s string) int {
