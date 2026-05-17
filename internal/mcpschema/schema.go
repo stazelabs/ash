@@ -132,8 +132,8 @@ func toolForVerb(vs help.VerbSchema) (Tool, error) {
 	// `--format` flag.
 	props[FormatArg] = Property{
 		Type:        "string",
-		Description: "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
-		Enum:        []string{FormatJSON, FormatPretty},
+		Description: "Response shape: \"json\" (default) ships structured data as named per-record maps; \"pretty\" ships the daemon-pretty text matching CLI token cost; \"compact\" (ASH-153) ships a cols/rows hybrid where field names are listed once per call instead of once per record — only meaningful for row-shaped verbs (find, grep, metrics, report, git log/diff/show, stat, test). MCP-only knob; ignored on the CLI.",
+		Enum:        []string{FormatJSON, FormatPretty, FormatCompact},
 		Default:     FormatJSON,
 	}
 	return Tool{
@@ -154,10 +154,14 @@ func toolForVerb(vs help.VerbSchema) (Tool, error) {
 // by ashmcp before the request reaches the daemon (ASH-146).
 const FormatArg = "format"
 
-// FormatJSON / FormatPretty are the two enum values FormatArg accepts.
+// FormatJSON / FormatPretty / FormatCompact are the enum values FormatArg
+// accepts. FormatCompact (ASH-153) is the cols/rows hybrid that pays the
+// field-name cost once per call instead of once per record — meaningful
+// only for verbs with a CompactResponse handler in verbs.CompactHandlers.
 const (
-	FormatJSON   = "json"
-	FormatPretty = "pretty"
+	FormatJSON    = "json"
+	FormatPretty  = "pretty"
+	FormatCompact = "compact"
 )
 
 // propertiesForVerb collapses help.ArgSchema entries into JSON Schema

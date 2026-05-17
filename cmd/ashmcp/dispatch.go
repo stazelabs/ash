@@ -100,8 +100,13 @@ func decodeArgs(raw json.RawMessage) (map[string]any, string, error) {
 	}
 	format := mcpschema.FormatJSON
 	if v, ok := m[mcpschema.FormatArg]; ok {
-		if s, ok := v.(string); ok && s == mcpschema.FormatPretty {
-			format = mcpschema.FormatPretty
+		if s, ok := v.(string); ok {
+			switch s {
+			case mcpschema.FormatPretty:
+				format = mcpschema.FormatPretty
+			case mcpschema.FormatCompact:
+				format = mcpschema.FormatCompact
+			}
 		}
 		delete(m, mcpschema.FormatArg)
 	}
@@ -293,21 +298,42 @@ func toolResult(verb string, rsp *proto.Response, emitFormat string) (*mcp.CallT
 	}
 	var trunc *proto.TruncInfo
 	if rsp.OK {
-		// StructuredContent rides in JSON mode only. In pretty mode the
-		// TextContent diverges from the structured payload, so we drop
-		// StructuredContent rather than serve two inconsistent views;
-		// harnesses that need structured access can re-call with
-		// format=json.
+		// StructuredContent rides in JSON and compact modes. In pretty
+		// mode the TextContent diverges from the structured payload, so
+		// we drop StructuredContent rather than serve two inconsistent
+		// views; harnesses that need structured access can re-call with
+		// format=json or format=compact.
 		if emitFormat != mcpschema.FormatPretty {
-			data, derr := proto.MCPStructuredData(rsp)
-			if derr == nil {
-				// MCP requires StructuredContent to marshal to a JSON
-				// object. Every verb Result type in ash decodes to a
-				// top-level map; non-object payloads are silently
-				// dropped from structured emission — there is no
-				// TextContent fallback to catch them anymore (ASH-156).
-				if m, ok := data.(map[string]any); ok {
-					out.StructuredContent = m
+			// ASH-153: compact mode reshapes the per-record map list
+			// into a {"k":[...],"r":[[...],[...]]} cols/rows hybrid
+			// when the verb has a CompactResponse handler. Pays field-
+			// name cost once per call instead of once per record. Falls
+			// back to the default per-record shape when the verb is
+			// not row-shaped (no compact handler, or the handler
+			// returned nil — git status, for example).
+			if emitFormat == mcpschema.FormatCompact {
+				if c, ok := compactHandlers[verb]; ok {
+					if cd, cerr := c(rsp); cerr == nil && cd != nil {
+						if compact, ok := cd.(proto.CompactData); ok {
+							out.StructuredContent = map[string]any{
+								"k": compact.K,
+								"r": compact.R,
+							}
+						}
+					}
+				}
+			}
+			if out.StructuredContent == nil {
+				data, derr := proto.MCPStructuredData(rsp)
+				if derr == nil {
+					// MCP requires StructuredContent to marshal to a JSON
+					// object. Every verb Result type in ash decodes to a
+					// top-level map; non-object payloads are silently
+					// dropped from structured emission — there is no
+					// TextContent fallback to catch them anymore (ASH-156).
+					if m, ok := data.(map[string]any); ok {
+						out.StructuredContent = m
+					}
 				}
 			}
 		}
@@ -375,11 +401,17 @@ func mcpBody(verb string, rsp *proto.Response, emitFormat string) (string, error
 // render daemon-pretty output for format=pretty calls (ASH-146).
 var prettyHandlers = verbs.PrettyHandlers()
 
+// compactHandlers maps verb → compact (cols/rows) renderer. Used by
+// format=compact (ASH-153). Built once at process start.
+var compactHandlers = verbs.CompactHandlers()
+
 // wireEmitFormat maps the local format value to the proto.Request wire
 // representation. Empty / json both serialize as empty (the omitempty tag
 // keeps two-call cache prefixes stable for the common case); pretty rides
 // as "pretty" so the daemon can route emit accounting through the pretty
-// renderer instead of the JSON envelope.
+// renderer instead of the JSON envelope. compact (ASH-153) is treated like
+// json for emit accounting — neither path emits TextContent, so
+// tokens_out_emit is the truncation sentinel only in both cases.
 func wireEmitFormat(format string) string {
 	if format == mcpschema.FormatPretty {
 		return mcpschema.FormatPretty

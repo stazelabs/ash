@@ -151,8 +151,8 @@ func TestGenerateFormatKnob(t *testing.T) {
 		if f.Default != FormatJSON {
 			t.Errorf("%s.%s default = %v, want %q", tool.Name, FormatArg, f.Default, FormatJSON)
 		}
-		if !equalStringSet(f.Enum, []string{FormatJSON, FormatPretty}) {
-			t.Errorf("%s.%s enum = %v, want [%s %s]", tool.Name, FormatArg, f.Enum, FormatJSON, FormatPretty)
+		if !equalStringSet(f.Enum, []string{FormatJSON, FormatPretty, FormatCompact}) {
+			t.Errorf("%s.%s enum = %v, want [%s %s %s]", tool.Name, FormatArg, f.Enum, FormatJSON, FormatPretty, FormatCompact)
 		}
 	}
 	// `format` must not collide with any registered help arg — otherwise

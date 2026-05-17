@@ -341,3 +341,138 @@ func TestToolResultPrettyModeError(t *testing.T) {
 		}
 	}
 }
+
+// -- ASH-153: compact (cols/rows) format ---------------------------------
+
+// findResultForCompact constructs a msgpack-encoded find.Result with two
+// records via the same wire shape the daemon emits. The test feeds this
+// to toolResult with format=compact and verifies the cols/rows hybrid
+// lands in StructuredContent.
+func findResultForCompact() *proto.Response {
+	type rec struct {
+		Path  string `msgpack:"path"`
+		Type  string `msgpack:"type"`
+		Size  int64  `msgpack:"size,omitempty"`
+		Mtime int64  `msgpack:"mtime"`
+	}
+	data := proto.MustData(map[string]any{
+		"records": []rec{
+			{Path: "a.go", Type: "file", Size: 100, Mtime: 1},
+			{Path: "b.go", Type: "file", Size: 200, Mtime: 2},
+		},
+		"count": 2,
+	})
+	return &proto.Response{V: proto.ProtocolVersion, ID: 1, OK: true, Data: data}
+}
+
+// TestDecodeArgs_FormatCompact covers the args-side wiring: "compact"
+// is recognized and stripped from the args passed to the daemon.
+func TestDecodeArgs_FormatCompact(t *testing.T) {
+	args, format, err := decodeArgs(json.RawMessage(`{"path":".","format":"compact"}`))
+	if err != nil {
+		t.Fatalf("decodeArgs: %v", err)
+	}
+	if format != "compact" {
+		t.Errorf("format=%q; want \"compact\"", format)
+	}
+	if _, leaked := args["format"]; leaked {
+		t.Errorf("args still carry format key: %+v", args)
+	}
+}
+
+// TestToolResultCompactMode is the headline ASH-153 case: format=compact
+// on a row-shaped verb emits {"k":[…],"r":[[…],[…]]} as StructuredContent
+// instead of the default per-record map list.
+func TestToolResultCompactMode(t *testing.T) {
+	rsp := findResultForCompact()
+	res, err := toolResult("find", rsp, "compact")
+	if err != nil {
+		t.Fatalf("toolResult: %v", err)
+	}
+	if res.StructuredContent == nil {
+		t.Fatal("compact mode: StructuredContent must be populated")
+	}
+	got, ok := res.StructuredContent.(map[string]any)
+	if !ok {
+		t.Fatalf("compact mode: StructuredContent = %T; want map[string]any", res.StructuredContent)
+	}
+	// Body must be a cols/rows hybrid object.
+	cols, ok := got["k"].([]string)
+	if !ok {
+		t.Fatalf("compact mode: k = %T (%v); want []string", got["k"], got["k"])
+	}
+	if len(cols) == 0 {
+		t.Errorf("compact mode: cols vector empty")
+	}
+	rows, ok := got["r"].([][]any)
+	if !ok {
+		t.Fatalf("compact mode: r = %T (%v); want [][]any", got["r"], got["r"])
+	}
+	if len(rows) != 2 {
+		t.Errorf("compact mode: got %d rows; want 2", len(rows))
+	}
+	// No TextContent in compact mode either — same single-emit shape as
+	// json mode (ASH-156).
+	if len(res.Content) != 0 {
+		t.Errorf("compact mode: Content count = %d; want 0", len(res.Content))
+	}
+}
+
+// TestToolResultCompactFallback covers the verb-not-row-shaped case:
+// `read` has no CompactHandler entry (a read response is a single
+// payload, not a list of rows), so format=compact must fall back to the
+// default per-record map shape rather than emit empty StructuredContent.
+func TestToolResultCompactFallback(t *testing.T) {
+	rsp := &proto.Response{
+		V:  proto.ProtocolVersion,
+		ID: 1,
+		OK: true,
+		Data: proto.MustData(map[string]any{
+			"path": "README.md", "content": "hi", "encoding": "utf-8",
+		}),
+	}
+	res, err := toolResult("read", rsp, "compact")
+	if err != nil {
+		t.Fatalf("toolResult: %v", err)
+	}
+	if res.StructuredContent == nil {
+		t.Fatal("compact fallback: StructuredContent must be populated")
+	}
+	m, ok := res.StructuredContent.(map[string]any)
+	if !ok {
+		t.Fatalf("compact fallback: StructuredContent = %T; want map[string]any", res.StructuredContent)
+	}
+	// Fallback shape is the default per-record map, not k/r.
+	if _, hasK := m["k"]; hasK {
+		t.Errorf("fallback shape should not contain k/r keys; got %+v", m)
+	}
+	if got := m["path"]; got != "README.md" {
+		t.Errorf("fallback: path = %v; want README.md", got)
+	}
+}
+
+// TestToolResultCompactSavesBytesVsJSON is the ASH-153 token-cost
+// premise: the cols/rows shape is smaller than the per-record-map shape
+// for N records of M fields, because field names appear once instead of
+// N times. We verify the property holds on a multi-record fixture
+// without committing to a specific savings ratio (that depends on
+// field-name lengths and N).
+func TestToolResultCompactSavesBytesVsJSON(t *testing.T) {
+	rsp := findResultForCompact()
+
+	jsonRes, err := toolResult("find", rsp, "")
+	if err != nil {
+		t.Fatalf("toolResult json: %v", err)
+	}
+	compactRes, err := toolResult("find", rsp, "compact")
+	if err != nil {
+		t.Fatalf("toolResult compact: %v", err)
+	}
+
+	jsonBytes, _ := json.Marshal(jsonRes.StructuredContent)
+	compactBytes, _ := json.Marshal(compactRes.StructuredContent)
+	if len(compactBytes) >= len(jsonBytes) {
+		t.Errorf("compact (%d B) not smaller than json (%d B); cols/rows shape should drop per-record key overhead",
+			len(compactBytes), len(jsonBytes))
+	}
+}
