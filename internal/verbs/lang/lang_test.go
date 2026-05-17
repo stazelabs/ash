@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -299,6 +300,72 @@ func TestDef_WorkspaceSymbol(t *testing.T) {
 		if s.Name != "Greeter" {
 			t.Errorf("non-exact match returned: %q", s.Name)
 		}
+	}
+}
+
+// TestMatchesIn covers the multi-path --in matcher: prefix match with
+// a path-boundary guard so /a/foo does not match /a/foobar.
+func TestMatchesIn(t *testing.T) {
+	cases := []struct {
+		name string
+		path string
+		in   []string
+		want bool
+	}{
+		{"empty in matches everything", "/repo/a.go", nil, true},
+		{"single dir prefix", "/repo/internal/x.go", []string{"/repo/internal"}, true},
+		{"single file exact", "/repo/a.go", []string{"/repo/a.go"}, true},
+		{"no match", "/repo/b.go", []string{"/repo/internal"}, false},
+		{"boundary guard rejects partial", "/repo/foobar/x.go", []string{"/repo/foo"}, false},
+		{"multiple paths match any", "/repo/b/x.go", []string{"/repo/a", "/repo/b", "/repo/c"}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := matchesIn(tc.path, tc.in); got != tc.want {
+				t.Errorf("matchesIn(%q, %v) = %v; want %v", tc.path, tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestIsExternalPath sanity-checks the stdlib detection: a path NOT
+// under GOROOT/module-cache is internal; a synthetic path under GOROOT
+// is external.
+func TestIsExternalPath(t *testing.T) {
+	if got := isExternalPath("/tmp/x.go"); got {
+		t.Errorf("/tmp/x.go should not be external; got %v", got)
+	}
+	if root := runtime.GOROOT(); root != "" {
+		probe := filepath.Join(root, "src", "fmt", "print.go")
+		if !isExternalPath(probe) {
+			t.Errorf("expected %s under GOROOT to be external", probe)
+		}
+	}
+}
+
+func TestParseArgs_InMultiPath(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{
+		"op": "refs", "symbol": "X",
+		"in": "internal/foo, internal/bar",
+	})
+	if perr != nil {
+		t.Fatalf("ParseArgs: %v", perr)
+	}
+	if len(a.InPaths) != 2 {
+		t.Fatalf("InPaths=%v; want 2 entries", a.InPaths)
+	}
+	if a.InPaths[0] != "internal/foo" || a.InPaths[1] != "internal/bar" {
+		t.Errorf("InPaths=%v; want [internal/foo internal/bar]", a.InPaths)
+	}
+}
+
+func TestParseArgs_InternalOnlyDefault(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{"op": "refs", "symbol": "X"})
+	if perr != nil {
+		t.Fatalf("ParseArgs: %v", perr)
+	}
+	if !a.InternalOnly {
+		t.Errorf("InternalOnly default = false; want true")
 	}
 }
 

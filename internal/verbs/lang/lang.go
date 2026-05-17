@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -44,13 +45,15 @@ const (
 
 // Args is the daemon-side parsed argument set.
 type Args struct {
-	Op        string
-	Path      string
-	Symbol    string
-	Interface string
-	In        string
-	MaxRefs   int
-	Context   bool
+	Op           string
+	Path         string
+	Symbol       string
+	Interface    string
+	In           string
+	InPaths      []string // ASH-158: parsed comma-separated form of In
+	MaxRefs      int
+	Context      bool
+	InternalOnly bool // ASH-158: drop stdlib + module-cache candidates
 }
 
 // Result is the structured response wire shape.
@@ -94,7 +97,7 @@ type Deps struct {
 
 var knownArgs = map[string]struct{}{
 	"op": {}, "path": {}, "symbol": {}, "interface": {},
-	"in": {}, "max": {}, "context": {},
+	"in": {}, "max": {}, "context": {}, "internal-only": {},
 }
 
 // ParseArgs validates the loosely-typed args from the wire and produces
@@ -128,6 +131,21 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Context, perr = argutil.OptionalBool(in, "context", true); perr != nil {
 		return nil, perr
 	}
+	if a.InternalOnly, perr = argutil.OptionalBool(in, "internal-only", true); perr != nil {
+		return nil, perr
+	}
+	// ASH-158: --in accepts comma-separated paths. Trim empties so a
+	// trailing comma is forgiving. Single-path form remains valid as a
+	// length-1 slice; matching logic treats the empty slice as "no
+	// constraint."
+	if a.In != "" {
+		for _, p := range strings.Split(a.In, ",") {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				a.InPaths = append(a.InPaths, p)
+			}
+		}
+	}
 	for k := range in {
 		if _, ok := knownArgs[k]; !ok {
 			return nil, &proto.Error{Code: "args", Msg: "unknown arg: --" + k}
@@ -151,8 +169,8 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Path != "" {
 		paths["path"] = a.Path
 	}
-	if a.In != "" {
-		paths["in"] = a.In
+	for i, p := range a.InPaths {
+		paths[fmt.Sprintf("in[%d]", i)] = p
 	}
 	if len(paths) > 0 {
 		if perr := jail.CheckPaths(paths); perr != nil {
@@ -237,7 +255,7 @@ func runOutline(d Deps, a *Args) (*Result, *proto.Error) {
 }
 
 func runDef(d Deps, a *Args) (*Result, *proto.Error) {
-	cacheArgs := map[string]any{"symbol": a.Symbol, "in": a.In}
+	cacheArgs := map[string]any{"symbol": a.Symbol, "in": a.InPaths, "internal_only": a.InternalOnly}
 	if r, ok := workspaceCacheGet(d, "def", cacheArgs); ok {
 		return r, nil
 	}
@@ -255,18 +273,19 @@ func runDef(d Deps, a *Args) (*Result, *proto.Error) {
 	}
 	// Exact-name match by default; gopls returns substring matches too.
 	// Keep the strictness here — agents asking for `--symbol NewLedger`
-	// don't want every `New*` returned.
+	// don't want every `New*` returned. ASH-158: also honor --in
+	// (multi-path) and --internal-only filters.
 	filtered := syms[:0]
 	for _, s := range syms {
 		if s.Name != a.Symbol {
 			continue
 		}
-		if a.In != "" {
-			absIn, _ := filepath.Abs(a.In)
-			absSym, _ := filepath.Abs(filepath.Join(d.ProjectRoot, s.Path))
-			if absSym != absIn {
-				continue
-			}
+		absSym, _ := filepath.Abs(filepath.Join(d.ProjectRoot, s.Path))
+		if a.InternalOnly && isExternalPath(absSym) {
+			continue
+		}
+		if !matchesIn(absSym, a.InPaths) {
+			continue
 		}
 		filtered = append(filtered, s)
 	}
@@ -322,12 +341,16 @@ func workspaceCachePut(d Deps, op string, args any, r *Result) {
 // resolveSymbolPosition takes a symbol name and returns a (uri, line, col)
 // suitable for the position-based LSP methods (references, callHierarchy,
 // implementation). The lookup uses workspace/symbol filtered to an exact
-// name match, optionally constrained to a single file via inFile.
+// name match, narrowed by inPaths (any number of file or directory
+// prefixes — empty slice means "no constraint") and optionally
+// internalOnly (drops stdlib + module-cache candidates, ASH-158).
 //
 // Returns lsp_not_found if no exact-name match exists, or lsp_ambiguous
-// when multiple matches survive the inFile filter — those cases need a
-// caller decision ("which Foo?") rather than a silent pick.
-func resolveSymbolPosition(ctx context.Context, d Deps, name, inFile string) (string, int, int, *proto.Error) {
+// when multiple matches survive the filters — those cases need a caller
+// decision ("which Foo?") rather than a silent pick. The hint on
+// lsp_ambiguous lists the candidate paths so an agent can re-call with
+// --in covering one or more of them.
+func resolveSymbolPosition(ctx context.Context, d Deps, name string, inPaths []string, internalOnly bool) (string, int, int, *proto.Error) {
 	var raw json.RawMessage
 	if err := d.Broker.Request(ctx, "workspace/symbol", map[string]any{
 		"query": name,
@@ -338,25 +361,32 @@ func resolveSymbolPosition(ctx context.Context, d Deps, name, inFile string) (st
 	if err := json.Unmarshal(raw, &symbols); err != nil {
 		return "", 0, 0, &proto.Error{Code: "lsp_decode", Msg: err.Error()}
 	}
-	matched := matched[:0:0]
+	var (
+		matched         []symbolInformation
+		droppedExternal int
+	)
 	for _, s := range symbols {
 		if s.Name != name {
 			continue
 		}
-		if inFile != "" {
-			absIn, _ := filepath.Abs(inFile)
-			absSym := uriToPath(s.Location.URI)
-			if absSym != absIn {
-				continue
-			}
+		absSym := uriToPath(s.Location.URI)
+		if internalOnly && isExternalPath(absSym) {
+			droppedExternal++
+			continue
+		}
+		if !matchesIn(absSym, inPaths) {
+			continue
 		}
 		matched = append(matched, s)
 	}
 	switch len(matched) {
 	case 0:
 		hint := ""
-		if inFile != "" {
-			hint = "--in narrowed the search to one file; try without it"
+		switch {
+		case len(inPaths) > 0:
+			hint = "--in narrowed the search; try without it or with broader prefixes"
+		case internalOnly && droppedExternal > 0:
+			hint = fmt.Sprintf("dropped %d candidate(s) from stdlib/module-cache; pass --internal-only false to include them", droppedExternal)
 		}
 		return "", 0, 0, &proto.Error{Code: "lsp_not_found", Msg: "no exact match for symbol " + name, Hint: hint}
 	case 1:
@@ -368,26 +398,71 @@ func resolveSymbolPosition(ctx context.Context, d Deps, name, inFile string) (st
 		return "", 0, 0, &proto.Error{
 			Code: "lsp_ambiguous",
 			Msg:  fmt.Sprintf("symbol %q matched %d locations", name, len(matched)),
-			Hint: "narrow with --in <path>; candidates: " + strings.Join(paths, ", "),
+			Hint: "narrow with --in <path[,path...]>; candidates: " + strings.Join(paths, ", "),
 		}
 	}
 	loc := matched[0].Location
 	return loc.URI, loc.Range.Start.Line, loc.Range.Start.Character, nil
 }
 
-// matched is a typed nil sentinel for resolveSymbolPosition's
-// accumulator — using a named var keeps the [:0:0] slice trick out of
-// the function body where it would just be noise.
-var matched []symbolInformation
+// matchesIn reports whether path is under any of the given inPaths
+// (prefix match with a path-boundary guard so /foo does not match
+// /foobar). Empty inPaths means "no constraint" → always true.
+func matchesIn(path string, inPaths []string) bool {
+	if len(inPaths) == 0 {
+		return true
+	}
+	for _, p := range inPaths {
+		absIn, err := filepath.Abs(p)
+		if err != nil {
+			continue
+		}
+		if !strings.HasPrefix(path, absIn) {
+			continue
+		}
+		if len(path) == len(absIn) {
+			return true
+		}
+		// Boundary guard: next byte must be a path separator so
+		// /a/foo never matches /a/foobar/baz.
+		if path[len(absIn)] == filepath.Separator {
+			return true
+		}
+	}
+	return false
+}
+
+// isExternalPath reports whether path lives under $GOROOT or
+// $GOPATH/pkg/mod (or the default ~/go/pkg/mod). Used to drop stdlib
+// + vendored deps from ambiguous-symbol candidates when
+// --internal-only is true (the default).
+func isExternalPath(path string) bool {
+	if goroot := runtime.GOROOT(); goroot != "" && strings.HasPrefix(path, goroot+string(filepath.Separator)) {
+		return true
+	}
+	if gopath := os.Getenv("GOPATH"); gopath != "" {
+		mod := filepath.Join(gopath, "pkg", "mod") + string(filepath.Separator)
+		if strings.HasPrefix(path, mod) {
+			return true
+		}
+	}
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		mod := filepath.Join(home, "go", "pkg", "mod") + string(filepath.Separator)
+		if strings.HasPrefix(path, mod) {
+			return true
+		}
+	}
+	return false
+}
 
 func runRefs(d Deps, a *Args) (*Result, *proto.Error) {
-	cacheArgs := map[string]any{"symbol": a.Symbol, "in": a.In, "max": a.MaxRefs, "context": a.Context}
+	cacheArgs := map[string]any{"symbol": a.Symbol, "in": a.InPaths, "max": a.MaxRefs, "context": a.Context, "internal_only": a.InternalOnly}
 	if r, ok := workspaceCacheGet(d, "refs", cacheArgs); ok {
 		return r, nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
-	uri, line, col, perr := resolveSymbolPosition(ctx, d, a.Symbol, a.In)
+	uri, line, col, perr := resolveSymbolPosition(ctx, d, a.Symbol, a.InPaths, a.InternalOnly)
 	if perr != nil {
 		return nil, perr
 	}
@@ -410,13 +485,13 @@ func runRefs(d Deps, a *Args) (*Result, *proto.Error) {
 }
 
 func runImpl(d Deps, a *Args) (*Result, *proto.Error) {
-	cacheArgs := map[string]any{"interface": a.Interface, "in": a.In, "max": a.MaxRefs, "context": a.Context}
+	cacheArgs := map[string]any{"interface": a.Interface, "in": a.InPaths, "max": a.MaxRefs, "context": a.Context, "internal_only": a.InternalOnly}
 	if r, ok := workspaceCacheGet(d, "impl", cacheArgs); ok {
 		return r, nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
-	uri, line, col, perr := resolveSymbolPosition(ctx, d, a.Interface, a.In)
+	uri, line, col, perr := resolveSymbolPosition(ctx, d, a.Interface, a.InPaths, a.InternalOnly)
 	if perr != nil {
 		return nil, perr
 	}
@@ -441,13 +516,13 @@ func runImpl(d Deps, a *Args) (*Result, *proto.Error) {
 }
 
 func runCallers(d Deps, a *Args) (*Result, *proto.Error) {
-	cacheArgs := map[string]any{"symbol": a.Symbol, "in": a.In, "max": a.MaxRefs, "context": a.Context}
+	cacheArgs := map[string]any{"symbol": a.Symbol, "in": a.InPaths, "max": a.MaxRefs, "context": a.Context, "internal_only": a.InternalOnly}
 	if r, ok := workspaceCacheGet(d, "callers", cacheArgs); ok {
 		return r, nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
-	uri, line, col, perr := resolveSymbolPosition(ctx, d, a.Symbol, a.In)
+	uri, line, col, perr := resolveSymbolPosition(ctx, d, a.Symbol, a.InPaths, a.InternalOnly)
 	if perr != nil {
 		return nil, perr
 	}

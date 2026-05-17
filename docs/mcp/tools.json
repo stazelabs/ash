@@ -3536,11 +3536,16 @@
           },
           "in": {
             "type": "string",
-            "description": "[op=def|refs|callers|impl] Optional file scope — disambiguates the symbol/interface lookup to one file."
+            "description": "[op=def|refs|callers|impl] Optional file/directory scope (comma-separated) — narrow which candidates the symbol/interface resolution considers."
           },
           "interface": {
             "type": "string",
             "description": "[op=impl] Interface name; required for op=impl."
+          },
+          "internal-only": {
+            "type": "boolean",
+            "description": "[op=def|refs|callers|impl] Drop candidates from $GOROOT and module cache; pass false to include them.",
+            "default": true
           },
           "max": {
             "type": "integer",

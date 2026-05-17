@@ -175,7 +175,7 @@
         "sites": [
           {
             "file": "internal/verbs/lang/lang.go",
-            "line": 368
+            "line": 398
           }
         ]
       },
@@ -185,7 +185,7 @@
         "sites": [
           {
             "file": "internal/verbs/lang/lang.go",
-            "line": 361
+            "line": 391
           }
         ]
       },
@@ -217,7 +217,7 @@
         "sites": [
           {
             "file": "internal/verbs/lang/lang.go",
-            "line": 280
+            "line": 299
           }
         ],
         "computed": true
@@ -316,27 +316,27 @@
         "sites": [
           {
             "file": "internal/verbs/lang/lang.go",
-            "line": 231
+            "line": 249
           },
           {
             "file": "internal/verbs/lang/lang.go",
-            "line": 254
+            "line": 272
           },
           {
             "file": "internal/verbs/lang/lang.go",
-            "line": 339
+            "line": 362
           },
           {
             "file": "internal/verbs/lang/lang.go",
-            "line": 404
+            "line": 479
           },
           {
             "file": "internal/verbs/lang/lang.go",
-            "line": 432
+            "line": 507
           },
           {
             "file": "internal/verbs/lang/lang.go",
-            "line": 476
+            "line": 551
           }
         ]
       },
@@ -346,7 +346,7 @@
         "sites": [
           {
             "file": "internal/verbs/lang/lang.go",
-            "line": 170
+            "line": 188
           }
         ],
         "hints": [
@@ -362,7 +362,7 @@
         "sites": [
           {
             "file": "internal/verbs/lang/lang.go",
-            "line": 282
+            "line": 301
           }
         ]
       },
@@ -706,7 +706,7 @@
           },
           {
             "file": "internal/verbs/lang/lang.go",
-            "line": 198
+            "line": 216
           },
           {
             "file": "internal/verbs/read/read.go",
@@ -854,7 +854,7 @@
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 629
+            "line": 632
           },
           {
             "file": "internal/verbs/initverb/initverb.go",
@@ -862,7 +862,7 @@
           },
           {
             "file": "internal/verbs/lang/lang.go",
-            "line": 194
+            "line": 212
           },
           {
             "file": "internal/verbs/read/read.go",
@@ -1118,31 +1118,31 @@
           },
           {
             "file": "internal/verbs/lang/lang.go",
-            "line": 111
+            "line": 114
           },
           {
             "file": "internal/verbs/lang/lang.go",
-            "line": 133
+            "line": 151
           },
           {
             "file": "internal/verbs/lang/lang.go",
-            "line": 139
+            "line": 157
           },
           {
             "file": "internal/verbs/lang/lang.go",
-            "line": 143
+            "line": 161
           },
           {
             "file": "internal/verbs/lang/lang.go",
-            "line": 147
+            "line": 165
           },
           {
             "file": "internal/verbs/lang/lang.go",
-            "line": 184
+            "line": 202
           },
           {
             "file": "internal/verbs/lang/lang.go",
-            "line": 190
+            "line": 208
           },
           {
             "file": "internal/verbs/read/read.go",
@@ -1510,7 +1510,7 @@
           },
           {
             "file": "internal/verbs/lang/lang.go",
-            "line": 196
+            "line": 214
           },
           {
             "file": "internal/verbs/read/read.go",
@@ -1623,6 +1623,11 @@
         "literal": "--export_md",
         "cl100k_tokens": 3,
         "context": "bench"
+      },
+      {
+        "literal": "--internal-only",
+        "cl100k_tokens": 3,
+        "context": "lang"
       },
       {
         "literal": "--list_limit",
@@ -2263,11 +2268,11 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 675
+            "line": 678
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 681
+            "line": 684
           }
         ]
       },
@@ -2361,7 +2366,7 @@
         "sites": [
           {
             "file": "internal/verbs/lang/lang.go",
-            "line": 788
+            "line": 863
           }
         ]
       },
@@ -2593,7 +2598,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 947
+            "line": 950
           }
         ]
       },
@@ -2715,7 +2720,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 686
+            "line": 689
           }
         ]
       },
