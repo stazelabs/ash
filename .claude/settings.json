@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(bin/ash *)",
-      "Bash(/Users/cstaszak/Stazelabs/projects/ash/bin/ash *)"
+      "Bash(go build *)",
+      "Bash(make all)",
+      "Bash(make vocab)",
+      "Bash(bin/encexplore probe *)"
     ]
   },
   "hooks": {
