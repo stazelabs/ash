@@ -3,15 +3,18 @@
 //
 // Ops:
 //
-//	outline --path <p>             one row per top-level decl in a file
-//	def     --symbol <name> [--in <p>]   definition site(s) by symbol name
+//	outline --path <p>                       per-file symbols
+//	def     --symbol <name> [--in <p>]       definition site(s)
+//	refs    --symbol <name> [--in <p>]       every reference (call site)
+//	callers --symbol <name>                  incoming call-graph (1 level)
+//	impl    --interface <name>               implementations of an iface
 //
 // outline routes to textDocument/documentSymbol and is fully cached on
-// (path_abs, mtime_ns, op, args_hash). def routes to workspace/symbol
-// and is intentionally NOT cached today: a workspace-scoped LSP
-// response cannot be invalidated by single-file mtime keying, and the
-// alternative (workspace-wide invalidation) is out of scope for this
-// ticket. ASH-D will revisit caching when richer workspace verbs land.
+// (path_abs, mtime_ns, op, args_hash). The other four are workspace-
+// scoped — gopls's answer depends on workspace state, which we cannot
+// invalidate cleanly via per-file mtime keying. They are intentionally
+// uncached today; ASH-141's replay validation will tell us whether a
+// workspace-watermark cache layer is worth building.
 package lang
 
 import (
@@ -41,10 +44,13 @@ const (
 
 // Args is the daemon-side parsed argument set.
 type Args struct {
-	Op     string
-	Path   string
-	Symbol string
-	In     string
+	Op        string
+	Path      string
+	Symbol    string
+	Interface string
+	In        string
+	MaxRefs   int
+	Context   bool
 }
 
 // Result is the structured response wire shape.
@@ -54,9 +60,13 @@ type Result struct {
 	CacheHit bool           `msgpack:"cache_hit,omitempty"`
 }
 
-// SymbolRecord is one decl (outline) or one workspace match (def).
-// Positions are 1-based to match the rest of the ash verb surface;
-// LSP wire ranges are 0-based and converted on the way out.
+// SymbolRecord is the unified row type for outline / def / refs / callers
+// / impl. Different ops populate different subsets — Kind and Detail are
+// empty for refs (where there is no symbol; only a position), Container
+// carries the caller name for callers, and so on.
+//
+// Positions are 1-based to match the rest of the ash verb surface; LSP
+// wire ranges are 0-based and converted on the way out.
 type SymbolRecord struct {
 	Name      string `msgpack:"name"`
 	Kind      string `msgpack:"kind"`
@@ -67,6 +77,10 @@ type SymbolRecord struct {
 	Col       int    `msgpack:"col,omitempty"`
 	EndLine   int    `msgpack:"end_line,omitempty"`
 	EndCol    int    `msgpack:"end_col,omitempty"`
+	// ContextLine is the single line of source at Line (for refs/callers
+	// when --context=true). Trimmed of leading whitespace; capped at
+	// ~200 chars so a single long line cannot blow the response.
+	ContextLine string `msgpack:"context_line,omitempty"`
 }
 
 // Deps is the daemon-side dependency bundle. The runner in
@@ -79,7 +93,8 @@ type Deps struct {
 }
 
 var knownArgs = map[string]struct{}{
-	"op": {}, "path": {}, "symbol": {}, "in": {},
+	"op": {}, "path": {}, "symbol": {}, "interface": {},
+	"in": {}, "max": {}, "context": {},
 }
 
 // ParseArgs validates the loosely-typed args from the wire and produces
@@ -91,9 +106,9 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 		return nil, perr
 	}
 	switch a.Op {
-	case "outline", "def":
+	case "outline", "def", "refs", "callers", "impl":
 	default:
-		return nil, &proto.Error{Code: "args", Msg: "unknown op: " + a.Op, Hint: "valid ops: outline, def"}
+		return nil, &proto.Error{Code: "args", Msg: "unknown op: " + a.Op, Hint: "valid ops: outline, def, refs, callers, impl"}
 	}
 	if a.Path, perr = argutil.OptionalString(in, "path", ""); perr != nil {
 		return nil, perr
@@ -101,7 +116,16 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Symbol, perr = argutil.OptionalString(in, "symbol", ""); perr != nil {
 		return nil, perr
 	}
+	if a.Interface, perr = argutil.OptionalString(in, "interface", ""); perr != nil {
+		return nil, perr
+	}
 	if a.In, perr = argutil.OptionalString(in, "in", ""); perr != nil {
+		return nil, perr
+	}
+	if a.MaxRefs, perr = argutil.OptionalPosInt(in, "max", 256, 4096); perr != nil {
+		return nil, perr
+	}
+	if a.Context, perr = argutil.OptionalBool(in, "context", true); perr != nil {
 		return nil, perr
 	}
 	for k := range in {
@@ -114,9 +138,13 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 		if a.Path == "" {
 			return nil, &proto.Error{Code: "args", Msg: "outline requires --path"}
 		}
-	case "def":
+	case "def", "refs", "callers":
 		if a.Symbol == "" {
-			return nil, &proto.Error{Code: "args", Msg: "def requires --symbol"}
+			return nil, &proto.Error{Code: "args", Msg: a.Op + " requires --symbol"}
+		}
+	case "impl":
+		if a.Interface == "" {
+			return nil, &proto.Error{Code: "args", Msg: "impl requires --interface"}
 		}
 	}
 	paths := map[string]string{}
@@ -146,6 +174,12 @@ func RunWithDeps(d Deps, a *Args) (*Result, *proto.Error) {
 		return runOutline(d, a)
 	case "def":
 		return runDef(d, a)
+	case "refs":
+		return runRefs(d, a)
+	case "callers":
+		return runCallers(d, a)
+	case "impl":
+		return runImpl(d, a)
 	}
 	return nil, &proto.Error{Code: "args", Msg: "unknown op: " + a.Op}
 }
@@ -243,6 +277,259 @@ func brokerError(err error) *proto.Error {
 	return &proto.Error{Code: "lsp_request", Msg: err.Error()}
 }
 
+// resolveSymbolPosition takes a symbol name and returns a (uri, line, col)
+// suitable for the position-based LSP methods (references, callHierarchy,
+// implementation). The lookup uses workspace/symbol filtered to an exact
+// name match, optionally constrained to a single file via inFile.
+//
+// Returns lsp_not_found if no exact-name match exists, or lsp_ambiguous
+// when multiple matches survive the inFile filter — those cases need a
+// caller decision ("which Foo?") rather than a silent pick.
+func resolveSymbolPosition(ctx context.Context, d Deps, name, inFile string) (string, int, int, *proto.Error) {
+	var raw json.RawMessage
+	if err := d.Broker.Request(ctx, "workspace/symbol", map[string]any{
+		"query": name,
+	}, &raw); err != nil {
+		return "", 0, 0, brokerError(err)
+	}
+	var symbols []symbolInformation
+	if err := json.Unmarshal(raw, &symbols); err != nil {
+		return "", 0, 0, &proto.Error{Code: "lsp_decode", Msg: err.Error()}
+	}
+	matched := matched[:0:0]
+	for _, s := range symbols {
+		if s.Name != name {
+			continue
+		}
+		if inFile != "" {
+			absIn, _ := filepath.Abs(inFile)
+			absSym := uriToPath(s.Location.URI)
+			if absSym != absIn {
+				continue
+			}
+		}
+		matched = append(matched, s)
+	}
+	switch len(matched) {
+	case 0:
+		hint := ""
+		if inFile != "" {
+			hint = "--in narrowed the search to one file; try without it"
+		}
+		return "", 0, 0, &proto.Error{Code: "lsp_not_found", Msg: "no exact match for symbol " + name, Hint: hint}
+	case 1:
+	default:
+		paths := make([]string, 0, len(matched))
+		for _, s := range matched {
+			paths = append(paths, relPath(uriToPath(s.Location.URI), d.ProjectRoot))
+		}
+		return "", 0, 0, &proto.Error{
+			Code: "lsp_ambiguous",
+			Msg:  fmt.Sprintf("symbol %q matched %d locations", name, len(matched)),
+			Hint: "narrow with --in <path>; candidates: " + strings.Join(paths, ", "),
+		}
+	}
+	loc := matched[0].Location
+	return loc.URI, loc.Range.Start.Line, loc.Range.Start.Character, nil
+}
+
+// matched is a typed nil sentinel for resolveSymbolPosition's
+// accumulator — using a named var keeps the [:0:0] slice trick out of
+// the function body where it would just be noise.
+var matched []symbolInformation
+
+func runRefs(d Deps, a *Args) (*Result, *proto.Error) {
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	defer cancel()
+	uri, line, col, perr := resolveSymbolPosition(ctx, d, a.Symbol, a.In)
+	if perr != nil {
+		return nil, perr
+	}
+	var raw json.RawMessage
+	if err := d.Broker.Request(ctx, "textDocument/references", map[string]any{
+		"textDocument": map[string]any{"uri": uri},
+		"position":     map[string]any{"line": line, "character": col},
+		"context":      map[string]any{"includeDeclaration": true},
+	}, &raw); err != nil {
+		return nil, brokerError(err)
+	}
+	locs, ok := decodeLocations(raw)
+	if !ok {
+		return nil, &proto.Error{Code: "lsp_decode", Msg: "could not parse references response"}
+	}
+	records := locationsToRecords(locs, d.ProjectRoot, a.MaxRefs, a.Context)
+	return &Result{Op: "refs", Symbols: records}, nil
+}
+
+func runImpl(d Deps, a *Args) (*Result, *proto.Error) {
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	defer cancel()
+	uri, line, col, perr := resolveSymbolPosition(ctx, d, a.Interface, a.In)
+	if perr != nil {
+		return nil, perr
+	}
+	var raw json.RawMessage
+	if err := d.Broker.Request(ctx, "textDocument/implementation", map[string]any{
+		"textDocument": map[string]any{"uri": uri},
+		"position":     map[string]any{"line": line, "character": col},
+	}, &raw); err != nil {
+		return nil, brokerError(err)
+	}
+	locs, ok := decodeLocations(raw)
+	if !ok {
+		return nil, &proto.Error{Code: "lsp_decode", Msg: "could not parse implementation response"}
+	}
+	records := locationsToRecords(locs, d.ProjectRoot, a.MaxRefs, a.Context)
+	for i := range records {
+		records[i].Kind = "impl"
+	}
+	return &Result{Op: "impl", Symbols: records}, nil
+}
+
+func runCallers(d Deps, a *Args) (*Result, *proto.Error) {
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	defer cancel()
+	uri, line, col, perr := resolveSymbolPosition(ctx, d, a.Symbol, a.In)
+	if perr != nil {
+		return nil, perr
+	}
+	// Step 1: prepareCallHierarchy → CallHierarchyItem[]. gopls returns
+	// the item(s) at the cursor; pick the first.
+	var prepRaw json.RawMessage
+	if err := d.Broker.Request(ctx, "textDocument/prepareCallHierarchy", map[string]any{
+		"textDocument": map[string]any{"uri": uri},
+		"position":     map[string]any{"line": line, "character": col},
+	}, &prepRaw); err != nil {
+		return nil, brokerError(err)
+	}
+	var items []callHierarchyItem
+	if err := json.Unmarshal(prepRaw, &items); err != nil || len(items) == 0 {
+		return &Result{Op: "callers", Symbols: nil}, nil
+	}
+	// Step 2: incomingCalls(item) → CallHierarchyIncomingCall[].
+	var inRaw json.RawMessage
+	if err := d.Broker.Request(ctx, "callHierarchy/incomingCalls", map[string]any{
+		"item": items[0],
+	}, &inRaw); err != nil {
+		return nil, brokerError(err)
+	}
+	var incoming []callHierarchyIncomingCall
+	if err := json.Unmarshal(inRaw, &incoming); err != nil {
+		return nil, &proto.Error{Code: "lsp_decode", Msg: err.Error()}
+	}
+	out := make([]SymbolRecord, 0, len(incoming))
+	for _, ic := range incoming {
+		// Each fromRange marks a call site inside ic.From. Emit one row
+		// per call site so a caller that invokes the target twice shows
+		// both lines. Cap by a.MaxRefs.
+		for _, fr := range ic.FromRanges {
+			if len(out) >= a.MaxRefs {
+				break
+			}
+			rec := SymbolRecord{
+				Name:      ic.From.Name,
+				Kind:      lspKindName(ic.From.Kind),
+				Container: ic.From.Detail,
+				Path:      relPath(uriToPath(ic.From.URI), d.ProjectRoot),
+				Line:      fr.Start.Line + 1,
+				Col:       fr.Start.Character + 1,
+				EndLine:   fr.End.Line + 1,
+				EndCol:    fr.End.Character + 1,
+			}
+			if a.Context {
+				rec.ContextLine = readContextLine(uriToPath(ic.From.URI), fr.Start.Line)
+			}
+			out = append(out, rec)
+		}
+		if len(out) >= a.MaxRefs {
+			break
+		}
+	}
+	return &Result{Op: "callers", Symbols: out}, nil
+}
+
+// decodeLocations parses textDocument/references and
+// textDocument/implementation responses, both of which are Location[].
+// A null result (no references / no implementations) decodes to an
+// empty slice with ok=true so callers do not need a special path.
+func decodeLocations(raw json.RawMessage) ([]lspLocation, bool) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, true
+	}
+	var locs []lspLocation
+	if err := json.Unmarshal(raw, &locs); err != nil {
+		return nil, false
+	}
+	return locs, true
+}
+
+func locationsToRecords(locs []lspLocation, projectRoot string, maxRefs int, includeContext bool) []SymbolRecord {
+	if maxRefs <= 0 {
+		maxRefs = len(locs)
+	}
+	if len(locs) > maxRefs {
+		locs = locs[:maxRefs]
+	}
+	out := make([]SymbolRecord, 0, len(locs))
+	for _, l := range locs {
+		abs := uriToPath(l.URI)
+		rec := SymbolRecord{
+			Path:    relPath(abs, projectRoot),
+			Line:    l.Range.Start.Line + 1,
+			Col:     l.Range.Start.Character + 1,
+			EndLine: l.Range.End.Line + 1,
+			EndCol:  l.Range.End.Character + 1,
+		}
+		if includeContext {
+			rec.ContextLine = readContextLine(abs, l.Range.Start.Line)
+		}
+		out = append(out, rec)
+	}
+	return out
+}
+
+// readContextLine returns the (0-based) line at path, trimmed of
+// leading whitespace and capped at 200 chars. Empty string on any
+// failure — context is best-effort decoration, not load-bearing.
+func readContextLine(path string, line int) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	// Walk to the target line via a byte scan; cheaper than splitting
+	// the whole file on a workspace-wide refs sweep.
+	var start, idx int
+	for i := 0; i < line; i++ {
+		nl := bytesIndexByteFrom(data, '\n', start)
+		if nl < 0 {
+			return ""
+		}
+		start = nl + 1
+		idx++
+	}
+	end := bytesIndexByteFrom(data, '\n', start)
+	if end < 0 {
+		end = len(data)
+	}
+	raw := strings.TrimLeft(string(data[start:end]), " \t")
+	if len(raw) > 200 {
+		raw = raw[:200] + "…"
+	}
+	return raw
+}
+
+func bytesIndexByteFrom(buf []byte, c byte, from int) int {
+	if from >= len(buf) {
+		return -1
+	}
+	for i := from; i < len(buf); i++ {
+		if buf[i] == c {
+			return i
+		}
+	}
+	return -1
+}
+
 // ----------------------------------------------------------------------
 // LSP response decoding
 
@@ -275,6 +562,25 @@ type symbolInformation struct {
 	Kind          int         `json:"kind"`
 	Location      lspLocation `json:"location"`
 	ContainerName string      `json:"containerName,omitempty"`
+}
+
+// callHierarchyItem mirrors LSP §3.16.2. We capture the fields we
+// surface back to the agent + the opaque Data blob gopls round-trips
+// to itself between prepareCallHierarchy and incomingCalls.
+type callHierarchyItem struct {
+	Name           string          `json:"name"`
+	Kind           int             `json:"kind"`
+	Tags           []int           `json:"tags,omitempty"`
+	Detail         string          `json:"detail,omitempty"`
+	URI            string          `json:"uri"`
+	Range          lspRange        `json:"range"`
+	SelectionRange lspRange        `json:"selectionRange"`
+	Data           json.RawMessage `json:"data,omitempty"`
+}
+
+type callHierarchyIncomingCall struct {
+	From       callHierarchyItem `json:"from"`
+	FromRanges []lspRange        `json:"fromRanges"`
 }
 
 // decodeDocumentSymbols flattens gopls's documentSymbol response. gopls
@@ -419,7 +725,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if r.CacheHit {
 		cacheTag = " cache=hit"
 	}
-	fmt.Fprintf(&b, "§lang %s: %d symbol(s)%s\n", r.Op, len(r.Symbols), cacheTag)
+	fmt.Fprintf(&b, "§lang %s: %d row(s)%s\n", r.Op, len(r.Symbols), cacheTag)
 	for _, s := range r.Symbols {
 		container := ""
 		if s.Container != "" {
@@ -429,8 +735,24 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		if s.Detail != "" {
 			detail = " " + s.Detail
 		}
-		fmt.Fprintf(&b, "  %-9s %s%s%s  [%s:%d:%d]\n",
-			s.Kind, container, s.Name, detail, s.Path, s.Line, s.Col)
+		// refs rows have no Name — emit just path:line:col + ctx.
+		switch r.Op {
+		case "refs", "impl":
+			if s.ContextLine != "" {
+				fmt.Fprintf(&b, "  %s:%d:%d  %s\n", s.Path, s.Line, s.Col, s.ContextLine)
+			} else {
+				fmt.Fprintf(&b, "  %s:%d:%d\n", s.Path, s.Line, s.Col)
+			}
+		default:
+			label := strings.TrimSpace(container + s.Name + detail)
+			if r.Op == "callers" && s.ContextLine != "" {
+				fmt.Fprintf(&b, "  %-9s %s  [%s:%d:%d]  %s\n",
+					s.Kind, label, s.Path, s.Line, s.Col, s.ContextLine)
+			} else {
+				fmt.Fprintf(&b, "  %-9s %s  [%s:%d:%d]\n",
+					s.Kind, label, s.Path, s.Line, s.Col)
+			}
+		}
 	}
 	return strings.TrimRight(b.String(), "\n")
 }

@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stazelabs/ash/internal/lsp"
@@ -130,6 +131,110 @@ func TestOutline_CachedRoundTrip(t *testing.T) {
 	}
 	if s := c.Snapshot(); s.Hits < 1 || s.Puts < 1 {
 		t.Errorf("cache counters: %+v want hits>=1 puts>=1", s)
+	}
+}
+
+// TestRefs_Roundtrip exercises ash lang refs end-to-end: workspace/symbol
+// resolves the position, textDocument/references returns the callsites,
+// and context lines populate from local reads.
+func TestRefs_Roundtrip(t *testing.T) {
+	goplsAvailable(t)
+	root := goModWorkspace(t)
+	// Add a caller so refs has at least 2 results (decl + 1 caller).
+	mustWrite(t, filepath.Join(root, "caller.go"), "package p\n\nfunc CallSite() error { return Run() }\n")
+	broker := lsp.New(lsp.Config{Enabled: true, Root: root})
+	t.Cleanup(func() { _ = broker.Close() })
+	deps := Deps{Broker: broker, ProjectRoot: root}
+
+	res, perr := RunWithDeps(deps, &Args{Op: "refs", Symbol: "Run", MaxRefs: 256, Context: true})
+	if perr != nil {
+		t.Fatalf("refs: %v", perr)
+	}
+	if len(res.Symbols) < 2 {
+		t.Fatalf("refs returned %d rows; want >= 2 (decl + caller). result=%+v", len(res.Symbols), res)
+	}
+	foundCtx := false
+	for _, s := range res.Symbols {
+		if strings.Contains(s.ContextLine, "Run") {
+			foundCtx = true
+			break
+		}
+	}
+	if !foundCtx {
+		t.Errorf("no context line carried Run reference; symbols=%+v", res.Symbols)
+	}
+}
+
+// TestRefs_NotFound covers the lsp_not_found path: a name that doesn't
+// resolve via workspace/symbol returns a typed error, not an empty
+// success.
+func TestRefs_NotFound(t *testing.T) {
+	goplsAvailable(t)
+	root := goModWorkspace(t)
+	broker := lsp.New(lsp.Config{Enabled: true, Root: root})
+	t.Cleanup(func() { _ = broker.Close() })
+	deps := Deps{Broker: broker, ProjectRoot: root}
+
+	_, perr := RunWithDeps(deps, &Args{Op: "refs", Symbol: "NoSuchSymbolEverXYZZY", MaxRefs: 256, Context: false})
+	if perr == nil || perr.Code != "lsp_not_found" {
+		t.Fatalf("want lsp_not_found, got %v", perr)
+	}
+}
+
+// TestImpl_FindsImplementers writes a small interface + two impls and
+// checks impl returns both.
+func TestImpl_FindsImplementers(t *testing.T) {
+	goplsAvailable(t)
+	root := goModWorkspace(t)
+	mustWrite(t, filepath.Join(root, "iface.go"), `package p
+
+type Speaker interface {
+	Speak() string
+}
+
+type Dog struct{}
+
+func (Dog) Speak() string { return "woof" }
+
+type Cat struct{}
+
+func (Cat) Speak() string { return "meow" }
+`)
+	broker := lsp.New(lsp.Config{Enabled: true, Root: root})
+	t.Cleanup(func() { _ = broker.Close() })
+	deps := Deps{Broker: broker, ProjectRoot: root}
+
+	res, perr := RunWithDeps(deps, &Args{Op: "impl", Interface: "Speaker", MaxRefs: 256})
+	if perr != nil {
+		t.Fatalf("impl: %v", perr)
+	}
+	if len(res.Symbols) < 2 {
+		t.Fatalf("impl returned %d rows; want >= 2 (Dog, Cat). result=%+v", len(res.Symbols), res)
+	}
+}
+
+// TestCallers_FindsIncoming covers the two-step callHierarchy path.
+// CallSite calls Run, so callers --symbol Run should include CallSite.
+func TestCallers_FindsIncoming(t *testing.T) {
+	goplsAvailable(t)
+	root := goModWorkspace(t)
+	mustWrite(t, filepath.Join(root, "caller.go"), "package p\n\nfunc CallSite() error { return Run() }\n")
+	broker := lsp.New(lsp.Config{Enabled: true, Root: root})
+	t.Cleanup(func() { _ = broker.Close() })
+	deps := Deps{Broker: broker, ProjectRoot: root}
+
+	res, perr := RunWithDeps(deps, &Args{Op: "callers", Symbol: "Run", MaxRefs: 256, Context: false})
+	if perr != nil {
+		t.Fatalf("callers: %v", perr)
+	}
+	gotCallSite := false
+	for _, s := range res.Symbols {
+		if s.Name == "CallSite" {
+			gotCallSite = true
+		}
+	}
+	if !gotCallSite {
+		t.Errorf("callers did not include CallSite; got %+v", res.Symbols)
 	}
 }
 

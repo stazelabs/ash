@@ -3515,11 +3515,16 @@
     },
     {
       "name": "ash_lang",
-      "description": "Semantic queries via the LSP broker: outline (per-file symbols) and def (definition by name).",
+      "description": "Semantic queries via the LSP broker: outline, def, refs, callers, impl.",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
+          "context": {
+            "type": "boolean",
+            "description": "[op=refs|callers|impl] Include the source line at each match.",
+            "default": true
+          },
           "format": {
             "type": "string",
             "description": "Response shape: \"json\" (default) ships structured data as TextContent; \"pretty\" ships the daemon-pretty text and skips structuredContent, matching CLI token cost. MCP-only knob; ignored on the CLI.",
@@ -3531,14 +3536,26 @@
           },
           "in": {
             "type": "string",
-            "description": "[op=def] Optional file scope for def — match only results in this path."
+            "description": "[op=def|refs|callers|impl] Optional file scope — disambiguates the symbol/interface lookup to one file."
+          },
+          "interface": {
+            "type": "string",
+            "description": "[op=impl] Interface name; required for op=impl."
+          },
+          "max": {
+            "type": "integer",
+            "description": "[op=refs|callers|impl] Max rows returned; hard cap 4096.",
+            "default": 256
           },
           "op": {
             "type": "string",
             "description": "Subcommand to run.",
             "enum": [
               "outline",
-              "def"
+              "def",
+              "refs",
+              "callers",
+              "impl"
             ]
           },
           "path": {
@@ -3547,7 +3564,7 @@
           },
           "symbol": {
             "type": "string",
-            "description": "[op=def] Symbol name to find; required for op=def."
+            "description": "[op=def|refs|callers] Symbol name to find; required for def/refs/callers."
           }
         },
         "required": [
@@ -3575,6 +3592,10 @@
                 },
                 "container": {
                   "type": "string"
+                },
+                "context_line": {
+                  "type": "string",
+                  "description": "ContextLine is the single line of source at Line (for refs/callers\nwhen --context=true). Trimmed of leading whitespace; capped at\n~200 chars so a single long line cannot blow the response."
                 },
                 "detail": {
                   "type": "string"
