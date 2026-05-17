@@ -592,8 +592,20 @@
                     "binary": {
                       "type": "boolean"
                     },
+                    "context_elided": {
+                      "type": "boolean",
+                      "description": "ContextElided is true when one or more hunks in Patch had their\ncontext (\" \"-prefixed) lines collapsed into an inline sentinel to\nfit the budget. Changed lines (+ / -) are always preserved."
+                    },
                     "deletions": {
                       "type": "integer"
+                    },
+                    "hunks_shown": {
+                      "type": "integer",
+                      "description": "HunksShown is how many hunks Patch actually contains. Counts a\ncontext-elided hunk as 1."
+                    },
+                    "hunks_total": {
+                      "type": "integer",
+                      "description": "HunksTotal is the number of hunks the upstream patch contained.\nZero when there were none (binary, pure rename, etc.) or when the\npatch was not truncated (the field omits-on-zero on the wire)."
                     },
                     "old_path": {
                       "type": "string",
@@ -601,6 +613,10 @@
                     },
                     "patch": {
                       "type": "string"
+                    },
+                    "patch_truncated": {
+                      "type": "boolean",
+                      "description": "PatchTruncated is true when Patch contains fewer bytes than the\nraw upstream patch — either because hunks were dropped (multi-hunk\noverflow), context lines were elided (single huge hunk), or the\npatch was omitted entirely (per-file budget exhausted)."
                     },
                     "path": {
                       "type": "string"
@@ -824,8 +840,20 @@
                         "binary": {
                           "type": "boolean"
                         },
+                        "context_elided": {
+                          "type": "boolean",
+                          "description": "ContextElided is true when one or more hunks in Patch had their\ncontext (\" \"-prefixed) lines collapsed into an inline sentinel to\nfit the budget. Changed lines (+ / -) are always preserved."
+                        },
                         "deletions": {
                           "type": "integer"
+                        },
+                        "hunks_shown": {
+                          "type": "integer",
+                          "description": "HunksShown is how many hunks Patch actually contains. Counts a\ncontext-elided hunk as 1."
+                        },
+                        "hunks_total": {
+                          "type": "integer",
+                          "description": "HunksTotal is the number of hunks the upstream patch contained.\nZero when there were none (binary, pure rename, etc.) or when the\npatch was not truncated (the field omits-on-zero on the wire)."
                         },
                         "old_path": {
                           "type": "string",
@@ -833,6 +861,10 @@
                         },
                         "patch": {
                           "type": "string"
+                        },
+                        "patch_truncated": {
+                          "type": "boolean",
+                          "description": "PatchTruncated is true when Patch contains fewer bytes than the\nraw upstream patch — either because hunks were dropped (multi-hunk\noverflow), context lines were elided (single huge hunk), or the\npatch was omitted entirely (per-file budget exhausted)."
                         },
                         "path": {
                           "type": "string"

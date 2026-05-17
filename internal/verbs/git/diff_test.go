@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -248,12 +249,191 @@ func TestParseDiffUnified_ByteCapDropsLaterPatches(t *testing.T) {
 	if res.Files[1].Patch != "" {
 		t.Errorf("second file patch should be omitted (byte cap)")
 	}
+	// ASH-150: dropped files set PatchTruncated; the file that fit does not.
+	if res.Files[0].PatchTruncated {
+		t.Errorf("first file patch_truncated should be false (full include)")
+	}
+	if !res.Files[1].PatchTruncated {
+		t.Errorf("second file patch_truncated should be true (whole-file drop)")
+	}
 	if !res.Truncated {
 		t.Errorf("expected truncated=true")
 	}
 	// Stats for both files should still be present.
 	if res.TotalAdditions != 2 || res.TotalDeletions != 2 {
 		t.Errorf("totals add=%d del=%d want 2/2", res.TotalAdditions, res.TotalDeletions)
+	}
+}
+
+// TestParseDiffUnified_HunkLevelTruncation covers ASH-150's multi-hunk
+// overflow path: a file's patch has 3 hunks, the budget fits 2, the
+// third is dropped with a structured sentinel.
+func TestParseDiffUnified_HunkLevelTruncation(t *testing.T) {
+	patch := "" +
+		"diff --git a/big.go b/big.go\n" +
+		"index 1..2 100644\n" +
+		"--- a/big.go\n" +
+		"+++ b/big.go\n" +
+		"@@ -1,3 +1,3 @@\n one\n-two\n+TWO\n three\n" +
+		"@@ -10,3 +10,3 @@\n ten\n-eleven\n+ELEVEN\n twelve\n" +
+		"@@ -20,3 +20,3 @@\n twenty\n-twentyone\n+TWENTYONE\n twentytwo\n"
+
+	// Compute a budget that fits the header + first two hunks but not the third.
+	header, hunks := splitPatchHunks(patch)
+	if len(hunks) != 3 {
+		t.Fatalf("fixture should split into 3 hunks, got %d", len(hunks))
+	}
+	budget := len(header) + len(hunks[0]) + len(hunks[1])
+
+	res, perr := parseDiffUnified([]byte(patch), budget)
+	if perr != nil {
+		t.Fatal(perr)
+	}
+	if len(res.Files) != 1 {
+		t.Fatalf("want 1 file, got %d", len(res.Files))
+	}
+	f := res.Files[0]
+	if !f.PatchTruncated {
+		t.Errorf("expected PatchTruncated=true")
+	}
+	if f.HunksTotal != 3 || f.HunksShown != 2 {
+		t.Errorf("want hunks_total=3 hunks_shown=2; got %d / %d", f.HunksTotal, f.HunksShown)
+	}
+	if f.ContextElided {
+		t.Errorf("context_elided should be false for multi-hunk overflow")
+	}
+	if !strings.Contains(f.Patch, "[hunks: 2 shown, 1 omitted") {
+		t.Errorf("expected hunks-omitted sentinel, got patch:\n%s", f.Patch)
+	}
+	// Stats reflect the FULL upstream patch.
+	if f.Additions != 3 || f.Deletions != 3 {
+		t.Errorf("stats add=%d del=%d want 3/3 (full file)", f.Additions, f.Deletions)
+	}
+}
+
+// TestParseDiffUnified_ContextElide covers ASH-150's single-huge-hunk
+// path: one hunk that alone exceeds the budget gets its context lines
+// stripped, leaving only +/- changes plus a sentinel.
+func TestParseDiffUnified_ContextElide(t *testing.T) {
+	// Build a hunk with one + and one -, surrounded by lots of context.
+	var bodyB strings.Builder
+	bodyB.WriteString("@@ -1,40 +1,40 @@\n")
+	for i := 0; i < 20; i++ {
+		bodyB.WriteString(" context line that is reasonably long to inflate the byte count\n")
+	}
+	bodyB.WriteString("-old changed line\n+new changed line\n")
+	for i := 0; i < 19; i++ {
+		bodyB.WriteString(" more context that pads the hunk size out further\n")
+	}
+	hunk := bodyB.String()
+	patch := "diff --git a/json.json b/json.json\nindex 1..2 100644\n--- a/json.json\n+++ b/json.json\n" + hunk
+
+	// Budget: enough for header + the elided hunk, but not the full hunk.
+	header, _ := splitPatchHunks(patch)
+	elided, _, _, ok := elideHunkContext(hunk)
+	if !ok {
+		t.Fatalf("elideHunkContext should succeed")
+	}
+	// Pad a little for the sentinel we append after the elided body.
+	budget := len(header) + len(elided) + 120
+
+	res, perr := parseDiffUnified([]byte(patch), budget)
+	if perr != nil {
+		t.Fatal(perr)
+	}
+	if len(res.Files) != 1 {
+		t.Fatalf("want 1 file, got %d", len(res.Files))
+	}
+	f := res.Files[0]
+	if !f.PatchTruncated {
+		t.Errorf("expected PatchTruncated=true")
+	}
+	if !f.ContextElided {
+		t.Errorf("expected ContextElided=true for single-huge-hunk")
+	}
+	if f.HunksTotal != 1 || f.HunksShown != 1 {
+		t.Errorf("want hunks_total=1 hunks_shown=1; got %d / %d", f.HunksTotal, f.HunksShown)
+	}
+	if !strings.Contains(f.Patch, "context lines elided") {
+		t.Errorf("expected context-elided sentinel in patch:\n%s", f.Patch)
+	}
+	if !strings.Contains(f.Patch, "-old changed line") || !strings.Contains(f.Patch, "+new changed line") {
+		t.Errorf("changed lines should survive elision:\n%s", f.Patch)
+	}
+}
+
+// TestParseDiffUnified_SingleLineJSONOverflow is the regression fixture
+// from the ASH-150 ticket: a single-line JSON file whose diff expands
+// into a huge hunk via context. The new path returns a useful partial
+// patch, not a bare stat line.
+func TestParseDiffUnified_SingleLineJSONOverflow(t *testing.T) {
+	// Synthesize a one-line-JSON-style diff: one massive +/- pair with
+	// no surrounding context (single line, full-file replacement).
+	oldBlob := strings.Repeat("x", 200<<10) // 200 KiB of x's
+	newBlob := strings.Repeat("y", 200<<10)
+	patch := "diff --git a/inventory.json b/inventory.json\n" +
+		"index 1..2 100644\n" +
+		"--- a/inventory.json\n" +
+		"+++ b/inventory.json\n" +
+		"@@ -1 +1 @@\n" +
+		"-" + oldBlob + "\n" +
+		"+" + newBlob + "\n"
+
+	// Budget of 4 KiB — old behavior would mid-slice the 200 KiB +/-
+	// lines and emit garbage. New behavior: drop the whole patch
+	// (single hunk doesn't fit even after elision since +/- ARE the
+	// changes) and mark PatchTruncated so the caller knows.
+	res, perr := parseDiffUnified([]byte(patch), 4096)
+	if perr != nil {
+		t.Fatal(perr)
+	}
+	if len(res.Files) != 1 {
+		t.Fatalf("want 1 file, got %d", len(res.Files))
+	}
+	f := res.Files[0]
+	if !f.PatchTruncated {
+		t.Errorf("expected PatchTruncated=true for over-budget single-line JSON")
+	}
+	// Either we got 0 hunks shown (whole drop) or 1 (context-elided)
+	// — both are valid graceful-degradation outcomes. What is NOT
+	// valid is a mid-line slice.
+	if !strings.Contains(f.Patch, "hunks:") && f.HunksShown != 1 {
+		t.Errorf("expected hunks sentinel or context-elided fragment, got:\n%s", f.Patch)
+	}
+	// Stats reflect the FULL upstream change regardless of patch shape.
+	if f.Additions == 0 || f.Deletions == 0 {
+		t.Errorf("stats lost; got +%d -%d", f.Additions, f.Deletions)
+	}
+}
+
+func TestSplitPatchHunks_NoHunks(t *testing.T) {
+	patch := "diff --git a/x.png b/x.png\nindex 1..2 100644\nBinary files a/x.png and b/x.png differ\n"
+	header, hunks := splitPatchHunks(patch)
+	if header != patch {
+		t.Errorf("header should equal full patch when no hunks")
+	}
+	if len(hunks) != 0 {
+		t.Errorf("want 0 hunks, got %d", len(hunks))
+	}
+}
+
+func TestElideHunkContext_KeepsChanges(t *testing.T) {
+	hunk := "@@ -1,5 +1,5 @@\n a\n b\n-OLD\n+NEW\n c\n d\n"
+	out, kept, elided, ok := elideHunkContext(hunk)
+	if !ok {
+		t.Fatalf("elideHunkContext returned ok=false on a valid hunk")
+	}
+	if kept != 2 {
+		t.Errorf("want kept=2 (one + one -), got %d", kept)
+	}
+	if elided != 4 {
+		t.Errorf("want elided=4 context lines, got %d", elided)
+	}
+	if !strings.Contains(out, "-OLD") || !strings.Contains(out, "+NEW") {
+		t.Errorf("changed lines missing from elided output:\n%s", out)
+	}
+	if strings.Contains(out, " a\n") || strings.Contains(out, " b\n") {
+		t.Errorf("context line survived elision:\n%s", out)
 	}
 }
 

@@ -1244,11 +1244,11 @@
         "sites": [
           {
             "file": "internal/verbs/git/diff.go",
-            "line": 127
+            "line": 151
           },
           {
             "file": "internal/verbs/git/diff.go",
-            "line": 229
+            "line": 253
           },
           {
             "file": "internal/verbs/git/status.go",
@@ -2178,7 +2178,7 @@
         "sites": [
           {
             "file": "internal/verbs/git/diff.go",
-            "line": 278
+            "line": 438
           }
         ]
       },

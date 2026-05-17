@@ -32,14 +32,38 @@ type DiffResult struct {
 // Patch holds the raw unified diff text for this file including the
 // "diff --git" header so callers can render it as-is or parse further.
 // In stat-only mode, Patch is empty and only Additions/Deletions are set.
+//
+// ASH-150: when a file's patch exceeds the per-result byte budget the
+// emitted Patch is a hunk-aware fragment of the original; the
+// PatchTruncated / HunksTotal / HunksShown / ContextElided fields
+// describe how the fragment was assembled so MCP harnesses can detect
+// partial patches programmatically. Stats (Additions, Deletions) always
+// reflect the FULL file regardless of patch truncation.
 type DiffFile struct {
-	Path       string `msgpack:"path"`
-	OldPath    string `msgpack:"old_path,omitempty"` // set for renames and copies
-	Status     string `msgpack:"status"`             // A/D/M/R/C; empty in stat-only mode
-	Binary     bool   `msgpack:"binary,omitempty"`
-	Additions  int    `msgpack:"additions"`
-	Deletions  int    `msgpack:"deletions"`
-	Patch      string `msgpack:"patch,omitempty"`
+	Path      string `msgpack:"path"`
+	OldPath   string `msgpack:"old_path,omitempty"` // set for renames and copies
+	Status    string `msgpack:"status"`             // A/D/M/R/C; empty in stat-only mode
+	Binary    bool   `msgpack:"binary,omitempty"`
+	Additions int    `msgpack:"additions"`
+	Deletions int    `msgpack:"deletions"`
+	Patch     string `msgpack:"patch,omitempty"`
+
+	// PatchTruncated is true when Patch contains fewer bytes than the
+	// raw upstream patch — either because hunks were dropped (multi-hunk
+	// overflow), context lines were elided (single huge hunk), or the
+	// patch was omitted entirely (per-file budget exhausted).
+	PatchTruncated bool `msgpack:"patch_truncated,omitempty"`
+	// HunksTotal is the number of hunks the upstream patch contained.
+	// Zero when there were none (binary, pure rename, etc.) or when the
+	// patch was not truncated (the field omits-on-zero on the wire).
+	HunksTotal int `msgpack:"hunks_total,omitempty"`
+	// HunksShown is how many hunks Patch actually contains. Counts a
+	// context-elided hunk as 1.
+	HunksShown int `msgpack:"hunks_shown,omitempty"`
+	// ContextElided is true when one or more hunks in Patch had their
+	// context (" "-prefixed) lines collapsed into an inline sentinel to
+	// fit the budget. Changed lines (+ / -) are always preserved.
+	ContextElided bool `msgpack:"context_elided,omitempty"`
 }
 
 // runDiffShellout shells out to system git for the diff op.
@@ -229,22 +253,81 @@ func parseDiffUnified(out []byte, limitBytes int) (*DiffResult, *proto.Error) {
 		return nil, &proto.Error{Code: "parse", Msg: err.Error()}
 	}
 
-	// Apply the byte cap: walk files in order, include full patches until
-	// the cap is reached, then omit patches for the remainder.
-	var totalBytes int
+	// ASH-150: apply the byte cap with hunk-aware degradation. Walk
+	// files in order against a shared budget; per file, prefer dropping
+	// trailing hunks over slicing mid-line, and fall back to
+	// context-elision when a single huge hunk would otherwise drop the
+	// whole patch (e.g. unified-diff context expanding across a 80 KiB
+	// one-line JSON file). The shape of the degradation is recorded on
+	// each DiffFile so MCP harnesses can detect partial patches without
+	// scraping prose.
+	totalBytes := 0
 	for i := range files {
 		patch := files[i].Patch
-		if totalBytes >= limitBytes {
+		remaining := limitBytes - totalBytes
+		if remaining <= 0 {
 			files[i].Patch = ""
+			files[i].PatchTruncated = true
 			res.Truncated = true
-		} else if totalBytes+len(patch) > limitBytes {
-			remaining := limitBytes - totalBytes
-			files[i].Patch = patch[:remaining] + "\n[patch truncated at byte cap]\n"
-			totalBytes = limitBytes
-			res.Truncated = true
-		} else {
-			totalBytes += len(patch)
+			continue
 		}
+		if len(patch) <= remaining {
+			totalBytes += len(patch)
+			continue
+		}
+		// Patch overflows the remaining budget — degrade hunk-aware.
+		header, hunks := splitPatchHunks(patch)
+		files[i].HunksTotal = len(hunks)
+		if len(hunks) == 0 {
+			// No hunks (binary marker, rename-only with no body). The
+			// header is the entire useful content; include it if it
+			// fits, otherwise drop.
+			if len(header) <= remaining {
+				files[i].Patch = header
+				totalBytes += len(header)
+			} else {
+				files[i].Patch = ""
+			}
+			files[i].PatchTruncated = true
+			res.Truncated = true
+			continue
+		}
+		var out strings.Builder
+		out.WriteString(header)
+		used := len(header)
+		shown := 0
+		for _, h := range hunks {
+			if used+len(h) > remaining {
+				break
+			}
+			out.WriteString(h)
+			used += len(h)
+			shown++
+		}
+		if shown == 0 {
+			// First hunk alone overflows. Try context-eliding it: drop
+			// the surrounding " "-prefixed lines and keep only the
+			// changes. This is the recipe that unblocks one-line
+			// JSON / lockfile diffs.
+			elided, kept, dropped, ok := elideHunkContext(hunks[0])
+			if ok && used+len(elided) <= remaining && kept > 0 {
+				out.WriteString(elided)
+				fmt.Fprintf(&out, "[context elided: %d lines; %d changes kept]\n", dropped, kept)
+				used += len(elided)
+				files[i].ContextElided = true
+				shown = 1
+			}
+		}
+		omitted := len(hunks) - shown
+		if omitted > 0 {
+			fmt.Fprintf(&out, "[hunks: %d shown, %d omitted (patch_bytes=%d, budget=%d)]\n",
+				shown, omitted, len(patch), remaining)
+		}
+		files[i].Patch = out.String()
+		files[i].HunksShown = shown
+		files[i].PatchTruncated = true
+		totalBytes += out.Len()
+		res.Truncated = true
 	}
 
 	res.Files = files
@@ -252,6 +335,83 @@ func parseDiffUnified(out []byte, limitBytes int) (*DiffResult, *proto.Error) {
 		res.TruncInfo = &proto.TruncInfo{Trunc: 1, Limit: limitBytes, Max: DiffMaxLimitBytes}
 	}
 	return res, nil
+}
+
+// splitPatchHunks splits a per-file unified-diff patch text into its
+// pre-hunk header (everything up to the first "@@ " line) and a slice
+// of hunk strings (each beginning with "@@ "). A patch with no hunks
+// returns (patch, nil) — this happens for binary markers and pure
+// rename/copy bodies. Lines inside hunk bodies are prefixed with ' ',
+// '+', or '-' so "@@" at line start uniquely identifies a hunk header
+// and the split is unambiguous.
+func splitPatchHunks(patch string) (header string, hunks []string) {
+	lines := strings.SplitAfter(patch, "\n")
+	headerEnd := -1
+	for i, ln := range lines {
+		if strings.HasPrefix(ln, "@@ ") {
+			headerEnd = i
+			break
+		}
+	}
+	if headerEnd < 0 {
+		return patch, nil
+	}
+	header = strings.Join(lines[:headerEnd], "")
+	var cur strings.Builder
+	for i := headerEnd; i < len(lines); i++ {
+		ln := lines[i]
+		if strings.HasPrefix(ln, "@@ ") && cur.Len() > 0 {
+			hunks = append(hunks, cur.String())
+			cur.Reset()
+		}
+		cur.WriteString(ln)
+	}
+	if cur.Len() > 0 {
+		hunks = append(hunks, cur.String())
+	}
+	return header, hunks
+}
+
+// elideHunkContext rebuilds a hunk with its " "-prefixed context lines
+// collapsed into a single "[N context lines elided]" sentinel per run.
+// Changed lines (+ / -) and the hunk header are preserved verbatim.
+// Returns ok=false when the input is not a recognizable hunk (no "@@ "
+// header line found in the first slot).
+func elideHunkContext(hunk string) (out string, kept, elided int, ok bool) {
+	lines := strings.SplitAfter(hunk, "\n")
+	if len(lines) == 0 || !strings.HasPrefix(lines[0], "@@ ") {
+		return "", 0, 0, false
+	}
+	var b strings.Builder
+	b.WriteString(lines[0])
+	run := 0
+	flush := func() {
+		if run > 0 {
+			fmt.Fprintf(&b, " [%d context lines elided]\n", run)
+			elided += run
+			run = 0
+		}
+	}
+	for i := 1; i < len(lines); i++ {
+		ln := lines[i]
+		if ln == "" {
+			continue
+		}
+		switch ln[0] {
+		case ' ':
+			run++
+		case '+', '-':
+			flush()
+			b.WriteString(ln)
+			kept++
+		default:
+			// Trailing "\ No newline at end of file" or stray content.
+			flush()
+			b.WriteString(ln)
+		}
+	}
+	flush()
+	return b.String(), kept, elided, true
 }
 
 // diffTruncHint reconstructs the human-readable truncation message from
