@@ -214,14 +214,14 @@
               "properties": {
                 "mtime": {
                   "type": "integer",
-                  "description": "unix nanos"
+                  "description": "unix nanos; omitted when --meta=false (ASH-187)"
                 },
                 "path": {
                   "type": "string"
                 },
                 "size": {
                   "type": "integer",
-                  "description": "bytes; omitted for dirs and symlinks"
+                  "description": "bytes; omitted for dirs/symlinks and when --meta=false (ASH-187)"
                 },
                 "type": {
                   "type": "string",
@@ -229,7 +229,6 @@
                 }
               },
               "required": [
-                "mtime",
                 "path",
                 "type"
               ],
@@ -262,6 +261,10 @@
               "trunc"
             ],
             "additionalProperties": false
+          },
+          "with_meta": {
+            "type": "boolean",
+            "description": "WithMeta echoes the request's --meta flag so downstream shapers\n(CompactResponse, MCP JSON envelope) can decide whether to emit\nthe size/mtime columns. Without it, CompactResponse would have\nto infer meta state from per-record zero-detection — fragile for\ngenuinely-zero-byte files (ASH-187)."
           }
         },
         "required": [

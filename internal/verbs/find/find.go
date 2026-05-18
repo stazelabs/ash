@@ -60,16 +60,22 @@ type Args struct {
 
 type Record struct {
 	Path  string `msgpack:"path"`
-	Type  string `msgpack:"type"`             // "file" | "dir" | "symlink"
-	Size  int64  `msgpack:"size,omitempty"`   // bytes; omitted for dirs and symlinks
-	Mtime int64  `msgpack:"mtime"`            // unix nanos
+	Type  string `msgpack:"type"`                       // "file" | "dir" | "symlink"
+	Size  int64  `msgpack:"size,omitempty"`             // bytes; omitted for dirs/symlinks and when --meta=false (ASH-187)
+	Mtime int64  `msgpack:"mtime,omitempty"`            // unix nanos; omitted when --meta=false (ASH-187)
 }
 
 type Result struct {
-	Records        []Record `msgpack:"records"`
-	Count          int      `msgpack:"count"`
-	Truncated      bool     `msgpack:"truncated,omitempty"`
-	TruncInfo      *proto.TruncInfo `msgpack:"truncation_hint,omitempty"`
+	Records   []Record         `msgpack:"records"`
+	Count     int              `msgpack:"count"`
+	Truncated bool             `msgpack:"truncated,omitempty"`
+	TruncInfo *proto.TruncInfo `msgpack:"truncation_hint,omitempty"`
+	// WithMeta echoes the request's --meta flag so downstream shapers
+	// (CompactResponse, MCP JSON envelope) can decide whether to emit
+	// the size/mtime columns. Without it, CompactResponse would have
+	// to infer meta state from per-record zero-detection — fragile for
+	// genuinely-zero-byte files (ASH-187).
+	WithMeta bool `msgpack:"with_meta,omitempty"`
 }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
@@ -136,7 +142,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		return nil, &proto.Error{Code: "not_dir", Msg: jail.PrettyPath(a.Path) + ": not a directory", Hint: "use 'ash read' for files"}
 	}
 
-	res := &Result{Records: make([]Record, 0, 32)}
+	res := &Result{Records: make([]Record, 0, 32), WithMeta: a.WithMeta}
 	limitHit := false
 
 	ctx := tr.Context()
@@ -163,12 +169,18 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 			return walker.Continue, nil
 		}
 		rec := Record{
-			Path:  e.Path,
-			Type:  e.Type,
-			Mtime: e.Info.ModTime().UnixNano(),
+			Path: e.Path,
+			Type: e.Type,
 		}
-		if e.Type == "file" {
-			rec.Size = e.Info.Size()
+		// Size/Mtime ride only when --meta=true (ASH-187). For default
+		// callers, the per-record JSON shape collapses to {path,type}
+		// which closes the worst-case ashmcp envelope tax (mcpbench
+		// observed +262% to +782% vs CLI for small find results).
+		if a.WithMeta {
+			rec.Mtime = e.Info.ModTime().UnixNano()
+			if e.Type == "file" {
+				rec.Size = e.Info.Size()
+			}
 		}
 		res.Records = append(res.Records, rec)
 		tr.Emit(rec)
@@ -409,6 +421,22 @@ func CompactResponse(rsp *proto.Response) (any, error) {
 	var r Result
 	if err := proto.UnmarshalData(rsp, &r); err != nil {
 		return nil, err
+	}
+	// ASH-187: drop the size/mtime columns when the caller didn't ask
+	// for --meta. Closes the worst-case ashmcp envelope tax — measured
+	// at +262% to +782% vs CLI on the small-result find cases — by
+	// making the compact payload symmetric with the Record's actual
+	// content (size/mtime are zero and omitempty-stripped when meta
+	// is off, so emitting them as columns is pure tax).
+	if !r.WithMeta {
+		cd := proto.CompactData{
+			K: []string{"path", "type"},
+			R: make([][]any, len(r.Records)),
+		}
+		for i, rec := range r.Records {
+			cd.R[i] = []any{rec.Path, rec.Type}
+		}
+		return cd, nil
 	}
 	cd := proto.CompactData{
 		K: []string{"path", "type", "size", "mtime"},

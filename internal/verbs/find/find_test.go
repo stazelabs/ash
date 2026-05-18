@@ -3,6 +3,7 @@ package find
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -790,5 +791,113 @@ func TestRun_NotDirErrorStripsPrefix(t *testing.T) {
 	}
 	if strings.Contains(perr.Msg, root) {
 		t.Errorf("error Msg should not contain project root, got %q", perr.Msg)
+	}
+}
+
+// TestCompactResponse_NoMetaDropsSizeMtimeColumns pins ASH-187: when
+// --meta=false (the default), CompactResponse emits a 2-column
+// {path,type} shape instead of the full {path,type,size,mtime} shape.
+// This is the load-bearing payload-shape change that closes the worst-
+// case ashmcp envelope tax (mcpbench observed +262% to +782% vs CLI
+// on small find results before this fix).
+func TestCompactResponse_NoMetaDropsSizeMtimeColumns(t *testing.T) {
+	rsp := &proto.Response{
+		OK: true,
+		Data: proto.MustData(&Result{
+			Count:    2,
+			WithMeta: false,
+			Records: []Record{
+				{Path: "src", Type: "dir"},
+				{Path: "main.go", Type: "file"},
+			},
+		}),
+	}
+	v, err := CompactResponse(rsp)
+	if err != nil {
+		t.Fatalf("CompactResponse: %v", err)
+	}
+	cd, ok := v.(proto.CompactData)
+	if !ok {
+		t.Fatalf("CompactResponse returned %T, want proto.CompactData", v)
+	}
+	if !reflect.DeepEqual(cd.K, []string{"path", "type"}) {
+		t.Errorf("K = %v; want [path type]", cd.K)
+	}
+	if len(cd.R) != 2 {
+		t.Fatalf("R has %d rows; want 2", len(cd.R))
+	}
+	for i, row := range cd.R {
+		if len(row) != 2 {
+			t.Errorf("row %d has %d cols; want 2 (path, type only)", i, len(row))
+		}
+	}
+}
+
+// TestCompactResponse_WithMetaKeepsAllColumns confirms --meta=true
+// still ships the full {path,type,size,mtime} shape — agents that
+// explicitly asked for meta still get it.
+func TestCompactResponse_WithMetaKeepsAllColumns(t *testing.T) {
+	rsp := &proto.Response{
+		OK: true,
+		Data: proto.MustData(&Result{
+			Count:    1,
+			WithMeta: true,
+			Records: []Record{
+				{Path: "main.go", Type: "file", Size: 1024, Mtime: 1700000000000000000},
+			},
+		}),
+	}
+	v, err := CompactResponse(rsp)
+	if err != nil {
+		t.Fatalf("CompactResponse: %v", err)
+	}
+	cd, ok := v.(proto.CompactData)
+	if !ok {
+		t.Fatalf("CompactResponse returned %T, want proto.CompactData", v)
+	}
+	if !reflect.DeepEqual(cd.K, []string{"path", "type", "size", "mtime"}) {
+		t.Errorf("K = %v; want [path type size mtime]", cd.K)
+	}
+	if len(cd.R) != 1 || len(cd.R[0]) != 4 {
+		t.Fatalf("R = %v; want 1 row of 4 cols", cd.R)
+	}
+}
+
+// TestRun_NoMetaLeavesRecordsBareOfSizeMtime pins the end-to-end
+// behavior: with --meta=false (the default), Records leave find.Run
+// with zero Size/Mtime so the msgpack omitempty tags drop them on the
+// wire (ASH-187). Result.WithMeta echoes the request flag so CompactResponse
+// and any future MCP shaper can read the meta state without re-deriving it.
+func TestRun_NoMetaLeavesRecordsBareOfSizeMtime(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "a.go"), []byte("package a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "b.go"), []byte("package b\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	jail.SetPolicy(jail.FromConfig(false, root, nil, nil))
+	defer jail.SetPolicy(nil)
+
+	res, perr := Run(&Args{Path: root, Glob: "**/*.go", Type: "any", Limit: 100, WithMeta: false}, nil)
+	if perr != nil {
+		t.Fatalf("unexpected: %+v", perr)
+	}
+	if res.WithMeta {
+		t.Error("Result.WithMeta = true; want false (echoes a.WithMeta)")
+	}
+	if len(res.Records) == 0 {
+		t.Fatal("no records — fixture broken?")
+	}
+	for i, rec := range res.Records {
+		if rec.Size != 0 {
+			t.Errorf("record %d: Size=%d; want 0 when --meta=false", i, rec.Size)
+		}
+		if rec.Mtime != 0 {
+			t.Errorf("record %d: Mtime=%d; want 0 when --meta=false", i, rec.Mtime)
+		}
+		if rec.Type == "" {
+			t.Errorf("record %d: Type empty; should still ship (pretty render needs it)", i)
+		}
 	}
 }
