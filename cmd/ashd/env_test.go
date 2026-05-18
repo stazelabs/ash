@@ -89,7 +89,7 @@ func TestIntegration_TestVerbEnvPassthrough(t *testing.T) {
 			if err != nil {
 				return
 			}
-			go handle(conn, led, runners, pretty, 0)
+			go handle(conn, led, runners, pretty, 0, nil)
 		}
 	}()
 

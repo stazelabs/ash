@@ -124,7 +124,7 @@ Cost: ~160 `count_tokens` calls in the default run, cached by body — usually m
 Hard-won wisdom from real session friction. Read these once; they save tuition.
 
 
-- **Daemon stickiness — config changes don't hot-reload.** Edits to `ash.toml` (jail policy, git backend, daemon limits) take effect only on daemon restart. Run `ash stop`; the next `ash` invocation auto-starts a fresh daemon. Don't `pkill ashd` (it bypasses graceful shutdown). If a verb behaves as though it's running with old config, this is the first thing to check.
+- **Daemon config hot-reload is jail-only (ASH-164).** `ash.toml` `[jail]` edits (`enabled`, `allow_paths`, `deny_paths`) take effect on the next request — the daemon stats the candidate config files per-frame and re-applies jail policy on change, no restart needed. Other sections (`[lsp]`, `[git]`, `[daemon]`, `[ledger]`) are subprocess-lifecycle or one-shot startup config and still require restart: edit, then `ash stop`, then any `ash` invocation auto-starts a fresh daemon. Don't `pkill ashd` (it bypasses graceful shutdown). `[hook].exclude_verbs` is loaded client-side per-hook-call, so it's effectively always hot.
 
 - **Path-form semantics differ across verbs.** `ash find` and `ash grep` mirror the input form: relative `--path` produces relative output paths, absolute produces absolute. `ash git --op *` always returns repo-root-relative paths regardless of `--path`. Don't assume one rule covers all verbs.
 

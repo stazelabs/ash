@@ -29,6 +29,22 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 )
 
+// applyEnforcementConfig (re-)applies the slice of cfg that is safe to
+// swap mid-session without recycling subprocesses or rewiring listeners.
+// Today: jail policy only. Called once at daemon startup and again from
+// the per-request refresh closure (ASH-164) when ash.toml mtime/size
+// changes. Subprocess-lifecycle config (LSP broker, git backend) and
+// one-shot startup config (ledger cleanup, daemon concurrency cap)
+// stay restart-required — see CLAUDE.md gotcha #1.
+//
+// jail.SetPolicy is a package-global pointer swap and is goroutine-safe;
+// concurrent handler goroutines either see the old or the new policy
+// for any given verb call, matching the "next request sees new config"
+// semantic the hot-reload contract promises.
+func applyEnforcementConfig(rootFlag string, cfg *config.Config) {
+	jail.SetPolicy(jail.FromConfig(cfg.Jail.Enabled, rootFlag, cfg.Jail.AllowPaths, cfg.Jail.DenyPaths))
+}
+
 func main() {
 	daemonStart := time.Now()
 	var rootFlag, sockFlag, logFlag string
@@ -58,11 +74,11 @@ func main() {
 	}
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 
-	cfg, cfgSource, err := config.Load(rootFlag)
+	cfgWatcher, cfg, cfgSource, err := config.NewWatcher(rootFlag)
 	if err != nil {
 		log.Fatalf("ashd: config: %v", err)
 	}
-	jail.SetPolicy(jail.FromConfig(cfg.Jail.Enabled, rootFlag, cfg.Jail.AllowPaths, cfg.Jail.DenyPaths))
+	applyEnforcementConfig(rootFlag, cfg)
 	if err := git.SetBackend(cfg.Git.Backend); err != nil {
 		log.Fatalf("ashd: git backend: %v", err)
 	}
@@ -200,8 +216,23 @@ func main() {
 	log.Printf("ashd ready: root=%s socket=%s session=%s config=%s", rootFlag, sockFlag, led.SessionID(), cfgSource)
 
 	var wg sync.WaitGroup
+	// ASH-164: per-frame hot-reload check on ash.toml. Bounded to
+	// enforcement-layer config (jail) — see applyEnforcementConfig and
+	// CLAUDE.md gotcha #1 for what stays restart-required (subprocess
+	// lifecycle: LSP, git backend, daemon caps, ledger cleanup).
+	refresh := func() {
+		_, _, changed, rerr := cfgWatcher.Refresh()
+		if rerr != nil {
+			log.Printf("ashd: config refresh: %v (keeping previous config)", rerr)
+			return
+		}
+		if changed {
+			applyEnforcementConfig(rootFlag, cfgWatcher.Config())
+			log.Printf("ashd: config reloaded — jail policy refreshed")
+		}
+	}
 	acceptLoop(listener, sem, &wg, func(conn net.Conn) {
-		handle(conn, led, runners, pretty, readDeadline)
+		handle(conn, led, runners, pretty, readDeadline, refresh)
 	})
 
 	// Listener closed (signal or fatal accept error). Wait bounded for
@@ -269,10 +300,17 @@ func drainHandlers(wg *sync.WaitGroup, grace time.Duration) bool {
 	}
 }
 
-func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, pretty map[string]verbs.Pretty, readDeadline time.Duration) {
+func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, pretty map[string]verbs.Pretty, readDeadline time.Duration, refresh func()) {
 	defer conn.Close()
 	for {
 		parseStart := time.Now()
+		// ASH-164: hot-reload check for enforcement-layer config (jail).
+		// Microseconds when nothing changed; rebuilds jail policy when
+		// ash.toml mtime/size changes. nil-tolerant so tests that
+		// construct handle() inline can pass nil.
+		if refresh != nil {
+			refresh()
+		}
 		// Per-frame read deadline (ASH-49). When > 0, a connection that
 		// goes silent between frames is timed out and the goroutine
 		// returns instead of pinning forever. The deadline is reset on

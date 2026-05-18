@@ -38,7 +38,7 @@ func TestHandle_ReadDeadlineExpires(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		handle(srv, led, runners, pretty, 50*time.Millisecond)
+		handle(srv, led, runners, pretty, 50*time.Millisecond, nil)
 	}()
 
 	// Never send a frame. handle() should hit the read deadline and exit.
