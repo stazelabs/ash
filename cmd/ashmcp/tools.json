@@ -1499,6 +1499,29 @@
               "additionalProperties": false
             }
           },
+          "hook_denials": {
+            "type": "array",
+            "description": "HookDenials is the per-rule hook-denial histogram, populated\nwhen the window includes hook rows. Computed at aggregate time\nby replaying hook.Decide(); not persisted to the ledger.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "count": {
+                  "type": "integer"
+                },
+                "rule": {
+                  "type": "string"
+                },
+                "top_suggested_verb": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "count",
+                "rule"
+              ],
+              "additionalProperties": false
+            }
+          },
           "scope": {
             "type": "object",
             "properties": {

@@ -382,7 +382,7 @@
         "sites": [
           {
             "file": "internal/verbs/report/report.go",
-            "line": 316
+            "line": 336
           }
         ],
         "hints": [
@@ -734,7 +734,7 @@
         "sites": [
           {
             "file": "internal/verbs/report/report.go",
-            "line": 364
+            "line": 384
           }
         ]
       },
@@ -1174,15 +1174,15 @@
           },
           {
             "file": "internal/verbs/report/report.go",
-            "line": 188
+            "line": 205
           },
           {
             "file": "internal/verbs/report/report.go",
-            "line": 208
+            "line": 225
           },
           {
             "file": "internal/verbs/report/report.go",
-            "line": 285
+            "line": 305
           },
           {
             "file": "internal/verbs/stat/stat.go",
@@ -1366,11 +1366,11 @@
           },
           {
             "file": "internal/verbs/report/report.go",
-            "line": 238
+            "line": 255
           },
           {
             "file": "internal/verbs/report/report.go",
-            "line": 382
+            "line": 402
           },
           {
             "file": "internal/verbs/usage/usage.go",
@@ -1492,7 +1492,7 @@
         "sites": [
           {
             "file": "internal/verbs/report/report.go",
-            "line": 313
+            "line": 333
           }
         ]
       },
@@ -2324,7 +2324,7 @@
         "sites": [
           {
             "file": "internal/verbs/report/report.go",
-            "line": 677
+            "line": 698
           }
         ]
       },
@@ -2416,7 +2416,7 @@
         "sites": [
           {
             "file": "internal/verbs/report/report.go",
-            "line": 835
+            "line": 875
           }
         ]
       },

@@ -26,6 +26,7 @@ import (
 	"github.com/stazelabs/ash/internal/registry"
 	"github.com/stazelabs/ash/internal/session"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
+	"github.com/stazelabs/ash/internal/verbs/hook"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
@@ -155,6 +156,18 @@ type ErrEntry struct {
 	SampleMsg string `msgpack:"sample_msg"`
 }
 
+// HookDenialEntry is one row in the per-rule hook-denial histogram.
+// Populated only when the report's call window includes `hook` verb
+// rows. Computed by replaying hook.Decide() against each row's args
+// at render time (no new ledger column), so deny patterns surface
+// for the friction-prompt ritual (ASH-168) without changing the
+// wire shape.
+type HookDenialEntry struct {
+	Rule             string `msgpack:"rule"`
+	Count            int    `msgpack:"count"`
+	TopSuggestedVerb string `msgpack:"top_suggested_verb,omitempty"`
+}
+
 // TruncHotspot identifies a verb with truncated calls, sorted by count desc.
 type TruncHotspot struct {
 	Verb       string `msgpack:"verb"`
@@ -169,6 +182,10 @@ type Result struct {
 	ErrHistogram     []ErrEntry     `msgpack:"err_histogram,omitempty"`
 	TruncHotspots    []TruncHotspot `msgpack:"trunc_hotspots,omitempty"`
 	ArgDistributions []VerbArgDist  `msgpack:"arg_distributions,omitempty"`
+	// HookDenials is the per-rule hook-denial histogram, populated
+	// when the window includes hook rows. Computed at aggregate time
+	// by replaying hook.Decide(); not persisted to the ledger.
+	HookDenials []HookDenialEntry `msgpack:"hook_denials,omitempty"`
 	// ByRoot is populated only by --all-roots: per-ledger contribution
 	// counts, in registry order. Empty for single-root reports.
 	ByRoot []RootStats `msgpack:"by_root,omitempty"`
@@ -272,6 +289,9 @@ func capHotspots(r *Result, topN int) {
 				r.ArgDistributions[i].Args[j].Values = r.ArgDistributions[i].Args[j].Values[:topN]
 			}
 		}
+	}
+	if len(r.HookDenials) > topN {
+		r.HookDenials = r.HookDenials[:topN]
 	}
 }
 
@@ -544,6 +564,7 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 		ErrHistogram:     errHist,
 		TruncHotspots:    truncHotspots,
 		ArgDistributions: collectArgDists(byVerb, order),
+		HookDenials:      computeHookDenials(byVerb["hook"]),
 	}
 }
 
@@ -810,6 +831,25 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		}
 	}
 
+	// Hook denials by rule — ASH-162. Replays hook.Decide() against
+	// each hook-call row in the window so the friction-prompt ritual
+	// (ASH-168) can read deny patterns at a glance without scanning
+	// raw `command` args.
+	if len(r.HookDenials) > 0 {
+		total := 0
+		for _, h := range r.HookDenials {
+			total += h.Count
+		}
+		fmt.Fprintf(&b, "\nhook denials by rule (%d):\n", total)
+		for _, h := range r.HookDenials {
+			if h.TopSuggestedVerb != "" {
+				fmt.Fprintf(&b, "  %s \xc3\x97 %d  \xe2\x86\x92 ash %s\n", h.Rule, h.Count, h.TopSuggestedVerb)
+			} else {
+				fmt.Fprintf(&b, "  %s \xc3\x97 %d\n", h.Rule, h.Count)
+			}
+		}
+	}
+
 	// Token efficiency — only when at least one verb has bytes_out data.
 	hasTokPerKiB := false
 	for _, vs := range r.ByVerb {
@@ -922,6 +962,96 @@ func decodeArgsSummary(blob []byte) string {
 	}
 	return strings.Join(parts, " ")
 }
+
+// computeHookDenials replays hook.Decide() against each hook-call row in
+// cs and returns a per-rule histogram of denies, sorted by count desc
+// (ties broken alphabetically by rule). Returns nil when cs has no rows
+// that recompute to a deny.
+//
+// Why recompute: MatchedRule and Suggested live in the hook verb's
+// Result, which the ledger does not persist. Args are persisted, and
+// hook.Decide is deterministic over them; the client only writes
+// exclude_verbs into the wire args when an exclusion actually fired
+// (cmd/ash/hook.go), so recompute mirrors the original decision for
+// every row.
+func computeHookDenials(cs []ledger.Call) []HookDenialEntry {
+	if len(cs) == 0 {
+		return nil
+	}
+	type bucket struct {
+		count     int
+		verbCount map[string]int
+	}
+	byRule := map[string]*bucket{}
+	for _, c := range cs {
+		args := decodeArgsMap(c.ArgsMsgpack)
+		if len(args) == 0 {
+			continue
+		}
+		ha, perr := hook.ParseArgs(args)
+		if perr != nil {
+			continue
+		}
+		r := hook.Decide(ha)
+		if r.Decision != "deny" {
+			continue
+		}
+		b, ok := byRule[r.MatchedRule]
+		if !ok {
+			b = &bucket{verbCount: map[string]int{}}
+			byRule[r.MatchedRule] = b
+		}
+		b.count++
+		if v := suggestedAshVerb(r.Suggested); v != "" {
+			b.verbCount[v]++
+		}
+	}
+	if len(byRule) == 0 {
+		return nil
+	}
+	entries := make([]HookDenialEntry, 0, len(byRule))
+	for rule, b := range byRule {
+		verbs := make([]string, 0, len(b.verbCount))
+		for v := range b.verbCount {
+			verbs = append(verbs, v)
+		}
+		// Alphabetical tie-break for determinism when two verbs share
+		// the top count.
+		sort.Strings(verbs)
+		top := ""
+		topN := 0
+		for _, v := range verbs {
+			if b.verbCount[v] > topN {
+				top = v
+				topN = b.verbCount[v]
+			}
+		}
+		entries = append(entries, HookDenialEntry{
+			Rule: rule, Count: b.count, TopSuggestedVerb: top,
+		})
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].Count != entries[j].Count {
+			return entries[i].Count > entries[j].Count
+		}
+		return entries[i].Rule < entries[j].Rule
+	})
+	return entries
+}
+
+// suggestedAshVerb extracts the verb name from a hook.Suggested string
+// like "ash grep --path X --pattern Y" → "grep". Returns "" when the
+// suggestion does not contain an "ash <verb>" pair.
+func suggestedAshVerb(suggested string) string {
+	parts := strings.Fields(suggested)
+	for i, p := range parts {
+		if p == "ash" && i+1 < len(parts) {
+			return parts[i+1]
+		}
+	}
+	return ""
+}
+
 // parseDuration extends time.ParseDuration to support day units ("7d", "1d").
 func parseDuration(s string) (time.Duration, error) {
 	if strings.HasSuffix(s, "d") {
@@ -987,5 +1117,6 @@ func CompactResponse(rsp *proto.Response) (any, error) {
 		"by_verb":        cd,
 		"err_histogram":  raw["err_histogram"],
 		"trunc_hotspots": raw["trunc_hotspots"],
+		"hook_denials":   raw["hook_denials"],
 	}, nil
 }

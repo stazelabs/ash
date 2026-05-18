@@ -764,3 +764,111 @@ func TestParseArgs_LastZeroAllowed(t *testing.T) {
 		t.Errorf("last: got %d, want 0", a.Last)
 	}
 }
+
+// -- ASH-162: hook-denial histogram ----------------------------------------
+
+// TestComputeHookDenials covers the happy path: hook rows of mixed tool
+// types are grouped by recomputed MatchedRule, ordered by count desc,
+// and each entry resolves to the right top-suggested verb.
+func TestComputeHookDenials(t *testing.T) {
+	mkCall := func(args map[string]any) ledger.Call {
+		return ledger.Call{Verb: "hook", OK: true, ArgsMsgpack: encodeArgs(t, "hook", args)}
+	}
+	calls := []ledger.Call{
+		mkCall(map[string]any{"tool": "Bash", "command": "grep foo ."}),
+		mkCall(map[string]any{"tool": "Bash", "command": "grep bar src/"}),
+		mkCall(map[string]any{"tool": "Bash", "command": "cat /tmp/x"}),
+		mkCall(map[string]any{"tool": "Grep", "pattern": "foo", "path": "."}),
+		mkCall(map[string]any{"tool": "Bash", "command": "ls /tmp"}), // allow — no rule fires
+	}
+	entries := computeHookDenials(calls)
+	if entries == nil {
+		t.Fatal("expected HookDenials entries, got nil")
+	}
+	wantCounts := map[string]int{
+		"Bash:grep": 2,
+		"Grep":      1,
+		"Bash:cat":  1,
+	}
+	if len(entries) != len(wantCounts) {
+		t.Fatalf("got %d entries, want %d: %+v", len(entries), len(wantCounts), entries)
+	}
+	for _, e := range entries {
+		if e.Count != wantCounts[e.Rule] {
+			t.Errorf("rule %q: count %d, want %d", e.Rule, e.Count, wantCounts[e.Rule])
+		}
+	}
+	if entries[0].Rule != "Bash:grep" {
+		t.Errorf("first entry should be Bash:grep (count=2), got %q", entries[0].Rule)
+	}
+	wantVerb := map[string]string{"Bash:grep": "grep", "Grep": "grep", "Bash:cat": "read"}
+	for _, e := range entries {
+		if e.TopSuggestedVerb != wantVerb[e.Rule] {
+			t.Errorf("rule %q: top verb %q, want %q", e.Rule, e.TopSuggestedVerb, wantVerb[e.Rule])
+		}
+	}
+}
+
+// TestComputeHookDenials_EmptyAndAllowsOnly guards two boring inputs:
+// no calls, and calls that all recompute to allow. Both must yield nil
+// so the renderer suppresses the section entirely.
+func TestComputeHookDenials_EmptyAndAllowsOnly(t *testing.T) {
+	if computeHookDenials(nil) != nil {
+		t.Error("nil calls should return nil")
+	}
+	allows := []ledger.Call{
+		{Verb: "hook", OK: true, ArgsMsgpack: encodeArgs(t, "hook", map[string]any{"tool": "Bash", "command": "ls"})},
+		{Verb: "hook", OK: true, ArgsMsgpack: encodeArgs(t, "hook", map[string]any{"tool": "Read", "file": "screenshot.png"})},
+	}
+	if entries := computeHookDenials(allows); entries != nil {
+		t.Errorf("allow-only calls should return nil, got %+v", entries)
+	}
+}
+
+func TestSuggestedAshVerb(t *testing.T) {
+	cases := map[string]string{
+		"ash grep --path . --pattern foo":        "grep",
+		"ash read --path README.md":              "read",
+		"ash write --path x --content - << 'EOF'": "write",
+		"":                                        "",
+		"grep --path .":                           "",
+		"echo ash":                                "",
+	}
+	for in, want := range cases {
+		if got := suggestedAshVerb(in); got != want {
+			t.Errorf("suggestedAshVerb(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// TestPrettyResponse_HookDenials is the end-to-end rendering check: a
+// report with hook rows shows the new section with rule, count, and
+// ash-verb suggestion, fed straight out of aggregate().
+func TestPrettyResponse_HookDenials(t *testing.T) {
+	calls := []ledger.Call{
+		{Verb: "hook", OK: true, LatencyExecUs: 100, ArgsMsgpack: encodeArgs(t, "hook", map[string]any{"tool": "Bash", "command": "grep foo ."})},
+		{Verb: "hook", OK: true, LatencyExecUs: 100, ArgsMsgpack: encodeArgs(t, "hook", map[string]any{"tool": "Bash", "command": "cat /tmp/x"})},
+	}
+	r := aggregate(calls, Scope{Session: "current"})
+	rsp := &proto.Response{OK: true, Data: proto.MustData(r)}
+	out := PrettyResponse(nil, rsp)
+
+	for _, want := range []string{"hook denials by rule", "Bash:grep", "Bash:cat", "ash grep", "ash read"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in PrettyResponse:\n%s", want, out)
+		}
+	}
+}
+
+// TestPrettyResponse_NoHookDenials_WhenNoHookCalls guards the silent
+// path: a report with no hook rows must omit the section entirely so
+// CLI-only / non-hook sessions stay byte-identical to today's output.
+func TestPrettyResponse_NoHookDenials_WhenNoHookCalls(t *testing.T) {
+	calls := makeCalls("find", 3, 1000, true, false)
+	r := aggregate(calls, Scope{Session: "current"})
+	rsp := &proto.Response{OK: true, Data: proto.MustData(r)}
+	out := PrettyResponse(nil, rsp)
+	if strings.Contains(out, "hook denials by rule") {
+		t.Errorf("unexpected hook-denials section when no hook calls:\n%s", out)
+	}
+}
