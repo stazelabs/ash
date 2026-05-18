@@ -43,8 +43,8 @@ func dialOrStart(ctx context.Context, root, sock string) (net.Conn, error) {
 	// a clean error to the harness mid-stream, so producing this error
 	// here is strictly better than racing the orphan. ASH-151.
 	if pids := stop.FindAshdPIDs(sock); len(pids) > 0 {
-		return nil, fmt.Errorf("multiple_daemons: %d ashd process(es) still alive for this socket (pid=%v) but the socket is unreachable; run ash stop to clean up",
-			len(pids), pids)
+		return nil, fmt.Errorf("multiple_daemons: %d ashd process(es) still alive for socket %s (pid=%v) but the socket is unreachable; run ash stop to clean up",
+			len(pids), sock, pids)
 	}
 	if err := startDaemon(root, sock); err != nil {
 		return nil, fmt.Errorf("start daemon: %w", err)
@@ -56,9 +56,10 @@ func dialOrStart(ctx context.Context, root, sock string) (net.Conn, error) {
 		}
 		select {
 		case <-ctx.Done():
-			msg := fmt.Sprintf("daemon did not come up: %v", err)
-			if tail := tailLog(session.LogPath(root), 20); tail != "" {
-				msg += "\n\nashd log (last lines):\n" + tail
+			logPath := session.LogPath(root)
+			msg := fmt.Sprintf("daemon did not come up at socket %s (root %s): %v", sock, root, err)
+			if tail := tailLog(logPath, 20); tail != "" {
+				msg += "\n\nashd log (last lines from " + logPath + "):\n" + tail
 			}
 			return nil, errors.New(msg)
 		case <-time.After(50 * time.Millisecond):
@@ -69,21 +70,25 @@ func dialOrStart(ctx context.Context, root, sock string) (net.Conn, error) {
 func startDaemon(root, sock string) error {
 	bin, err := findAshd()
 	if err != nil {
-		return err
+		return err // already names  / sibling / PATH in its message
 	}
 	if err := session.EnsureRuntimeDirs(root); err != nil {
-		return err
+		return fmt.Errorf("create runtime dirs under %s: %w", root, err)
 	}
-	logF, err := os.OpenFile(session.LogPath(root), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	logPath := session.LogPath(root)
+	logF, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
-		return err
+		return fmt.Errorf("open daemon log %s: %w", logPath, err)
 	}
 	defer logF.Close()
 	cmd := exec.Command(bin, "--root", root, "--socket", sock)
 	cmd.Stdout = logF
 	cmd.Stderr = logF
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	return cmd.Start()
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("spawn %s --root %s --socket %s: %w", bin, root, sock, err)
+	}
+	return nil
 }
 
 // findAshd resolves the daemon binary path. ashmcp ships as a sibling

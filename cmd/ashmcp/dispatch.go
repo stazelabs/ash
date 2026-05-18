@@ -55,7 +55,11 @@ func makeHandler(verb string) mcp.ToolHandler {
 
 		root, err := resolveRoot()
 		if err != nil {
-			return nil, fmt.Errorf("project root: %w", err)
+			// Most common failure: ashmcp launched in a sandbox or
+			// from a working directory with no project tree above it.
+			// Cwd is the most useful breadcrumb here.
+			cwd, _ := os.Getwd()
+			return nil, fmt.Errorf("project root from cwd %q: %w", cwd, err)
 		}
 		sock := session.SocketPath(root)
 		jail.SetPolicy(jail.FromConfig(false, root, nil, nil))
@@ -64,7 +68,7 @@ func makeHandler(verb string) mcp.ToolHandler {
 		defer cancel()
 		conn, err := dialOrStart(dialCtx, root, sock)
 		if err != nil {
-			return nil, fmt.Errorf("dial ashd: %w", err)
+			return nil, fmt.Errorf("dial ashd at socket %s (root %s): %w", sock, root, err)
 		}
 		defer conn.Close()
 
