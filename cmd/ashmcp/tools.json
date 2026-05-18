@@ -146,13 +146,13 @@
           },
           "format": {
             "type": "string",
-            "description": "Response shape: \"json\" (default) ships structured data as named per-record maps; \"pretty\" ships the daemon-pretty text matching CLI token cost; \"compact\" (ASH-153) ships a cols/rows hybrid where field names are listed once per call instead of once per record — only meaningful for row-shaped verbs (find, grep, metrics, report, git log/diff/show, stat, test). MCP-only knob; ignored on the CLI.",
+            "description": "Response shape: \"compact\" (default for this row-shape verb, ASH-153) ships a cols/rows hybrid where field names are listed once per call; \"json\" ships structured data as named per-record maps; \"pretty\" ships the daemon-pretty text matching CLI token cost. MCP-only knob; ignored on the CLI.",
             "enum": [
               "json",
               "pretty",
               "compact"
             ],
-            "default": "json"
+            "default": "compact"
           },
           "gi": {
             "type": "boolean",
@@ -320,13 +320,13 @@
           },
           "format": {
             "type": "string",
-            "description": "Response shape: \"json\" (default) ships structured data as named per-record maps; \"pretty\" ships the daemon-pretty text matching CLI token cost; \"compact\" (ASH-153) ships a cols/rows hybrid where field names are listed once per call instead of once per record — only meaningful for row-shaped verbs (find, grep, metrics, report, git log/diff/show, stat, test). MCP-only knob; ignored on the CLI.",
+            "description": "Response shape: \"compact\" (default for this row-shape verb, ASH-153) ships a cols/rows hybrid where field names are listed once per call; \"json\" ships structured data as named per-record maps; \"pretty\" ships the daemon-pretty text matching CLI token cost. MCP-only knob; ignored on the CLI.",
             "enum": [
               "json",
               "pretty",
               "compact"
             ],
-            "default": "json"
+            "default": "compact"
           },
           "gi": {
             "type": "boolean",
@@ -509,13 +509,13 @@
           },
           "format": {
             "type": "string",
-            "description": "Response shape: \"json\" (default) ships structured data as named per-record maps; \"pretty\" ships the daemon-pretty text matching CLI token cost; \"compact\" (ASH-153) ships a cols/rows hybrid where field names are listed once per call instead of once per record — only meaningful for row-shaped verbs (find, grep, metrics, report, git log/diff/show, stat, test). MCP-only knob; ignored on the CLI.",
+            "description": "Response shape: \"compact\" (default for this row-shape verb, ASH-153) ships a cols/rows hybrid where field names are listed once per call; \"json\" ships structured data as named per-record maps; \"pretty\" ships the daemon-pretty text matching CLI token cost. MCP-only knob; ignored on the CLI.",
             "enum": [
               "json",
               "pretty",
               "compact"
             ],
-            "default": "json"
+            "default": "compact"
           },
           "ignored": {
             "type": "boolean",
@@ -1137,13 +1137,13 @@
         "properties": {
           "format": {
             "type": "string",
-            "description": "Response shape: \"json\" (default) ships structured data as named per-record maps; \"pretty\" ships the daemon-pretty text matching CLI token cost; \"compact\" (ASH-153) ships a cols/rows hybrid where field names are listed once per call instead of once per record — only meaningful for row-shaped verbs (find, grep, metrics, report, git log/diff/show, stat, test). MCP-only knob; ignored on the CLI.",
+            "description": "Response shape: \"compact\" (default for this row-shape verb, ASH-153) ships a cols/rows hybrid where field names are listed once per call; \"json\" ships structured data as named per-record maps; \"pretty\" ships the daemon-pretty text matching CLI token cost. MCP-only knob; ignored on the CLI.",
             "enum": [
               "json",
               "pretty",
               "compact"
             ],
-            "default": "json"
+            "default": "compact"
           },
           "last": {
             "type": "integer",
@@ -1264,13 +1264,13 @@
           },
           "format": {
             "type": "string",
-            "description": "Response shape: \"json\" (default) ships structured data as named per-record maps; \"pretty\" ships the daemon-pretty text matching CLI token cost; \"compact\" (ASH-153) ships a cols/rows hybrid where field names are listed once per call instead of once per record — only meaningful for row-shaped verbs (find, grep, metrics, report, git log/diff/show, stat, test). MCP-only knob; ignored on the CLI.",
+            "description": "Response shape: \"compact\" (default for this row-shape verb, ASH-153) ships a cols/rows hybrid where field names are listed once per call; \"json\" ships structured data as named per-record maps; \"pretty\" ships the daemon-pretty text matching CLI token cost. MCP-only knob; ignored on the CLI.",
             "enum": [
               "json",
               "pretty",
               "compact"
             ],
-            "default": "json"
+            "default": "compact"
           },
           "last": {
             "type": "integer",
@@ -2554,13 +2554,13 @@
           },
           "format": {
             "type": "string",
-            "description": "Response shape: \"json\" (default) ships structured data as named per-record maps; \"pretty\" ships the daemon-pretty text matching CLI token cost; \"compact\" (ASH-153) ships a cols/rows hybrid where field names are listed once per call instead of once per record — only meaningful for row-shaped verbs (find, grep, metrics, report, git log/diff/show, stat, test). MCP-only knob; ignored on the CLI.",
+            "description": "Response shape: \"compact\" (default for this row-shape verb, ASH-153) ships a cols/rows hybrid where field names are listed once per call; \"json\" ships structured data as named per-record maps; \"pretty\" ships the daemon-pretty text matching CLI token cost. MCP-only knob; ignored on the CLI.",
             "enum": [
               "json",
               "pretty",
               "compact"
             ],
-            "default": "json"
+            "default": "compact"
           },
           "path": {
             "type": "string",
@@ -3231,13 +3231,13 @@
           },
           "format": {
             "type": "string",
-            "description": "Response shape: \"json\" (default) ships structured data as named per-record maps; \"pretty\" ships the daemon-pretty text matching CLI token cost; \"compact\" (ASH-153) ships a cols/rows hybrid where field names are listed once per call instead of once per record — only meaningful for row-shaped verbs (find, grep, metrics, report, git log/diff/show, stat, test). MCP-only knob; ignored on the CLI.",
+            "description": "Response shape: \"compact\" (default for this row-shape verb, ASH-153) ships a cols/rows hybrid where field names are listed once per call; \"json\" ships structured data as named per-record maps; \"pretty\" ships the daemon-pretty text matching CLI token cost. MCP-only knob; ignored on the CLI.",
             "enum": [
               "json",
               "pretty",
               "compact"
             ],
-            "default": "json"
+            "default": "compact"
           },
           "packages": {
             "type": "string",

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/stazelabs/ash/internal/mcpschema"
+	"github.com/stazelabs/ash/internal/verbs"
 	"github.com/stazelabs/ash/internal/verbs/help"
 )
 
@@ -103,7 +104,11 @@ func generate() ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("getwd: %w", err)
 	}
-	tl, err := mcpschema.Generate(root, help.Registry())
+	compactVerbs := map[string]bool{}
+	for v := range verbs.CompactHandlers() {
+		compactVerbs[v] = true
+	}
+	tl, err := mcpschema.Generate(root, help.Registry(), compactVerbs)
 	if err != nil {
 		return nil, fmt.Errorf("mcpschema.Generate: %w", err)
 	}

@@ -48,9 +48,20 @@ const dialDeadline = 5 * time.Second
 // or been stopped between calls.
 func makeHandler(verb string) mcp.ToolHandler {
 	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		args, format, err := decodeArgs(req.Params.Arguments)
+		args, format, explicit, err := decodeArgs(req.Params.Arguments)
 		if err != nil {
 			return nil, fmt.Errorf("decode arguments: %w", err)
+		}
+		// ASH-186: row-shape verbs default to compact (cols/rows
+		// hybrid) when the caller didn't pin a format. Per-mcpbench
+		// measurement compact cuts the envelope tax vs CLI from
+		// ~+66% to ~+36% with no loss of programmatic access. The
+		// schema's per-tool Default field surfaces the same choice
+		// to clients that read it.
+		if !explicit {
+			if _, ok := compactHandlers[verb]; ok {
+				format = mcpschema.FormatCompact
+			}
 		}
 
 		root, err := resolveRoot()
@@ -89,22 +100,30 @@ func makeHandler(verb string) mcp.ToolHandler {
 // decodeArgs unmarshals the JSON args object and peels off the MCP-only
 // `format` knob (ASH-146) so it does not reach the daemon's verb-level
 // arg parser. Empty / missing / `json` are equivalent — the JSON envelope
-// is the default emit shape. `pretty` opts into daemon-pretty rendering.
-// Unknown values are silently coerced to `json` so a typo can't break a
-// session; MCP schema validation already rejects them client-side.
-func decodeArgs(raw json.RawMessage) (map[string]any, string, error) {
+// is the default emit shape unless the caller is a row-shape verb, in
+// which case makeHandler upgrades the default to `compact` (ASH-186).
+// `pretty` opts into daemon-pretty rendering. Unknown values are silently
+// coerced to `json` so a typo can't break a session; MCP schema
+// validation already rejects them client-side.
+//
+// Returns (args, format, explicit, err). `explicit` is true when the
+// caller pinned a format value (including an unknown one); makeHandler
+// uses this to decide whether to apply the per-verb default.
+func decodeArgs(raw json.RawMessage) (map[string]any, string, bool, error) {
 	if len(raw) == 0 || string(raw) == "null" {
-		return map[string]any{}, mcpschema.FormatJSON, nil
+		return map[string]any{}, mcpschema.FormatJSON, false, nil
 	}
 	var m map[string]any
 	if err := json.Unmarshal(raw, &m); err != nil {
-		return nil, "", err
+		return nil, "", false, err
 	}
 	if m == nil {
 		m = map[string]any{}
 	}
 	format := mcpschema.FormatJSON
+	explicit := false
 	if v, ok := m[mcpschema.FormatArg]; ok {
+		explicit = true
 		if s, ok := v.(string); ok {
 			switch s {
 			case mcpschema.FormatPretty:
@@ -115,7 +134,7 @@ func decodeArgs(raw json.RawMessage) (map[string]any, string, error) {
 		}
 		delete(m, mcpschema.FormatArg)
 	}
-	return m, format, nil
+	return m, format, explicit, nil
 }
 
 func resolveRoot() (string, error) {

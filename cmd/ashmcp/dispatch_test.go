@@ -7,6 +7,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/stazelabs/ash/internal/mcpschema"
 	"github.com/stazelabs/ash/internal/proto"
 )
 
@@ -213,7 +214,7 @@ func TestDecodeArgsStripsFormat(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			args, format, err := decodeArgs(json.RawMessage(tc.body))
+			args, format, _, err := decodeArgs(json.RawMessage(tc.body))
 			if err != nil {
 				t.Fatalf("decodeArgs: %v", err)
 			}
@@ -365,12 +366,31 @@ func findResultForCompact() *proto.Response {
 	return &proto.Response{V: proto.ProtocolVersion, ID: 1, OK: true, Data: data}
 }
 
+// TestDecodeArgs_NoFormatNotExplicit pins ASH-186's contract: when the
+// caller doesn't set a format key, explicit=false so makeHandler can
+// apply the per-verb default (compact for row-shape verbs).
+func TestDecodeArgs_NoFormatNotExplicit(t *testing.T) {
+	_, format, explicit, err := decodeArgs(json.RawMessage(`{"path":"."}`))
+	if err != nil {
+		t.Fatalf("decodeArgs: %v", err)
+	}
+	if explicit {
+		t.Error("explicit=true; want false when format key is absent")
+	}
+	if format != mcpschema.FormatJSON {
+		t.Errorf("format=%q; want default %q when not set", format, mcpschema.FormatJSON)
+	}
+}
+
 // TestDecodeArgs_FormatCompact covers the args-side wiring: "compact"
 // is recognized and stripped from the args passed to the daemon.
 func TestDecodeArgs_FormatCompact(t *testing.T) {
-	args, format, err := decodeArgs(json.RawMessage(`{"path":".","format":"compact"}`))
+	args, format, explicit, err := decodeArgs(json.RawMessage(`{"path":".","format":"compact"}`))
 	if err != nil {
 		t.Fatalf("decodeArgs: %v", err)
+	}
+	if !explicit {
+		t.Error("explicit=false; want true when format key is present")
 	}
 	if format != "compact" {
 		t.Errorf("format=%q; want \"compact\"", format)

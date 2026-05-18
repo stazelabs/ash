@@ -84,14 +84,24 @@ type ToolList struct {
 // Result struct (ASH-124). When repoRoot is empty (tests that don't
 // have source access) OutputSchema is left nil and the artifact carries
 // input schemas only.
-func Generate(repoRoot string, reg []help.VerbSchema) (*ToolList, error) {
+// Generate emits a ToolList from the help registry. compactVerbs marks
+// which verbs default to FormatCompact on the MCP surface (ASH-186) —
+// the row-shape verbs that have a CompactResponse handler. Verbs not in
+// the set default to FormatJSON. The caller (cmd/ashschema) wires this
+// from verbs.CompactHandlers so mcpschema stays decoupled from the verb
+// implementations.
+func Generate(repoRoot string, reg []help.VerbSchema, compactVerbs map[string]bool) (*ToolList, error) {
 	out := &ToolList{
 		GeneratedBy: GeneratedBy,
 		Dialect:     Dialect,
 		Tools:       make([]Tool, 0, len(reg)),
 	}
 	for _, vs := range reg {
-		t, err := toolForVerb(vs)
+		defaultFormat := FormatJSON
+		if compactVerbs[vs.Verb] {
+			defaultFormat = FormatCompact
+		}
+		t, err := toolForVerb(vs, defaultFormat)
 		if err != nil {
 			return nil, fmt.Errorf("verb %s: %w", vs.Verb, err)
 		}
@@ -118,7 +128,7 @@ func (tl *ToolList) Marshal() ([]byte, error) {
 	return append(b, '\n'), nil
 }
 
-func toolForVerb(vs help.VerbSchema) (Tool, error) {
+func toolForVerb(vs help.VerbSchema, defaultFormat string) (Tool, error) {
 	props, required, err := propertiesForVerb(vs)
 	if err != nil {
 		return Tool{}, err
@@ -130,11 +140,16 @@ func toolForVerb(vs help.VerbSchema) (Tool, error) {
 	// args. Lives in mcpschema (not help.Registry) because it has no
 	// meaning for the CLI surface, which carries its own out-of-band
 	// `--format` flag.
+	//
+	// ASH-186: row-shape verbs default to "compact" (cols/rows hybrid)
+	// because per-mcpbench measurement compact cuts the envelope tax
+	// from ~+66% to ~+36% vs CLI with no loss of programmatic access.
+	// Non-row-shape verbs default to "json" (the original default).
 	props[FormatArg] = Property{
 		Type:        "string",
-		Description: "Response shape: \"json\" (default) ships structured data as named per-record maps; \"pretty\" ships the daemon-pretty text matching CLI token cost; \"compact\" (ASH-153) ships a cols/rows hybrid where field names are listed once per call instead of once per record — only meaningful for row-shaped verbs (find, grep, metrics, report, git log/diff/show, stat, test). MCP-only knob; ignored on the CLI.",
+		Description: formatDescription(defaultFormat),
 		Enum:        []string{FormatJSON, FormatPretty, FormatCompact},
-		Default:     FormatJSON,
+		Default:     defaultFormat,
 	}
 	// ASH-165: decorate the tool description with an [experimental]
 	// suffix when the verb's API commitment is provisional. Stable verbs
@@ -158,9 +173,24 @@ func toolForVerb(vs help.VerbSchema) (Tool, error) {
 }
 
 // FormatArg is the MCP-only knob name harnesses set to choose between the
-// JSON envelope (default) and the daemon-pretty text rendering. Stripped
-// by ashmcp before the request reaches the daemon (ASH-146).
+// JSON envelope, the daemon-pretty text rendering, and the compact
+// cols/rows hybrid. Stripped by ashmcp before the request reaches the
+// daemon (ASH-146). Per-verb default applied at request time (ASH-186):
+// row-shape verbs default to FormatCompact, others to FormatJSON.
 const FormatArg = "format"
+
+// formatDescription renders the per-tool description for the format arg,
+// surfacing which value is this verb's default (ASH-186). Token cost is
+// minor (~1-2 tokens differ across the three default values) but the
+// agent-visible accuracy matters more than the saving.
+func formatDescription(defaultFormat string) string {
+	switch defaultFormat {
+	case FormatCompact:
+		return "Response shape: \"compact\" (default for this row-shape verb, ASH-153) ships a cols/rows hybrid where field names are listed once per call; \"json\" ships structured data as named per-record maps; \"pretty\" ships the daemon-pretty text matching CLI token cost. MCP-only knob; ignored on the CLI."
+	default:
+		return "Response shape: \"json\" (default) ships structured data as named per-record maps; \"pretty\" ships the daemon-pretty text matching CLI token cost; \"compact\" (ASH-153) ships a cols/rows hybrid where field names are listed once per call instead of once per record — only meaningful for row-shaped verbs (find, grep, metrics, report, git log/diff/show, stat, test). MCP-only knob; ignored on the CLI."
+	}
+}
 
 // FormatJSON / FormatPretty / FormatCompact are the enum values FormatArg
 // accepts. FormatCompact (ASH-153) is the cols/rows hybrid that pays the

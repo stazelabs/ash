@@ -22,12 +22,29 @@ func testRepoRoot(t *testing.T) string {
 	return filepath.Join(filepath.Dir(file), "..", "..")
 }
 
+// testCompactVerbs mirrors verbs.CompactHandlers() but is hand-listed
+// here to keep internal/mcpschema decoupled from internal/verbs (which
+// would be an import cycle via internal/verbs/help). The list is
+// dual-validated by TestGenerateFormatKnob_RowShapeDefaultsCompact
+// against the live ashschema generator.
+func testCompactVerbs() map[string]bool {
+	return map[string]bool{
+		"metrics": true,
+		"report":  true,
+		"find":    true,
+		"grep":    true,
+		"stat":    true,
+		"git":     true,
+		"test":    true,
+	}
+}
+
 // TestGenerateLiveRegistry exercises Generate against the real help
 // registry and asserts the basic invariants — every verb maps to a tool,
 // names are namespaced, and each tool carries a valid object schema with
 // MCP's required dialect URI.
 func TestGenerateLiveRegistry(t *testing.T) {
-	tl, err := Generate(testRepoRoot(t), help.Registry())
+	tl, err := Generate(testRepoRoot(t), help.Registry(), testCompactVerbs())
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -65,7 +82,7 @@ func TestGenerateLiveRegistry(t *testing.T) {
 // registry produces required[] entries on the JSON Schema, and that
 // stringly-typed defaults coerce to proper JSON types.
 func TestGenerateRequiredAndDefaults(t *testing.T) {
-	tl, err := Generate(testRepoRoot(t), help.Registry())
+	tl, err := Generate(testRepoRoot(t), help.Registry(), testCompactVerbs())
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -98,7 +115,7 @@ func TestGenerateRequiredAndDefaults(t *testing.T) {
 // twice in the registry, once per mode) collapses to a single JSON Schema
 // property whose description preserves both senses.
 func TestGenerateEditCoalescesNew(t *testing.T) {
-	tl, err := Generate(testRepoRoot(t), help.Registry())
+	tl, err := Generate(testRepoRoot(t), help.Registry(), testCompactVerbs())
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -132,7 +149,7 @@ func TestGenerateEditCoalescesNew(t *testing.T) {
 // to the CLI surface where it has no meaning — `ash` ships its own
 // out-of-band --format flag).
 func TestGenerateFormatKnob(t *testing.T) {
-	tl, err := Generate(testRepoRoot(t), help.Registry())
+	tl, err := Generate(testRepoRoot(t), help.Registry(), testCompactVerbs())
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -148,8 +165,16 @@ func TestGenerateFormatKnob(t *testing.T) {
 		if f.Type != "string" {
 			t.Errorf("%s.%s type = %q, want string", tool.Name, FormatArg, f.Type)
 		}
-		if f.Default != FormatJSON {
-			t.Errorf("%s.%s default = %v, want %q", tool.Name, FormatArg, f.Default, FormatJSON)
+		// ASH-186: row-shape verbs default to FormatCompact; others
+		// default to FormatJSON. Strip the prefix to match against
+		// testCompactVerbs.
+		verb := strings.TrimPrefix(tool.Name, ToolNamePrefix)
+		wantDefault := FormatJSON
+		if testCompactVerbs()[verb] {
+			wantDefault = FormatCompact
+		}
+		if f.Default != wantDefault {
+			t.Errorf("%s.%s default = %v, want %q", tool.Name, FormatArg, f.Default, wantDefault)
 		}
 		if !equalStringSet(f.Enum, []string{FormatJSON, FormatPretty, FormatCompact}) {
 			t.Errorf("%s.%s enum = %v, want [%s %s %s]", tool.Name, FormatArg, f.Enum, FormatJSON, FormatPretty, FormatCompact)
@@ -170,7 +195,7 @@ func TestGenerateFormatKnob(t *testing.T) {
 // TestGenerateEnums verifies enum lists make the round trip — picking
 // read's --unit (lines|bytes) and git's --op as the witnesses.
 func TestGenerateEnums(t *testing.T) {
-	tl, err := Generate(testRepoRoot(t), help.Registry())
+	tl, err := Generate(testRepoRoot(t), help.Registry(), testCompactVerbs())
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -192,7 +217,7 @@ func TestGenerateEnums(t *testing.T) {
 // across two consecutive Marshal calls, and parsable back into the same
 // shape. CI lint diffs the bytes byte-for-byte so determinism matters.
 func TestMarshalRoundtrip(t *testing.T) {
-	tl, err := Generate(testRepoRoot(t), help.Registry())
+	tl, err := Generate(testRepoRoot(t), help.Registry(), testCompactVerbs())
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}

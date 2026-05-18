@@ -4,6 +4,9 @@ dist/
 *.exe
 /ash
 /ashd
+/ashmcp
+/harnessbench
+/mcpbench
 
 # Per-project ash daemon state (ledger, logs, sockets if they ever land here)
 .ash/

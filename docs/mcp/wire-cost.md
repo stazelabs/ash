@@ -8,6 +8,20 @@ Same intent, two transports. CLI = daemon-pretty render; MCP = the bytes ashmcp 
 >
 > Daemon paths in production (CLI → ashd, ashmcp → ashd) are unaffected: both send strings or JSON-decoded `float64`s, never raw Go `int`s. The hardening of `argutil.ToInt` to accept the full set of msgpack integer types is tracked separately in [ASH-149](https://linear.app/stazelabs/issue/ASH-149).
 
+## Per-verb default emit mode (ASH-186)
+
+`bin/ashmcp`'s per-tool `format` default is now **compact for row-shape verbs** (find/grep/git/stat/metrics/report/test — the ones with a `CompactResponse` handler) and **json for all others** (read/write/edit/diff/help/recap/workspace/lang). Verified end-to-end by `bin/mcpbench` against the bench corpus ([docs/value-assessment/06-mcp.md](../value-assessment/06-mcp.md)):
+
+| mode (subset of 11 read/grep/find cases) | ashmcp_env tokens | vs CLI | vs harness-native MCP |
+|---|---:|---:|---:|
+| old default (json everywhere) | 36,545 | +66% | −48% |
+| **new default (compact for row-shape, json otherwise)** | **30,027** | **+37%** | **−57%** |
+| explicit `format=pretty` (everywhere) | 23,278 | +6% | −67% |
+
+The change cuts ~half the envelope tax on row-shape verbs at no loss of programmatic access — compact is still a standard JSON object, just `{"k":[...],"r":[[...],[...]]}` cols/rows hybrid rather than per-record maps. Harnesses that need the per-record-map shape can pin `format: "json"` explicitly; harnesses that don't need StructuredContent at all should pin `format: "pretty"` for CLI-equivalent cost.
+
+The schema's per-tool `Default` field surfaces the per-verb choice so MCP clients reading the schema see the same default they'll get at runtime.
+
 ## Latest snapshot (post-ASH-156)
 
 `bin/wirecmp -claude -repeat 5` against the daemon at HEAD post-ASH-156. The MCP column models the TextContent ashmcp emits — empty for non-truncated json-mode success, the ASH-127 sentinel for truncated rows. Numeric args use string types (ASH-148 fixture correction).

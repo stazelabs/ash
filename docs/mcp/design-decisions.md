@@ -298,6 +298,17 @@ this triggers the single-emit follow-up ([ASH-156](https://linear.app/stazelabs/
   drift from what the harness actually consumes.
 - `format=pretty` mode is already single-emit and unaffected.
 
+## Per-verb format default (ASH-186)
+
+The default value of the MCP `format` knob is per-verb:
+
+- **Row-shape verbs** (find/grep/git/stat/metrics/report/test — anything with a `CompactResponse` handler in `internal/verbs.CompactHandlers`) default to `compact` (the ASH-153 cols/rows hybrid).
+- **All other verbs** default to `json` (the original default).
+
+Plumbing: `mcpschema.Generate` takes a `compactVerbs map[string]bool` so the per-tool `Default` field in the generated `tools.json` matches the runtime choice; the runtime application lives in `cmd/ashmcp/dispatch.go` `makeHandler`, which checks `compactHandlers[verb]` when the caller didn't pin a format.
+
+The change cuts the envelope tax on row-shape verbs roughly in half (compact ~+36% vs CLI vs json ~+66%) without losing programmatic access — compact is still standard JSON, just `{"k":[...],"r":[[...]]}` instead of per-record maps. See [docs/value-assessment/06-mcp.md](../value-assessment/06-mcp.md) for the measurement that drove the decision, and [wire-cost.md](wire-cost.md) for the before/after numbers.
+
 ## Open follow-ups
 
 - **ASH-146 (tax-2 closure).** With per-record cost pinned at ~12 Claude
