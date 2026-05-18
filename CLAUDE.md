@@ -146,6 +146,10 @@ EOF
 
 - **Mid-stream cancellation is wire-level.** Closing the conn during a streaming response is honored: the daemon's per-request watcher reads EOF, cancels ctx, and the streaming verb aborts at its next walker / scanEvents checkpoint. A KindCancel frame works the same way. The Final frame the client receives carries `Err.Code="cancelled"` whenever ctx was cancelled before the verb finished — even if the verb produced a partial Result, that Result is discarded to keep the cancelled-vs-completed distinction sharp.
 
+- **Chained bash commands die whole on first denied segment.** `decideBash` walks `&&` / `||` / `;` / `|` segments and returns deny on the first match — the harness rejects the entire command, not just the offending segment. So `git add … && git commit … && git status` denies on `git status` (Bash:git-status) and `git commit` never runs. Keep verification steps (status/log/diff) as separate invocations after the mutation, not chained onto it. (ASH-170 tracks naming the matched segment in the deny message so it's easier to spot which part triggered.)
+
+- **`make all` doesn't rebuild `bin/*` when only Go source changed.** The Makefile targets have no Go-source prerequisites, so `make all` reports "Nothing to be done" even after editing `cmd/` or `internal/`. The unit-test suite passes against source, but the live daemon keeps running the stale binary — smoke tests will appear to fail mysteriously. After source edits, force a rebuild with `go build -o bin/ash ./cmd/ash && go build -o bin/ashd ./cmd/ashd` (and `bin/ashmcp` if relevant), then `ash stop` so the next call picks up the new daemon. ASH-169 tracks fixing the Makefile.
+
 ## Session feedback ritual
 
 Real session experience drives design — that hasn't changed. What changed (May 2026) is that findings go to one of three durable destinations, not a `docs/session-notes/` directory:
