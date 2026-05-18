@@ -309,6 +309,75 @@ func TestParseArgs_RejectsBadGlob(t *testing.T) {
 	}
 }
 
+// TestParseArgs_TypeVariants pins the variant acceptance shipped for
+// ASH-183: the top error class in the 30d ledger was --type values like
+// "files" (plural), "f" (POSIX), "d" (POSIX). All map to canonical forms.
+func TestParseArgs_TypeVariants(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{"any", "any"},
+		{"file", "file"},
+		{"files", "file"},
+		{"f", "file"},
+		{"FILE", "file"},
+		{" file ", "file"},
+		{"dir", "dir"},
+		{"directory", "dir"},
+		{"directories", "dir"},
+		{"d", "dir"},
+		{"symlink", "symlink"},
+		{"symlinks", "symlink"},
+		{"link", "symlink"},
+		{"links", "symlink"},
+		{"l", "symlink"},
+	}
+	for _, tc := range cases {
+		a, perr := ParseArgs(map[string]any{"path": ".", "type": tc.in})
+		if perr != nil {
+			t.Errorf("type=%q: unexpected error %+v", tc.in, perr)
+			continue
+		}
+		if a.Type != tc.want {
+			t.Errorf("type=%q: got %q, want %q", tc.in, a.Type, tc.want)
+		}
+	}
+}
+
+// TestParseArgs_TypeGlobLooksLikeGlob covers the second-most-common
+// confusion: agents passing a glob to --type. The error must redirect
+// them to --glob rather than just listing valid types.
+func TestParseArgs_TypeGlobLooksLikeGlob(t *testing.T) {
+	cases := []string{"*.go", "**/*.md", "[abc]*"}
+	for _, in := range cases {
+		_, perr := ParseArgs(map[string]any{"path": ".", "type": in})
+		if perr == nil {
+			t.Errorf("type=%q: expected error", in)
+			continue
+		}
+		if !strings.Contains(perr.Msg, "--glob") {
+			t.Errorf("type=%q: error must mention --glob; got %q", in, perr.Msg)
+		}
+	}
+}
+
+// TestParseArgs_TypeUnknownShowsValue pins the actionable error format
+// for genuinely-invalid values: the agent sees what it passed alongside
+// the valid set instead of just the valid set.
+func TestParseArgs_TypeUnknownShowsValue(t *testing.T) {
+	_, perr := ParseArgs(map[string]any{"path": ".", "type": "frobnicate"})
+	if perr == nil {
+		t.Fatal("expected error for unknown type")
+	}
+	if !strings.Contains(perr.Msg, "frobnicate") {
+		t.Errorf("error must include the rejected value; got %q", perr.Msg)
+	}
+	if !strings.Contains(perr.Msg, "any, file, dir, symlink") {
+		t.Errorf("error must list valid values; got %q", perr.Msg)
+	}
+}
+
 func TestParseArgs_LimitClampedToMax(t *testing.T) {
 	a, perr := ParseArgs(map[string]any{"path": ".", "limit": MaxLimit + 1000})
 	if perr != nil {

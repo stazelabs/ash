@@ -1105,6 +1105,18 @@
             "line": 112
           },
           {
+            "file": "internal/verbs/find/find.go",
+            "line": 256
+          },
+          {
+            "file": "internal/verbs/find/find.go",
+            "line": 262
+          },
+          {
+            "file": "internal/verbs/find/find.go",
+            "line": 267
+          },
+          {
             "file": "internal/verbs/git/gogit_log.go",
             "line": 130
           },
@@ -2296,7 +2308,7 @@
         "sites": [
           {
             "file": "internal/verbs/find/find.go",
-            "line": 270
+            "line": 316
           }
         ]
       },

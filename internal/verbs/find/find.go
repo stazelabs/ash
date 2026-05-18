@@ -81,7 +81,7 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Glob, perr = argutil.OptionalNonEmptyString(in, "glob", DefaultGlob); perr != nil {
 		return nil, perr
 	}
-	if a.Type, perr = argutil.OptionalEnum(in, "type", "any", []string{"any", "file", "dir", "symlink"}); perr != nil {
+	if a.Type, perr = parseType(in); perr != nil {
 		return nil, perr
 	}
 	if a.MaxDepth, perr = argutil.OptionalNonNegInt(in, "depth", 0, 0); perr != nil {
@@ -222,6 +222,52 @@ func typeMatches(want, got string) bool {
 		return true
 	}
 	return want == got
+}
+
+// typeAliases maps common variant forms of --type to canonical values.
+// Driven by ledger evidence (ASH-183): agents reflexively reach for
+// POSIX-style (`f`/`d`/`l`) or pluralized (`files`/`directories`) forms.
+var typeAliases = map[string]string{
+	"any":         "any",
+	"file":        "file",
+	"files":       "file",
+	"f":           "file",
+	"dir":         "dir",
+	"directory":   "dir",
+	"directories": "dir",
+	"d":           "dir",
+	"symlink":     "symlink",
+	"symlinks":    "symlink",
+	"link":        "symlink",
+	"links":       "symlink",
+	"l":           "symlink",
+}
+
+// parseType reads --type with variant acceptance and an actionable error
+// when the value is unrecognized. Replaces argutil.OptionalEnum to fix
+// the highest-frequency error class in the 30d ledger (ASH-183).
+func parseType(in map[string]any) (string, *proto.Error) {
+	v, ok := in["type"]
+	if !ok || v == nil {
+		return "any", nil
+	}
+	s, ok := argutil.ToString(v)
+	if !ok {
+		return "", &proto.Error{Code: "args", Msg: "type must be a string"}
+	}
+	if canon, ok := typeAliases[strings.ToLower(strings.TrimSpace(s))]; ok {
+		return canon, nil
+	}
+	if strings.ContainsAny(s, "*?[") {
+		return "", &proto.Error{
+			Code: "args",
+			Msg:  fmt.Sprintf("type %q looks like a glob — did you mean --glob=%s?", s, s),
+		}
+	}
+	return "", &proto.Error{
+		Code: "args",
+		Msg:  fmt.Sprintf("type %q must be one of: any, file, dir, symlink", s),
+	}
 }
 
 // PrettyResponse renders the find response in canonical line-oriented form.
