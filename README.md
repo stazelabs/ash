@@ -72,6 +72,8 @@ Agents in repos that ran `ash init` see only the hook's deny messages today; no 
 
 **Native adoption via MCP.** The companion binary `ashmcp` exposes every read-side verb as a typed Model Context Protocol tool (`ash_read`, `ash_grep`, `ash_lang_def`, …) over stdio. MCP-aware harnesses see them alongside their built-ins from session start, so adoption no longer depends on the hook's block-and-nudge loop. Copy-paste snippets and verification recipes for Claude Code and Claude Desktop, plus the migration path off the hook, live in [docs/adoption/](docs/adoption/).
 
+**Layering vocabulary.** [docs/architecture/layers.md](docs/architecture/layers.md) is the one-pager naming the four tiers (protocol / verb library / dispatch / clients) and showing which tier a given change belongs in. Start there when proposing structural work.
+
 ## The verb surface
 
 
