@@ -214,7 +214,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		return nil, &proto.Error{Code: "stat", Msg: err.Error()}
 	}
 
-	res := &Result{Matches: make([]Match, 0, 32)}
+	res := &Result{Matches: make([]Match, 0, min(a.MaxMatches, 256))}
 	st := &state{
 		a:            a,
 		re:           re,
