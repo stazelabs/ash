@@ -97,7 +97,7 @@ type Deps struct {
 
 var knownArgs = map[string]struct{}{
 	"op": {}, "path": {}, "symbol": {}, "interface": {},
-	"in": {}, "max": {}, "context": {}, "internal-only": {},
+	"in": {}, "limit": {}, "context": {}, "internal-only": {},
 }
 
 // ParseArgs validates the loosely-typed args from the wire and produces
@@ -125,7 +125,7 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.In, perr = argutil.OptionalString(in, "in", ""); perr != nil {
 		return nil, perr
 	}
-	if a.MaxRefs, perr = argutil.OptionalPosInt(in, "max", 256, 4096); perr != nil {
+	if a.MaxRefs, perr = argutil.OptionalPosInt(in, "limit", 256, 4096); perr != nil {
 		return nil, perr
 	}
 	if a.Context, perr = argutil.OptionalBool(in, "context", true); perr != nil {
@@ -456,7 +456,7 @@ func isExternalPath(path string) bool {
 }
 
 func runRefs(d Deps, a *Args) (*Result, *proto.Error) {
-	cacheArgs := map[string]any{"symbol": a.Symbol, "in": a.InPaths, "max": a.MaxRefs, "context": a.Context, "internal_only": a.InternalOnly}
+	cacheArgs := map[string]any{"symbol": a.Symbol, "in": a.InPaths, "limit": a.MaxRefs, "context": a.Context, "internal_only": a.InternalOnly}
 	if r, ok := workspaceCacheGet(d, "refs", cacheArgs); ok {
 		return r, nil
 	}
@@ -485,7 +485,7 @@ func runRefs(d Deps, a *Args) (*Result, *proto.Error) {
 }
 
 func runImpl(d Deps, a *Args) (*Result, *proto.Error) {
-	cacheArgs := map[string]any{"interface": a.Interface, "in": a.InPaths, "max": a.MaxRefs, "context": a.Context, "internal_only": a.InternalOnly}
+	cacheArgs := map[string]any{"interface": a.Interface, "in": a.InPaths, "limit": a.MaxRefs, "context": a.Context, "internal_only": a.InternalOnly}
 	if r, ok := workspaceCacheGet(d, "impl", cacheArgs); ok {
 		return r, nil
 	}
@@ -516,7 +516,7 @@ func runImpl(d Deps, a *Args) (*Result, *proto.Error) {
 }
 
 func runCallers(d Deps, a *Args) (*Result, *proto.Error) {
-	cacheArgs := map[string]any{"symbol": a.Symbol, "in": a.InPaths, "max": a.MaxRefs, "context": a.Context, "internal_only": a.InternalOnly}
+	cacheArgs := map[string]any{"symbol": a.Symbol, "in": a.InPaths, "limit": a.MaxRefs, "context": a.Context, "internal_only": a.InternalOnly}
 	if r, ok := workspaceCacheGet(d, "callers", cacheArgs); ok {
 		return r, nil
 	}

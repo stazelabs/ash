@@ -108,8 +108,8 @@ better when grep over-matches comments/tests/strings.
 make all
 bin/ash stop && sleep 1
 # Put [lsp].enabled=true in ash.toml or use ASH_CONFIG=<path>
-ASH_CONFIG=/tmp/ash-lsp.toml bin/ash grep --path . --pattern '\bproto\.Tracer\b' --no-text true --max 200
+ASH_CONFIG=/tmp/ash-lsp.toml bin/ash grep --path . --pattern '\bproto\.Tracer\b' --no-text true --limit 200
 ASH_CONFIG=/tmp/ash-lsp.toml bin/ash metrics --verb grep --last 1
-ASH_CONFIG=/tmp/ash-lsp.toml bin/ash lang --op refs --symbol Tracer --in internal/proto/tracer.go --context true --max 200
+ASH_CONFIG=/tmp/ash-lsp.toml bin/ash lang --op refs --symbol Tracer --in internal/proto/tracer.go --context true --limit 200
 ASH_CONFIG=/tmp/ash-lsp.toml bin/ash metrics --verb lang --last 1
 ```

@@ -632,7 +632,7 @@ func TestParseArgs_RejectsBadRegex(t *testing.T) {
 
 func TestParseArgs_LimitClampedToMax(t *testing.T) {
 	a, perr := ParseArgs(map[string]any{
-		"pattern": "x", "path": ".", "max": MaxMaxMatches + 1000,
+		"pattern": "x", "path": ".", "limit": MaxMaxMatches + 1000,
 	})
 	if perr != nil {
 		t.Fatalf("unexpected: %+v", perr)
@@ -731,7 +731,7 @@ func TestParseArgs_WireShape(t *testing.T) {
 	a, perr := ParseArgs(map[string]any{
 		"pattern":           "foo",
 		"path":              root,
-		"max":       "100",
+		"limit":     "100",
 		"mpf":      "5",
 		"cb":    "2",
 		"ca":     "3",
@@ -781,7 +781,7 @@ func TestParseArgs_WireShape(t *testing.T) {
 	}
 
 	for _, bad := range []struct{ key, val string }{
-		{"max", "abc"},
+		{"limit", "abc"},
 		{"mpf", "abc"},
 		{"cb", "abc"},
 		{"ca", "abc"},

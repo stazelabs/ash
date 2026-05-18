@@ -112,7 +112,7 @@ ignore `_meta`:
     limit will not help` when `Limit == Max`.
 
 The hard-cap phrasing matters: a harness reading just the sentinel must
-not retry with `--max=higher` on a call that already saturated the cap.
+not retry with `--limit=higher` on a call that already saturated the cap.
 `IsError` stays `false` — truncation is partial success, not failure.
 
 `proto.MCPTruncationHint` and `proto.MCPTruncationSentinel` are the

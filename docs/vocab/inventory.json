@@ -1874,7 +1874,7 @@
       {
         "literal": "--limit",
         "cl100k_tokens": 2,
-        "context": "bench,find,git,replay"
+        "context": "bench,find,git,grep,lang,replay"
       },
       {
         "literal": "--list",
@@ -1885,11 +1885,6 @@
         "literal": "--lit",
         "cl100k_tokens": 2,
         "context": "grep"
-      },
-      {
-        "literal": "--max",
-        "cl100k_tokens": 2,
-        "context": "grep,lang"
       },
       {
         "literal": "--meta",

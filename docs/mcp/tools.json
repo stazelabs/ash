@@ -343,15 +343,15 @@
             "description": "Include directories starting with '.' when true.",
             "default": false
           },
+          "limit": {
+            "type": "integer",
+            "description": "Cap on total match records; hard cap 4096.",
+            "default": 256
+          },
           "lit": {
             "type": "boolean",
             "description": "Treat pattern as literal text, not a regex.",
             "default": false
-          },
-          "max": {
-            "type": "integer",
-            "description": "Max total match records; hard cap 4096.",
-            "default": 256
           },
           "mpf": {
             "type": "integer",
@@ -3727,9 +3727,9 @@
             "description": "[op=def|refs|callers|impl] Drop candidates from $GOROOT and module cache; pass false to include them.",
             "default": true
           },
-          "max": {
+          "limit": {
             "type": "integer",
-            "description": "[op=refs|callers|impl] Max rows returned; hard cap 4096.",
+            "description": "[op=refs|callers|impl] Cap on rows returned; hard cap 4096.",
             "default": 256
           },
           "op": {

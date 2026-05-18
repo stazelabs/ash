@@ -145,7 +145,7 @@ Dropped: `narrow with ` verb (redundant with the flag list), the
 Kept: the raise-flag in the slash list, so agents know which flag lifts
 the cap. Cheaper variants that lost it (`drop_raise_clause`,
 `compact_no_raise`) saved 2-3 more tokens but risked agents *lowering*
-`--max` when they meant to raise it — not worth the wire-cost saving.
+`--limit` when they meant to raise it — not worth the wire-cost saving.
 
 **Combined per-truncated-call savings vs original prose: ~17-18 Claude
 tokens.** Frequency-dependent; heavy `find`/`grep` sessions hitting

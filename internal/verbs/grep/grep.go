@@ -125,7 +125,7 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Word, perr = argutil.OptionalBool(in, "word", false); perr != nil {
 		return nil, perr
 	}
-	if a.MaxMatches, perr = argutil.OptionalPosInt(in, "max", DefaultMaxMatches, MaxMaxMatches); perr != nil {
+	if a.MaxMatches, perr = argutil.OptionalPosInt(in, "limit", DefaultMaxMatches, MaxMaxMatches); perr != nil {
 		return nil, perr
 	}
 	if a.MaxPerFile, perr = argutil.OptionalNonNegInt(in, "mpf", 0, 0); perr != nil {
