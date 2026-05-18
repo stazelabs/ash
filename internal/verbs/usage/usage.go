@@ -1,126 +1,176 @@
-// Package usage implements the `ash usage` verb (ASH-134).
+// Package usage implements the `ash usage` verb.
 //
-// `usage` is the populator for the Anthropic prompt-cache columns
-// (tokens_cache_hit / tokens_cache_miss) reserved by ASH-108. The
-// agent (or harness) calls it after observing cache numbers in the
-// Claude API response and ash retroactively annotates the prior
-// ledger row.
+// Original purpose (ASH-134): populate the Anthropic prompt-cache hit/miss
+// columns by accepting a harness-supplied --hit/--miss pair to back-fill
+// the prior ledger row. In 30 days of production traffic, no harness
+// wired up that callback — the verb saw 4 lifetime invocations, all
+// synthetic test calls (docs/value-assessment/04-cache.md).
+//
+// ASH-185 redesign: drop the manual-input form and replace with a
+// ledger-side aggregate that estimates cache-friendliness from
+// argument-repetition counts. The proxy is structural — consecutive
+// same-verb calls with byte-identical Args within Anthropic's 5-minute
+// prompt-cache TTL would land on a warm prefix. We can compute that
+// from the ledger alone, no harness callback required.
 //
 // Args:
 //
-//	hit  int    (optional) - cache_read_input_tokens from the API response.
-//	miss int    (optional) - cache_creation_input_tokens from the API response.
-//	for  uint64 (optional) - request_id of a specific prior call to annotate.
-//	                         When omitted, the most recent non-usage call in
-//	                         the current session is annotated.
+//	since   string  (optional) - time window; Go duration + d/w/mo, default 24h.
+//	session string  (optional) - "current" (default), "all", or explicit session id.
 //
-// At least one of --hit or --miss must be > 0; a usage call with both at
-// zero is rejected so we don't quietly write meaningless rows.
-//
-// Result reports the row that was updated (row id, request id, verb) and
-// echoes back the values written, so the caller can confirm the right
-// prior call landed the telemetry.
+// Result reports per-verb call count, distinct arg-set count, and
+// cache-eligible pair count (consecutive same-args within 5 min).
+// Tier D (human-warm); see docs/optimization-tiers.md.
 package usage
 
 import (
+	"bytes"
+	"fmt"
+	"sort"
+	"strings"
+	"time"
+
 	"github.com/stazelabs/ash/internal/ledger"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
 
-// MaxCacheTokens caps either --hit or --miss. Anthropic prompt-cache
-// numbers are per-message input-token counts; even a fully-packed 200k
-// context message stays well under this. The cap is defense-in-depth
-// against a misformatted call shoveling absurd values into the ledger.
-const MaxCacheTokens = 10_000_000
+// CacheTTL is the Anthropic prompt-cache time-to-live we use to define
+// "cache-eligible" consecutive pairs. Same-verb same-args calls within
+// this window of each other would land on a warm cache prefix.
+const CacheTTL = 5 * time.Minute
+
+// DefaultSince is the default --since window.
+const DefaultSince = 24 * time.Hour
 
 type Args struct {
-	Hit  int
-	Miss int
-	// For is the request_id of the call to annotate. Zero means "the
-	// most recent non-usage call in the current session".
-	For uint64
+	Since   time.Duration
+	Session string
+}
+
+// VerbStats is one row of the per-verb breakdown.
+type VerbStats struct {
+	Verb        string `msgpack:"verb"`
+	Calls       int    `msgpack:"calls"`
+	UniqueArgs  int    `msgpack:"unique_args"`
+	CachePairs  int    `msgpack:"cache_pairs"`  // consecutive (same verb, same args, within CacheTTL)
+	CacheRatio  int    `msgpack:"cache_ratio"`  // percent — CachePairs / max(Calls-1, 1) * 100
 }
 
 // Result is the structured response of `ash usage`.
 type Result struct {
-	RowID     int64  `msgpack:"row_id"`
-	RequestID uint64 `msgpack:"request_id"`
-	Verb      string `msgpack:"verb"`
-	Hit       int    `msgpack:"hit"`
-	Miss      int    `msgpack:"miss"`
+	Since   string      `msgpack:"since"`
+	Session string      `msgpack:"session"`
+	Calls   int         `msgpack:"calls"`
+	PerVerb []VerbStats `msgpack:"per_verb"`
 }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
-	a := &Args{}
-	var perr *proto.Error
-	if a.Hit, perr = argutil.OptionalNonNegInt(in, "hit", 0, MaxCacheTokens); perr != nil {
-		return nil, perr
-	}
-	if a.Miss, perr = argutil.OptionalNonNegInt(in, "miss", 0, MaxCacheTokens); perr != nil {
-		return nil, perr
-	}
-	if a.Hit == 0 && a.Miss == 0 {
-		return nil, &proto.Error{Code: "args", Msg: "at least one of --hit or --miss must be > 0"}
-	}
-	if v, ok := in["for"]; ok && v != nil {
-		n, ok := argutil.ToInt64(v)
-		if !ok || n < 0 {
-			return nil, &proto.Error{Code: "args", Msg: "for must be a non-negative integer (request_id)"}
+	a := &Args{Since: DefaultSince, Session: "current"}
+	if v, ok := in["since"]; ok && v != nil {
+		s, ok := argutil.ToString(v)
+		if !ok {
+			return nil, &proto.Error{Code: "args", Msg: "since must be a duration string"}
 		}
-		a.For = uint64(n)
+		d, err := argutil.ParseDuration(s)
+		if err != nil {
+			return nil, &proto.Error{Code: "args", Msg: "since: " + err.Error()}
+		}
+		a.Since = d
+	}
+	if v, ok := in["session"]; ok && v != nil {
+		s, ok := argutil.ToString(v)
+		if !ok || s == "" {
+			return nil, &proto.Error{Code: "args", Msg: "session must be a string"}
+		}
+		a.Session = s
 	}
 	return a, nil
 }
 
-// RunWithLedger locates the target row (by --for or by "most recent
-// non-usage call in session") and patches the cache columns in place.
-// The usage call's own row hasn't been Record()ed yet — Record runs in
-// the daemon after the verb returns — so no exclusion is required when
-// scanning for the most-recent prior call.
+// RunWithLedger queries the ledger and computes per-verb arg-repetition
+// stats. The verb itself is excluded from the output (a request for
+// "cache stats since 24h" shouldn't include the call making that
+// request — circular and uninteresting).
 func RunWithLedger(led *ledger.Ledger, a *Args) (*Result, *proto.Error) {
-	var (
-		rowID int64
-		reqID uint64
-		verb  string
-		err   error
-	)
-	if a.For != 0 {
-		rowID, verb, err = led.FindRowByRequestID(a.For)
-		if err != nil {
-			return nil, &proto.Error{Code: "ledger", Msg: err.Error()}
-		}
-		if rowID == 0 {
-			return nil, &proto.Error{Code: "not_found", Msg: "no call with that request_id in this session"}
-		}
-		if verb == "usage" {
-			return nil, &proto.Error{Code: "args", Msg: "cannot annotate a usage call itself"}
-		}
-		reqID = a.For
-	} else {
-		rowID, reqID, verb, err = led.FindMostRecentNonUsageRow(0)
-		if err != nil {
-			return nil, &proto.Error{Code: "ledger", Msg: err.Error()}
-		}
-		if rowID == 0 {
-			return nil, &proto.Error{Code: "not_found", Msg: "no prior non-usage call in this session"}
-		}
+	// "all" is the ledger's no-filter sentinel: empty string. The
+	// daemon's WHERE clause would otherwise match no rows on the
+	// literal "all". Mirrors report.querySessionID.
+	sid := a.Session
+	if sid == "all" {
+		sid = ""
 	}
-	if err := led.UpdateCacheStats(rowID, a.Hit, a.Miss); err != nil {
+	opts := ledger.QueryOpts{
+		SessionID: sid,
+		Limit:     5000,
+	}
+	if a.Since > 0 {
+		opts.Since = time.Now().Add(-a.Since)
+	}
+	calls, err := led.QueryWindow(opts)
+	if err != nil {
 		return nil, &proto.Error{Code: "ledger", Msg: err.Error()}
 	}
+
+	// QueryWindow returns DESC; reverse to chronological so pair
+	// detection mirrors the order the harness made the calls.
+	for i, j := 0, len(calls)-1; i < j; i, j = i+1, j-1 {
+		calls[i], calls[j] = calls[j], calls[i]
+	}
+
+	byVerb := map[string][]ledger.Call{}
+	for _, c := range calls {
+		if c.Verb == "usage" {
+			continue
+		}
+		byVerb[c.Verb] = append(byVerb[c.Verb], c)
+	}
+
+	stats := make([]VerbStats, 0, len(byVerb))
+	total := 0
+	for verb, cs := range byVerb {
+		vs := VerbStats{Verb: verb, Calls: len(cs)}
+		uniq := map[string]struct{}{}
+		for _, c := range cs {
+			uniq[string(c.ArgsMsgpack)] = struct{}{}
+		}
+		vs.UniqueArgs = len(uniq)
+		for i := 1; i < len(cs); i++ {
+			if !bytes.Equal(cs[i].ArgsMsgpack, cs[i-1].ArgsMsgpack) {
+				continue
+			}
+			if cs[i].Timestamp.Sub(cs[i-1].Timestamp) > CacheTTL {
+				continue
+			}
+			vs.CachePairs++
+		}
+		if vs.Calls > 1 {
+			vs.CacheRatio = vs.CachePairs * 100 / (vs.Calls - 1)
+		}
+		stats = append(stats, vs)
+		total += vs.Calls
+	}
+	sort.Slice(stats, func(i, j int) bool {
+		if stats[i].Calls != stats[j].Calls {
+			return stats[i].Calls > stats[j].Calls
+		}
+		return stats[i].Verb < stats[j].Verb
+	})
+
+	since := ""
+	if a.Since > 0 {
+		since = a.Since.String()
+	}
 	return &Result{
-		RowID:     rowID,
-		RequestID: reqID,
-		Verb:      verb,
-		Hit:       a.Hit,
-		Miss:      a.Miss,
+		Since:   since,
+		Session: a.Session,
+		Calls:   total,
+		PerVerb: stats,
 	}, nil
 }
 
-// PrettyResponse renders one line: "§usage: row=N verb=<v> req=<id> hit=H miss=M".
-// The header is the only pretty surface; there's no result body since the
-// agent already has the numbers it just wrote.
+// PrettyResponse renders the cache-friendliness summary as a header line
+// plus a per-verb table. Tier D so cost matters less than legibility.
 func PrettyResponse(_ *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)
@@ -129,39 +179,23 @@ func PrettyResponse(_ *proto.Request, rsp *proto.Response) string {
 	if err := proto.UnmarshalData(rsp, &r); err != nil {
 		return "ok\n<unrecognized usage result>"
 	}
-	return formatLine(r)
-}
-
-func formatLine(r Result) string {
-	return "§usage: row=" + itoa64(r.RowID) +
-		" verb=" + r.Verb +
-		" req=" + itoa64(int64(r.RequestID)) +
-		" hit=" + itoa(r.Hit) +
-		" miss=" + itoa(r.Miss)
-}
-
-func itoa(n int) string {
-	return itoa64(int64(n))
-}
-
-func itoa64(n int64) string {
-	if n == 0 {
-		return "0"
+	var b strings.Builder
+	fmt.Fprintf(&b, "§usage: %s, since=%s — %d calls across %d verbs\n",
+		r.Session, r.Since, r.Calls, len(r.PerVerb))
+	if len(r.PerVerb) == 0 {
+		b.WriteString("\nno calls in window.\n")
+		return b.String()
 	}
-	var buf [20]byte
-	i := len(buf)
-	neg := n < 0
-	if neg {
-		n = -n
+	fmt.Fprintf(&b, "\n%-10s  %5s  %6s  %5s  %5s\n",
+		"verb", "calls", "unique", "pairs", "ratio")
+	b.WriteString(strings.Repeat("-", 42))
+	b.WriteByte('\n')
+	for _, vs := range r.PerVerb {
+		fmt.Fprintf(&b, "%-10s  %5d  %6d  %5d  %4d%%\n",
+			vs.Verb, vs.Calls, vs.UniqueArgs, vs.CachePairs, vs.CacheRatio)
 	}
-	for n > 0 {
-		i--
-		buf[i] = byte('0' + n%10)
-		n /= 10
-	}
-	if neg {
-		i--
-		buf[i] = '-'
-	}
-	return string(buf[i:])
+	b.WriteString("\npairs = consecutive same-args calls within 5 min " +
+		"(Anthropic prompt-cache TTL). For structural prefix-overlap stats " +
+		"see `ash replay --cache_prefix true --since <window>`.\n")
+	return b.String()
 }

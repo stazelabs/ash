@@ -157,11 +157,12 @@ func TestIntegration_AllVerbs(t *testing.T) {
 		{"build", map[string]any{"packages": filepath.Join(repoRoot, "internal/runner"), "timeout": "60s"}, ""},
 		// stop is a client-only verb; the daemon returns client_only.
 		{"stop", map[string]any{}, "client_only"},
-		// usage annotates the most recent non-usage row; the earlier
-		// cases above leave plenty of candidates in this session, so a
-		// bare hit/miss pair lands on one of them. Verifies the
-		// in-process ledger update path end-to-end.
-		{"usage", map[string]any{"hit": 1000, "miss": 50}, ""},
+		// usage (post-ASH-185) computes cache-friendliness stats from
+		// ledger arg-repetition. Empty args use the defaults
+		// (--since 24h --session current); even with no preceding
+		// calls in this freshly-opened daemon session the verb
+		// returns OK with Calls=0 / PerVerb empty.
+		{"usage", map[string]any{}, ""},
 		// ASH-138: lang dispatches through the LSP broker. Runners is
 		// invoked here with broker=nil, so RunWithDeps returns
 		// lsp_disabled — exactly the contract we want for a default
