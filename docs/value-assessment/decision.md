@@ -68,10 +68,13 @@ Today's sweep used existing data only. Three questions remain that strictly requ
 - **Caveat:** the harness-tool envelope tax (~10–30 tokens per call) is not modeled; back-of-envelope analysis suggests this slightly under-counts ash's win. Modeled by simulation rather than direct measurement because the in-repo hook denies real harness invocations; the simulation is grounded in documented response formats.
 - **What changes:** the adoption push for Claude Code users is no longer gated on this question. The decision now hinges on Q2 (ashmcp envelope tax).
 
-### Q2 — What's the ashmcp envelope tax on a uniform workload? (build: ~1–2 days)
-- ASH-123 measured ~3.4× envelope tax on point cases. Sweep 2 found `tokens_out_emit` averages roughly 55% of verb output for MCP-routed calls in the wild.
-- **Need:** `integration/mcp/` suite driving ashmcp via stdio with the bench corpus, tokenizing `CallToolResult` envelopes, comparing to direct CLI + to harness-native MCP tools.
-- **Why it matters:** strictly required to claim the ashmcp track has standalone value beyond CLI dogfooding. The 148 harness-tool denies argue for ashmcp as the adoption surface; we need to know what the envelope cost actually is at scale.
+### Q2 — What's the ashmcp envelope tax on a uniform workload? ✅ **ANSWERED**
+- **Result:** ashmcp **beats harness-native MCP at every emit mode** (−48% in json default, −57% in compact, −67% in pretty). Envelope tax vs direct CLI: **+66% (json default) → +36% (compact) → +6% (pretty)**. Find is the worst-case verb (+262% to +782% in json mode) because the per-record `{path,type,size,mtime}` payload dominates small results; pretty mode crushes this. Methodology + three-mode table in [06-mcp.md](06-mcp.md).
+- **What changes:** ashmcp has standalone adoption value confirmed. The most concrete leverage moves surfaced by this measurement: **shift the ashmcp default emit mode from json to compact** (preserves structured access, ~half the envelope tax) and/or **fix `ash find` to emit path-only StructuredContent when `--meta=false`** (closes the find loss). Both are small follow-on tickets, not adoption blockers.
+
+### Both adoption-gate questions are now answered.
+
+Q1 (harness-native baseline) and Q2 (ashmcp envelope) both came back in ash's favor. The remaining gates on the adoption push are organizational (Homebrew packaging — ASH-118; docs/onboarding; outreach), not measurement.
 
 ### Q3 — What % of structural cache prefixes actually land as Anthropic prompt-cache hits? (build: blocked)
 - ASH-108/135 produced a 424-byte shared prefix for 44% of consecutive call pairs. We don't know how often that prefix is still in cache when re-used.
