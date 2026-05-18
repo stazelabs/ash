@@ -160,7 +160,7 @@ Real session experience drives design — that hasn't changed. What changed (May
 
 Workflow: capture findings as you go (scratch in `/tmp/` or your task list). At session end, promote the load-bearing parts to a destination above — terse bullets are fine, signal beats prose. If a finding fits nowhere, it's not load-bearing — drop it.
 
-`ash report --since 1h` answers most "where did the friction land?" questions without prose.
+`ash report --since 1h` answers most "where did the friction land?" questions without prose. For a weekly synthesis sweep, invoke the `/friction` slash command ([.claude/commands/friction.md](.claude/commands/friction.md), ASH-168): it batches `ash report` + `ash recap` + `ash metrics --verb hook` over a 1w window and drafts Linear-ready ticket bullets from the patterns. Human-in-the-loop on filing — synthesis quality is load-bearing, and the recalibration (ASH-160) explicitly rejected a Go-side `friction` verb in favor of this prompt.
 
 **Historical note.** The `docs/session-notes/YYYY-MM-DD-*.md` model accumulated 62 notes / ~4400 lines over ~9 days before we retired it; the current `docs/` files are the distillation. Don't recreate the accumulation pattern.
 
@@ -169,7 +169,7 @@ Workflow: capture findings as you go (scratch in `/tmp/` or your task list). At 
 Even after primordial `ash` ships, some operations stay in bash. Track them here so the dogfooding rule doesn't push agents into pretending verbs exist that don't.
 
 - **`git` ops other than `status`, `log`, `diff`, `show`** — `blame` and all destructive ops (commit/push/reset/rebase/checkout/etc.) stay in bash until they ship under `ash git --op <name>`.
-- **`go build`, `go vet`** — until `build` lands in Phase 2, build/vet orchestration stays in bash. `go test` is now `ash test`.
+- **`go vet`** — vet orchestration stays in bash; no demand signal for an `ash vet` verb today (per ASH-160 recalibration). `go test` is `ash test`; `go build` is `ash build` (ASH-163).
 - **System package management** (`brew`, `apt`, `npm install -g`, etc.) — never in scope for `ash`.
 - **Process management at the OS level** — bash. (`proc` hasn't shipped yet.)
 - **Anything not yet implemented as a verb.** When in doubt: bash, with a session note explaining what verb you wished existed.

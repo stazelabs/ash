@@ -240,6 +240,17 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	return a, nil
 }
 
+// querySessionID translates the parsed Session value into the SessionID
+// the ledger query layer expects. "all" is the no-filter sentinel and
+// must become the empty string — downstream the WHERE clause would
+// otherwise match no rows. Mirrors the translation in replay.RunWithDeps.
+func querySessionID(s string) string {
+	if s == "all" {
+		return ""
+	}
+	return s
+}
+
 func RunWithLedger(led *ledger.Ledger, a *Args) (*Result, *proto.Error) {
 	if a.AllRoots {
 		return runAllRoots(a)
@@ -249,7 +260,7 @@ func RunWithLedger(led *ledger.Ledger, a *Args) (*Result, *proto.Error) {
 	}
 
 	opts := ledger.QueryOpts{
-		SessionID:  a.Session,
+		SessionID:  querySessionID(a.Session),
 		VerbFilter: a.Verb,
 		Limit:      a.Last,
 	}
@@ -397,7 +408,7 @@ func openForeign(root string) (*ledger.Ledger, *proto.Error) {
 // Mirrors the daemon-ledger query setup in RunWithLedger.
 func queryForeign(led *ledger.Ledger, a *Args) ([]ledger.Call, *proto.Error) {
 	opts := ledger.QueryOpts{
-		SessionID:  a.Session,
+		SessionID:  querySessionID(a.Session),
 		VerbFilter: a.Verb,
 		Limit:      a.Last,
 	}
