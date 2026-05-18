@@ -400,6 +400,13 @@ func suggestTest(packages []string) string {
 	return "ash test --packages " + shellquote(strings.Join(packages, " "))
 }
 
+func suggestBuild(packages []string) string {
+	if len(packages) == 0 {
+		return "ash build"
+	}
+	return "ash build --packages " + shellquote(strings.Join(packages, " "))
+}
+
 func suggestStat(paths []string) string {
 	if len(paths) == 0 {
 		return "ash stat --paths <path>"
@@ -600,6 +607,7 @@ var verbRuleMap = map[string][]string{
 	"stat":  {"Bash:stat"},
 	"git":   {"Bash:git-status", "Bash:git-log", "Bash:git-diff", "Bash:git-show"},
 	"test":  {"Bash:go-test"},
+	"build": {"Bash:go-build"},
 }
 
 func isRuleExcluded(rule string, excludeVerbs []string) bool {
@@ -1140,6 +1148,12 @@ func decideBash(command string, excludeVerbs []string) *Result {
 			reason := fmt.Sprintf("Use ash instead: `%s` (bash `go test` is redirected to ash test in this repo).",
 				suggestTest(pos))
 			return deny("Bash", "Bash:go-test", reason)
+		}
+		if prog == "go" && len(args) > 0 && args[0] == "build" {
+			pos := positionalArgs(args[1:])
+			reason := fmt.Sprintf("Use ash instead: `%s` (bash `go build` is redirected to ash build in this repo).",
+				suggestBuild(pos))
+			return deny("Bash", "Bash:go-build", reason)
 		}
 		if prog == "sed" {
 			file, suggestion := parseSedCommand(args)

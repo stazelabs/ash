@@ -16,6 +16,7 @@ import (
 	"github.com/stazelabs/ash/internal/lsp/cache"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/verbs/bench"
+	"github.com/stazelabs/ash/internal/verbs/build"
 	"github.com/stazelabs/ash/internal/verbs/diff"
 	"github.com/stazelabs/ash/internal/verbs/edit"
 	"github.com/stazelabs/ash/internal/verbs/find"
@@ -80,6 +81,7 @@ func PrettyHandlers() map[string]Pretty {
 		"edit":    edit.PrettyResponse,
 		"diff":    diff.PrettyResponse,
 		"bench":   bench.PrettyResponse,
+		"build":   build.PrettyResponse,
 		"test":    test.PrettyResponse,
 		"init":    initverb.PrettyResponse,
 		"uninit":  uninit.PrettyResponse,
@@ -134,6 +136,7 @@ func Runners(led *ledger.Ledger, cfg *config.Config, daemonStart time.Time, proj
 		"stat":    wrap(stat.ParseArgs, stat.Run, nil),
 		"write":   wrap(write.ParseArgs, write.Run, nil),
 		"edit":    wrap(edit.ParseArgs, edit.Run, nil),
+		"build":   wrap(build.ParseArgs, build.Run, func(r *build.Result) bool { return r.Truncated }),
 		"diff":    wrap(diff.ParseArgs, diff.Run, nil),
 		"test":    wrap(test.ParseArgs, test.Run, func(r *test.Result) bool { return r.Truncated }),
 		"init":    wrap(initverb.ParseArgs, initverb.Run, nil),

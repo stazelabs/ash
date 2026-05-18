@@ -150,6 +150,11 @@ func TestIntegration_AllVerbs(t *testing.T) {
 		// verb returns quickly. Uses internal/runner (no test files) to
 		// avoid recursive go-test work in the integration suite.
 		{"test", map[string]any{"packages": "internal/runner", "run": "NoSuchTestZZZ", "timeout": "30s"}, ""},
+		// build: small non-main package that compiles quickly. The
+		// integration test runs with cwd=cmd/ashd, so an absolute path
+		// avoids "./internal/runner"-style resolution failures.
+		// Non-main → no binary artifact written.
+		{"build", map[string]any{"packages": filepath.Join(repoRoot, "internal/runner"), "timeout": "60s"}, ""},
 		// stop is a client-only verb; the daemon returns client_only.
 		{"stop", map[string]any{}, "client_only"},
 		// usage annotates the most recent non-usage row; the earlier

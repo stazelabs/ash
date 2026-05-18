@@ -3085,6 +3085,114 @@
       }
     },
     {
+      "name": "ash_build",
+      "description": "Run go build; return structured per-package errors with file:line:col.",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as named per-record maps; \"pretty\" ships the daemon-pretty text matching CLI token cost; \"compact\" (ASH-153) ships a cols/rows hybrid where field names are listed once per call instead of once per record — only meaningful for row-shaped verbs (find, grep, metrics, report, git log/diff/show, stat, test). MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty",
+              "compact"
+            ],
+            "default": "json"
+          },
+          "packages": {
+            "type": "string",
+            "description": "Comma-separated package patterns for go build.",
+            "default": "./..."
+          },
+          "race": {
+            "type": "boolean",
+            "description": "Enable the race detector (go build -race).",
+            "default": false
+          },
+          "tags": {
+            "type": "string",
+            "description": "Build tags passed as go build -tags."
+          },
+          "timeout": {
+            "type": "string",
+            "description": "Outer wall timeout (context.WithTimeout); kills go on expiry.",
+            "default": "60s"
+          }
+        },
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "elapsed": {
+            "type": "number"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "packages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "build_output": {
+                  "type": "string"
+                },
+                "errors": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "col": {
+                        "type": "integer"
+                      },
+                      "file": {
+                        "type": "string"
+                      },
+                      "line": {
+                        "type": "integer"
+                      },
+                      "message": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "file",
+                      "line",
+                      "message"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "path": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "status"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "elapsed",
+          "ok"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "ash_test",
       "description": "Run Go tests; return structured per-test results.",
       "inputSchema": {

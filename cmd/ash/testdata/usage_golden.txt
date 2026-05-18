@@ -43,6 +43,7 @@ verbs (phase 2):
           [--regress_latency N] [--record_baseline true|false] [--export_md true|false]
           [--micro true|false] [--record_micro true|false] [--diff_micro true|false]
           [--micro_benchtime <micro_benchtime>] [--micro_count N] [--micro_packages <pkgs>]
+  build   [--packages <pkgs>] [--tags <tags>] [--race true|false] [--timeout <dur>]
   test    [--packages <pkgs>] [--run <run>] [--count N] [--race true|false] [--short true|false]
           [--timeout <dur>] [--verbose true|false] [--bench <bench>] [--benchmem true|false]
           [--benchtime <benchtime>]

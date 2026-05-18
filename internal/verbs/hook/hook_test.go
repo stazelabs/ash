@@ -132,7 +132,8 @@ func TestDecide_bash(t *testing.T) {
 		{name: "git commit allows", command: "git commit -m 'msg'", want: "allow"},
 
 		// Allow paths.
-		{name: "go build allows", command: "go build ./...", want: "allow"},
+		{name: "go build", command: "go build ./...", want: "deny", wantRule: "Bash:go-build", wantSugg: "ash build --packages ./..."},
+		{name: "go build no args", command: "go build", want: "deny", wantRule: "Bash:go-build", wantSugg: "ash build"},
 		{name: "go test", command: "go test ./internal/...", want: "deny", wantRule: "Bash:go-test", wantSugg: "ash test --packages ./internal/..."},
 		{name: "go test no args", command: "go test", want: "deny", wantRule: "Bash:go-test", wantSugg: "ash test"},
 		{name: "go vet allows", command: "go vet ./...", want: "allow"},
@@ -142,10 +143,10 @@ func TestDecide_bash(t *testing.T) {
 
 		// Chained commands — first denied segment wins.
 		{name: "chained ; with denied second", command: "echo hi; cat foo", want: "deny", wantRule: "Bash:cat"},
-		{name: "chained && with denied", command: "go build && cat result", want: "deny", wantRule: "Bash:cat"},
+		{name: "chained && with denied", command: "go vet ./... && cat result", want: "deny", wantRule: "Bash:cat"},
 		{name: "chained || with denied", command: "test -f foo || cat foo", want: "deny", wantRule: "Bash:cat"},
 		{name: "pipe with denied LHS", command: "cat foo.go | wc -l", want: "deny", wantRule: "Bash:cat"},
-		{name: "all-allowed chain stays allow", command: "go build && gh pr list", want: "allow"},
+		{name: "all-allowed chain stays allow", command: "go vet ./... && gh pr list", want: "allow"},
 		// ASH-19: quote-aware segmentation — prose inside quotes must not trigger redirects.
 		{name: "commit msg grep in double-quoted arg allows", command: `git commit -m "case; grep verb"`, want: "allow"},
 		{name: "commit msg grep in single-quoted arg allows", command: `git commit -m 'case; grep verb'`, want: "allow"},
@@ -587,6 +588,13 @@ func TestDecide_excludeVerbs(t *testing.T) {
 			args:         &Args{ToolName: "Bash", Command: "go test ./...", ExcludeVerbs: []string{"test"}},
 			wantDecision: "allow",
 			wantRule:     "Bash:go-test:excluded",
+		},
+		// build excluded: bash go build allowed
+		{
+			name:         "Bash:go-build excluded allows",
+			args:         &Args{ToolName: "Bash", Command: "go build ./...", ExcludeVerbs: []string{"build"}},
+			wantDecision: "allow",
+			wantRule:     "Bash:go-build:excluded",
 		},
 		// edit excluded: bash sed allowed (sed maps to ash edit)
 		{

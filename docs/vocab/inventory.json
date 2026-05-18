@@ -269,6 +269,10 @@
             "line": 42
           },
           {
+            "file": "internal/verbs/build/build.go",
+            "line": 189
+          },
+          {
             "file": "internal/verbs/test/test.go",
             "line": 256
           }
@@ -496,11 +500,11 @@
         "sites": [
           {
             "file": "internal/verbs/verbs.go",
-            "line": 155
+            "line": 158
           },
           {
             "file": "internal/verbs/verbs.go",
-            "line": 202
+            "line": 205
           }
         ]
       },
@@ -687,6 +691,10 @@
             "line": 127
           },
           {
+            "file": "internal/verbs/build/build.go",
+            "line": 191
+          },
+          {
             "file": "internal/verbs/test/test.go",
             "line": 248
           },
@@ -858,7 +866,7 @@
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 641
+            "line": 656
           },
           {
             "file": "internal/verbs/initverb/initverb.go",
@@ -1043,6 +1051,14 @@
           {
             "file": "internal/verbs/bench/trend.go",
             "line": 184
+          },
+          {
+            "file": "internal/verbs/build/build.go",
+            "line": 81
+          },
+          {
+            "file": "internal/verbs/build/build.go",
+            "line": 84
           },
           {
             "file": "internal/verbs/diff/diff.go",
@@ -1321,6 +1337,10 @@
           {
             "file": "internal/verbs/bench/micro.go",
             "line": 205
+          },
+          {
+            "file": "internal/verbs/build/build.go",
+            "line": 149
           }
         ]
       },
@@ -1546,6 +1566,10 @@
         "literal": "timeout",
         "cl100k_tokens": 1,
         "sites": [
+          {
+            "file": "internal/verbs/build/build.go",
+            "line": 182
+          },
           {
             "file": "internal/verbs/test/test.go",
             "line": 288
@@ -1915,7 +1939,7 @@
       {
         "literal": "--packages",
         "cl100k_tokens": 2,
-        "context": "test"
+        "context": "build,test"
       },
       {
         "literal": "--patch",
@@ -1945,7 +1969,7 @@
       {
         "literal": "--race",
         "cl100k_tokens": 2,
-        "context": "test"
+        "context": "build,test"
       },
       {
         "literal": "--range",
@@ -2003,9 +2027,14 @@
         "context": "lang"
       },
       {
+        "literal": "--tags",
+        "cl100k_tokens": 2,
+        "context": "build"
+      },
+      {
         "literal": "--timeout",
         "cl100k_tokens": 2,
-        "context": "test"
+        "context": "build,test"
       },
       {
         "literal": "--tool",
@@ -2229,6 +2258,16 @@
         ]
       },
       {
+        "literal": "§build:",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/build/build.go",
+            "line": 373
+          }
+        ]
+      },
+      {
         "literal": "§diff:",
         "cl100k_tokens": 3,
         "sites": [
@@ -2286,11 +2325,11 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 687
+            "line": 702
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 693
+            "line": 708
           }
         ]
       },
@@ -2400,6 +2439,16 @@
       }
     ],
     "labels": [
+      {
+        "literal": "go build exceeded timeout=",
+        "cl100k_tokens": 5,
+        "sites": [
+          {
+            "file": "internal/verbs/build/build.go",
+            "line": 182
+          }
+        ]
+      },
       {
         "literal": "go test exceeded timeout=",
         "cl100k_tokens": 5,
@@ -2519,6 +2568,16 @@
         ]
       },
       {
+        "literal": "tmp dir:",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/build/build.go",
+            "line": 149
+          }
+        ]
+      },
+      {
         "literal": "ash:",
         "cl100k_tokens": 2,
         "sites": [
@@ -2616,7 +2675,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 959
+            "line": 974
           }
         ]
       },
@@ -2738,7 +2797,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 698
+            "line": 713
           }
         ]
       },
@@ -2899,6 +2958,10 @@
       },
       {
         "literal": "bench",
+        "cl100k_tokens": 1
+      },
+      {
+        "literal": "build",
         "cl100k_tokens": 1
       },
       {

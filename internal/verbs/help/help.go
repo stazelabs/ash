@@ -488,6 +488,21 @@ var registry = []VerbSchema{
 		},
 	},
 	{
+		Verb:        "build",
+		Description: "Run go build; return structured per-package errors with file:line:col.",
+		Args: []ArgSchema{
+			{Name: "packages", Type: "string", Default: "./...", PH: "<pkgs>",
+				Description: "Comma-separated package patterns for go build.",
+				Long:        "Comma-separated package patterns passed positionally to go build (e.g. ./...,./cmd/ash). Bare paths are auto-prefixed with ./ to avoid stdlib lookup."},
+			{Name: "tags", Type: "string", Default: "", PH: "<tags>",
+				Description: "Build tags passed as go build -tags."},
+			{Name: "race", Type: "bool", Default: "false",
+				Description: "Enable the race detector (go build -race)."},
+			{Name: "timeout", Type: "string", Default: "60s", PH: "<dur>",
+				Description: "Outer wall timeout (context.WithTimeout); kills go on expiry."},
+		},
+	},
+	{
 		Verb:        "test",
 		Description: "Run Go tests; return structured per-test results.",
 		Args: []ArgSchema{
@@ -733,7 +748,7 @@ var verbDisplayOrder = []string{
 	"read", "write", "edit", "diff",
 	"find", "grep", "git",
 	"lang",
-	"metrics", "report", "recap", "workspace", "replay", "stat", "bench", "test",
+	"metrics", "report", "recap", "workspace", "replay", "stat", "bench", "build", "test",
 	"help", "hook", "init", "uninit", "stop", "usage",
 }
 

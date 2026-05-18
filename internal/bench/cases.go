@@ -229,6 +229,7 @@ var ExemptVerbs = map[string]string{
 	"hook":    "the redirector under test; circular",
 	"bench":   "recursive",
 	"test":    "no honest bash equivalent at the verb level",
+	"build":   "wraps go build; verb output is the parsed error stream, not measurable against a bash equivalent",
 	"replay":  "reads ledger and re-dispatches verbs; no honest bash equivalent",
 	"recap":     "reads ledger; session-graph summary, no honest bash equivalent",
 	"workspace": "reads ledger + git status; re-orientation snapshot, no honest bash equivalent",

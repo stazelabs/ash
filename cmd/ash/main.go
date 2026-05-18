@@ -112,7 +112,7 @@ func main() {
 	// other verbs don't shell out, and sending env unconditionally would
 	// inflate request size and surface client secrets to verbs that
 	// shouldn't see them.
-	if verb == "test" {
+	if verb == "test" || verb == "build" {
 		req.Env = os.Environ()
 	}
 	encoded, err := proto.EncodeRequest(req)
@@ -301,8 +301,9 @@ var verbPositionals = map[string][]string{
 // (joined with commas) rather than erroring; repeating any other flag is
 // rejected so we never silently drop the earlier value.
 var verbListFlags = map[string]map[string]bool{
-	"test": {"packages": true},
-	"stat": {"paths": true},
+	"build": {"packages": true},
+	"test":  {"packages": true},
+	"stat":  {"paths": true},
 }
 
 // verbBoolFlagsCache memoizes per-verb sets of bool-typed flag names,
