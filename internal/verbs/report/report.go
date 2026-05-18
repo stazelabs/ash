@@ -26,6 +26,7 @@ import (
 	"github.com/stazelabs/ash/internal/registry"
 	"github.com/stazelabs/ash/internal/session"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
+	"github.com/stazelabs/ash/internal/verbs/help"
 	"github.com/stazelabs/ash/internal/verbs/hook"
 	"github.com/vmihailenco/msgpack/v5"
 )
@@ -134,6 +135,12 @@ type VerbArgDist struct {
 
 type VerbStats struct {
 	Verb              string         `msgpack:"verb"`
+	// Tier mirrors help.VerbSchema.Tier — "A" (inner-loop agent), "B"
+	// (episodic agent), "C" (bootstrap), or "D" (instrumentation/meta).
+	// Populated at aggregate time from the help registry; empty for
+	// verb names not in the registry (e.g. ledger rows from a verb
+	// that was renamed or removed). See docs/optimization-tiers.md.
+	Tier              string         `msgpack:"tier,omitempty"`
 	N                 int            `msgpack:"n"`
 	OKCount           int            `msgpack:"ok_count"`
 	OKPct             float64        `msgpack:"ok_pct"`
@@ -404,6 +411,24 @@ func queryForeign(led *ledger.Ledger, a *Args) ([]ledger.Call, *proto.Error) {
 	return calls, nil
 }
 
+// tierForVerb returns the optimization tier ("A"/"B"/"C"/"D") for a
+// verb name, sourced from the canonical help registry. Returns "" for
+// verbs not in the registry (e.g. ledger rows from a renamed/removed
+// verb), which sort last and group under an "(other)" header in the
+// pretty table. See docs/optimization-tiers.md.
+func tierForVerb(name string) string {
+	for _, vs := range help.Registry() {
+		if vs.Verb == name {
+			return vs.Tier
+		}
+	}
+	return ""
+}
+
+// tierRank maps a tier letter to its sort key. Empty (unknown verbs)
+// sorts after all known tiers so the main table starts with Tier A.
+var tierRank = map[string]int{"A": 0, "B": 1, "C": 2, "D": 3, "": 4}
+
 func buildScope(a *Args) Scope {
 	scope := Scope{Session: a.Session, Verb: a.Verb}
 	if a.Since > 0 {
@@ -465,7 +490,7 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 	stats := make([]VerbStats, 0, len(order))
 	for _, verb := range order {
 		cs := byVerb[verb]
-		vs := VerbStats{Verb: verb, N: len(cs)}
+		vs := VerbStats{Verb: verb, Tier: tierForVerb(verb), N: len(cs)}
 		execUs := make([]int64, len(cs))
 		tokOut := make([]int64, len(cs))
 		var sumExec, sumWalk, sumIO, sumRegex, sumRegexCompile int64
@@ -532,6 +557,17 @@ func aggregate(calls []ledger.Call, scope Scope) *Result {
 
 		stats = append(stats, vs)
 	}
+
+	// Sort stats by (tier, -n) so the table reads Tier A → D and the
+	// hottest verb in each tier is first. Stable so ties (same tier and
+	// same n) preserve first-seen order from the ledger.
+	sort.SliceStable(stats, func(i, j int) bool {
+		ri, rj := tierRank[stats[i].Tier], tierRank[stats[j].Tier]
+		if ri != rj {
+			return ri < rj
+		}
+		return stats[i].N > stats[j].N
+	})
 
 	// Build error histogram sorted by count desc.
 	sort.Slice(errOrder, func(i, j int) bool {
@@ -742,16 +778,47 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		return strings.TrimRight(b.String(), "\n")
 	}
 
-	// Per-verb table
-	fmt.Fprintf(&b, "\n%-10s  %4s  %4s  %9s  %9s  %7s  %7s  %6s\n",
-		"verb", "n", "ok%", "p50_exec", "p95_exec", "p50_out", "p95_out", "trunc%")
-	fmt.Fprintf(&b, "%s\n", strings.Repeat("-", 72))
+	// Per-verb table — sorted by (tier, -n) in aggregate(). Tier column
+	// surfaces the optimization-tier classification from the help
+	// registry so a glance answers "is this Tier A inner-loop work or
+	// Tier D meta?" (ASH-131, see docs/optimization-tiers.md).
+	fmt.Fprintf(&b, "\n%-10s  %4s  %4s  %4s  %9s  %9s  %7s  %7s  %6s\n",
+		"verb", "tier", "n", "ok%", "p50_exec", "p95_exec", "p50_out", "p95_out", "trunc%")
+	fmt.Fprintf(&b, "%s\n", strings.Repeat("-", 78))
 	for _, vs := range r.ByVerb {
-		fmt.Fprintf(&b, "%-10s  %4d  %3.0f%%  %9s  %9s  %7d  %7d  %5.0f%%\n",
-			vs.Verb, vs.N, vs.OKPct,
+		tierCell := vs.Tier
+		if tierCell == "" {
+			tierCell = "-"
+		}
+		fmt.Fprintf(&b, "%-10s  %4s  %4d  %3.0f%%  %9s  %9s  %7d  %7d  %5.0f%%\n",
+			vs.Verb, tierCell, vs.N, vs.OKPct,
 			fmtUs(vs.P50ExecUs), fmtUs(vs.P95ExecUs),
 			vs.P50TokensOut, vs.P95TokensOut,
 			vs.TruncatedPct)
+	}
+
+	// Tier subtotals — one line per tier that has at least one verb in
+	// the window. Lets ASH-131 readers spot at a glance whether Tier D
+	// is bloating the budget or Tier A is dominating as expected.
+	tierN := map[string]int{}
+	tierTok := map[string]int64{}
+	tierOrder := []string{}
+	for _, vs := range r.ByVerb {
+		t := vs.Tier
+		if t == "" {
+			t = "-"
+		}
+		if _, seen := tierN[t]; !seen {
+			tierOrder = append(tierOrder, t)
+		}
+		tierN[t] += vs.N
+		tierTok[t] += vs.TokensOutSum
+	}
+	if len(tierOrder) > 0 {
+		b.WriteString("\nby tier (n / tokens_out):\n")
+		for _, t := range tierOrder {
+			fmt.Fprintf(&b, "  %s: n=%d, tokens_out=%d\n", t, tierN[t], tierTok[t])
+		}
 	}
 
 	// Per-root breakdown — only emitted by --all-roots.

@@ -1441,6 +1441,10 @@
                     "additionalProperties": false
                   }
                 },
+                "tier": {
+                  "type": "string",
+                  "description": "Tier mirrors help.VerbSchema.Tier — \"A\" (inner-loop agent), \"B\"\n(episodic agent), \"C\" (bootstrap), or \"D\" (instrumentation/meta).\nPopulated at aggregate time from the help registry; empty for\nverb names not in the registry (e.g. ledger rows from a verb\nthat was renamed or removed). See docs/optimization-tiers.md."
+                },
                 "tok_per_kib": {
                   "type": "number",
                   "description": "tokens_out / (bytes_out/1024)"
@@ -2415,6 +2419,10 @@
                 },
                 "description": {
                   "type": "string"
+                },
+                "tier": {
+                  "type": "string",
+                  "description": "Tier classifies the verb by usage pattern for optimization policy\n(see docs/optimization-tiers.md). One of \"A\" (inner-loop agent),\n\"B\" (episodic agent), \"C\" (bootstrap), \"D\" (instrumentation/meta).\nAlways populated for shipped verbs; the omitempty tag is defensive\nfor golden-file tests that build VerbSchema literals without it."
                 },
                 "verb": {
                   "type": "string"

@@ -28,6 +28,11 @@ carry ~10 tokens of `mtime`+`mode` similarly suppressible.
 
 ## Constraints that shaped the option set
 
+The optimization policy these constraints inform is now tiered — see
+[optimization-tiers.md](optimization-tiers.md) for which verbs are
+agent-hot (Tier A, optimize aggressively) vs human-warm (Tier D, leave
+readable). These four invariants apply across all tiers.
+
 Four invariants kept the option search honest:
 
 1. **One result per line (greppable).** Each record renders on its own

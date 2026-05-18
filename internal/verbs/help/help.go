@@ -33,7 +33,13 @@ type ArgSchema struct {
 type VerbSchema struct {
 	Verb        string      `msgpack:"verb"`
 	Description string      `msgpack:"description"`
-	Args        []ArgSchema `msgpack:"args"`
+	// Tier classifies the verb by usage pattern for optimization policy
+	// (see docs/optimization-tiers.md). One of "A" (inner-loop agent),
+	// "B" (episodic agent), "C" (bootstrap), "D" (instrumentation/meta).
+	// Always populated for shipped verbs; the omitempty tag is defensive
+	// for golden-file tests that build VerbSchema literals without it.
+	Tier string      `msgpack:"tier,omitempty"`
+	Args []ArgSchema `msgpack:"args"`
 }
 
 type Result struct {
@@ -49,6 +55,7 @@ type Args struct {
 var registry = []VerbSchema{
 	{
 		Verb:        "read",
+		Tier:        "A",
 		Description: "Read a file or byte/line range; UTF-8 as-is, binary base64-encoded.",
 		Args: []ArgSchema{
 			{Name: "path", Type: "string", Required: true,
@@ -73,6 +80,7 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "find",
+		Tier:        "A",
 		Description: "Walk a directory tree and return matching paths; respects .gitignore.",
 		Args: []ArgSchema{
 			{Name: "path", Type: "string", Required: true,
@@ -107,6 +115,7 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "grep",
+		Tier:        "A",
 		Description: "Search files for an RE2 pattern; skips binary and files >16 MiB.",
 		Args: []ArgSchema{
 			{Name: "pattern", Type: "string", Required: true,
@@ -162,6 +171,7 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "git",
+		Tier:        "A",
 		Description: "Structured git calls via --op discriminator: status, log, diff, show.",
 		Args: []ArgSchema{
 			{Name: "op", Type: "string", Required: true, Values: []string{"status", "log", "diff", "show"},
@@ -207,6 +217,7 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "write",
+		Tier:        "A",
 		Description: "Write a file atomically; creates parent directories by default.",
 		Args: []ArgSchema{
 			{Name: "path", Type: "string", Required: true,
@@ -232,6 +243,7 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "metrics",
+		Tier:        "D",
 		Description: "Query recent call history from the ledger.",
 		Args: []ArgSchema{
 			{Name: "last", Type: "int", Default: "20",
@@ -243,6 +255,7 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "report",
+		Tier:        "D",
 		Description: "Per-verb ledger summary: n, ok%, p50/p95 latency, tokens, trunc%.",
 		Args: []ArgSchema{
 			{Name: "session", Type: "string", Default: "current", Values: []string{"current", "all", "<id>"},
@@ -269,6 +282,7 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "recap",
+		Tier:        "B",
 		Description: "Compact session summary: files touched, patterns searched, edits made.",
 		Args: []ArgSchema{
 			{Name: "since", Type: "string", Default: "1h",
@@ -281,6 +295,7 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "workspace",
+		Tier:        "B",
 		Description: "Re-orientation snapshot: relevant files, recent searches, branch + status, last error.",
 		Args: []ArgSchema{
 			{Name: "since", Type: "string", Default: "30m",
@@ -293,6 +308,7 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "replay",
+		Tier:        "D",
 		Description: "Re-run prior ledger calls; report per-verb token deltas vs originals.",
 		Args: []ArgSchema{
 			{Name: "session", Type: "string", Default: "current", Values: []string{"current", "all", "<id>"},
@@ -319,6 +335,7 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "help",
+		Tier:        "C",
 		Description: "Return argument schema for one verb or all verbs.",
 		Args: []ArgSchema{
 			{Name: "verb", Type: "string", Default: "",
@@ -329,6 +346,7 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "hook",
+		Tier:        "A",
 		Description: "PreToolUse decision engine; steers harness tools to ash equivalents.",
 		Args: []ArgSchema{
 			{Name: "tool", Type: "string",
@@ -354,6 +372,7 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "stat",
+		Tier:        "B",
 		Description: "Return lstat metadata for one or more paths.",
 		Args: []ArgSchema{
 			{Name: "paths", Type: "string", PH: "<p1>[,<p2>...]",
@@ -372,6 +391,7 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "edit",
+		Tier:        "A",
 		Description: "Atomically edit a file: string-replace, line-range, or patch mode.",
 		Args: []ArgSchema{
 			{Name: "path", Type: "string", Required: true,
@@ -410,6 +430,7 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "diff",
+		Tier:        "A",
 		Description: "Unified diff: file vs file or inline content, capped at 4000 lines.",
 		Args: []ArgSchema{
 			{Name: "path", Type: "string", Required: true,
@@ -432,6 +453,7 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "bench",
+		Tier:        "D",
 		Description: "Benchmark ash vs bash; report token/latency deltas per case.",
 		Args: []ArgSchema{
 			{Name: "verb", Type: "string", Default: "",
@@ -489,6 +511,7 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "build",
+		Tier:        "B",
 		Description: "Run go build; return structured per-package errors with file:line:col.",
 		Args: []ArgSchema{
 			{Name: "packages", Type: "string", Default: "./...", PH: "<pkgs>",
@@ -504,6 +527,7 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "test",
+		Tier:        "B",
 		Description: "Run Go tests; return structured per-test results.",
 		Args: []ArgSchema{
 			{Name: "packages", Type: "string", Default: "./...", PH: "<pkgs>",
@@ -537,6 +561,7 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "init",
+		Tier:        "C",
 		Description: "Bootstrap a repo for ash: hook, gitignore, CLAUDE.md, registry. Idempotent.",
 		Args: []ArgSchema{
 			{Name: "path", Type: "string", Default: ".",
@@ -552,6 +577,7 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "uninit",
+		Tier:        "C",
 		Description: "Reverse ash init: remove hook, gitignore entry, CLAUDE.md section, registry.",
 		Args: []ArgSchema{
 			{Name: "path", Type: "string", Default: ".",
@@ -562,11 +588,13 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "stop",
+		Tier:        "D",
 		Description: "Stop the daemon cleanly (SIGTERM, 7s). Idempotent; next call auto-restarts.",
 		Args:        []ArgSchema{},
 	},
 	{
 		Verb:        "usage",
+		Tier:        "D",
 		Description: "Annotate a prior call with Anthropic prompt-cache hit/miss tokens.",
 		Args: []ArgSchema{
 			{Name: "hit", Type: "int", Default: "0",
@@ -582,6 +610,7 @@ var registry = []VerbSchema{
 	},
 	{
 		Verb:        "lang",
+		Tier:        "B",
 		Description: "Semantic queries via the LSP broker: outline, def, refs, callers, impl.",
 		Args: []ArgSchema{
 			{Name: "op", Type: "string", Required: true, Values: []string{"outline", "def", "refs", "callers", "impl"},
@@ -710,7 +739,11 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		if i > 0 {
 			b.WriteByte('\n')
 		}
-		fmt.Fprintf(&b, "verb: %s\n", vs.Verb)
+		if vs.Tier != "" {
+			fmt.Fprintf(&b, "verb: %s [tier %s]\n", vs.Verb, vs.Tier)
+		} else {
+			fmt.Fprintf(&b, "verb: %s\n", vs.Verb)
+		}
 		fmt.Fprintf(&b, "  %s\n", vs.Description)
 		for _, arg := range vs.Args {
 			writeArg(&b, arg, verbose)

@@ -186,4 +186,6 @@ For the *MCP tool surface* — JSON Schema draft 2020-12 tool definitions derive
 
 For the *cache shape* — where stable vs volatile fields sit in the encoded envelope so consecutive identical calls share an Anthropic-prompt-cache-friendly prefix — [docs/cache-shape.md](docs/cache-shape.md) is the contract (ASH-108). Two pinning tests in `internal/proto/proto_test.go` (`TestResponse_CacheStableWirePrefix`, `TestResponse_VolatileSuffixOrdering`) fail loudly if a struct-field reorder pushes volatile fields earlier. Reorder `proto.Response` or `jsonResponse` only after reading the contract; volatile per-call fields (random IDs, timing, token counts) must sit at the tail.
 
+For the *optimization-tier policy* — which verbs are agent-hot (Tier A) vs human-warm (Tier D), and how aggressively to compact each — [docs/optimization-tiers.md](docs/optimization-tiers.md) is the framework (ASH-131). The tier travels with each verb's schema (`Tier` field in [internal/verbs/help/help.go](internal/verbs/help/help.go)) and surfaces in `ash help --verb <name>` and `ash report`'s per-verb table. Consult before shipping token-shape changes — Tier D ergonomics outweigh micro-savings; Tier A micro-savings compound.
+
 The single rule that doesn't change: when in doubt, use bash, write a session note, and let the next agent benefit from your friction.
