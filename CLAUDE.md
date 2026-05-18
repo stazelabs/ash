@@ -6,7 +6,7 @@ This file is the operational counterpart to [README.md](README.md). The README i
 
 `ash` is an agentic shell for coding agents — see [README §Why](README.md#why) and [§How we're building this](README.md#how-were-building-this) for the pitch and the recursive-development premise. For the four-tier architectural vocabulary (protocol / verb library / dispatch / clients), see [docs/architecture/layers.md](docs/architecture/layers.md) — start there when you need to decide which tier a change belongs in.
 
-**Current phase:** Phase 2, ship 14. 18 verbs live (run `ash help` for the authoritative list and per-verb arg schemas). Daemon (`ashd`) auto-starts on first invocation, persists per-call instrumentation to a SQLite ledger at `.ash/ledger.db`, and tokenizes every response with `cl100k_base` for honest token counts. A third binary, `ashmcp`, exposes both read-side and write-side verbs as MCP tools over stdio (ASH-104, ASH-161) so MCP-aware harnesses see `ash_read`, `ash_grep`, `ash_write`, `ash_edit`, etc. alongside their built-ins; it dispatches to the same `ashd` over the per-project UDS and is recorded in the same ledger.
+**Current phase:** Phase 2, ship 14. Run `ash help` for the live verb list and per-verb arg schemas. Daemon (`ashd`) auto-starts on first invocation, persists per-call instrumentation to a SQLite ledger at `.ash/ledger.db`, and tokenizes every response with `cl100k_base` for honest token counts. A third binary, `ashmcp`, exposes both read-side and write-side verbs as MCP tools over stdio (ASH-104, ASH-161) so MCP-aware harnesses see `ash_read`, `ash_grep`, `ash_write`, `ash_edit`, etc. alongside their built-ins; it dispatches to the same `ashd` over the per-project UDS and is recorded in the same ledger.
 
 ## Project constraints
 

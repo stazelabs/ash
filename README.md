@@ -4,7 +4,7 @@
 
 `ash` is a shell designed from the ground up for AI coding agents as the primary user. It collapses the sprawling, platform-divergent surface of legacy Unix utilities into a small set of structured verbs that return typed, token-efficient results.
 
-**Status:** alpha, phase 2 of 5. 17 verbs live, self-hosting on this repo, instrumented end-to-end. Expect breaking changes.
+**Status:** alpha, phase 2 of 5. Self-hosting on this repo, instrumented end-to-end. Run `ash help` for the live verb list. Expect breaking changes.
 
 ## Why
 
@@ -77,7 +77,7 @@ Agents in repos that ran `ash init` see only the hook's deny messages today; no 
 ## The verb surface
 
 
-17 verbs are live as of phase 2 ship 14. Every verb returns a structured response over a MessagePack-with-schema-dictionary protocol; the same data renders as a token-lean pretty form for human (or LLM) consumption. Run `ash help` for the full schema of every verb, or `ash help --verb <name>` for one.
+The verb surface as of phase 2 ship 14 is below. Every verb returns a structured response over a MessagePack-with-schema-dictionary protocol; the same data renders as a token-lean pretty form for human (or LLM) consumption. Run `ash help` for the full schema of every verb, or `ash help --verb <name>` for one.
 
 ### File system
 
