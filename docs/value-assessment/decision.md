@@ -63,10 +63,10 @@ Three explicit calls:
 
 Today's sweep used existing data only. Three questions remain that strictly require new measurement to answer, with rough build estimates so you can decide whether/when to invest:
 
-### Q1 — Does ash beat harness-native tools (Read/Grep/Glob/Edit/Write) inside Claude Code? (build: ~0.5–1 day)
-- The PreToolUse hook denies harness tools in-repo, so we have no parallel measurement.
-- **Need:** sibling no-hook workspace + replay the bench corpus through harness tools + tokenize their responses + compare.
-- **Why it matters:** strictly required to claim ash wins in MCP-aware harnesses. Without it, the "−63.8% vs bash" headline is only persuasive to users in non-Claude-Code environments.
+### Q1 — Does ash beat harness-native tools (Read/Grep/Glob/Edit/Write) inside Claude Code? ✅ **ANSWERED**
+- **Result:** yes, by **−64% on the comparable subset** (read + grep + find/glob, 13 cases). For read specifically, ash flips from "breakeven vs bash" to **−18% to −26% vs harness** because the harness Read format includes cat-n line-number prefixes that bash `cat` doesn't. Methodology + per-case table in [05-harness.md](05-harness.md).
+- **Caveat:** the harness-tool envelope tax (~10–30 tokens per call) is not modeled; back-of-envelope analysis suggests this slightly under-counts ash's win. Modeled by simulation rather than direct measurement because the in-repo hook denies real harness invocations; the simulation is grounded in documented response formats.
+- **What changes:** the adoption push for Claude Code users is no longer gated on this question. The decision now hinges on Q2 (ashmcp envelope tax).
 
 ### Q2 — What's the ashmcp envelope tax on a uniform workload? (build: ~1–2 days)
 - ASH-123 measured ~3.4× envelope tax on point cases. Sweep 2 found `tokens_out_emit` averages roughly 55% of verb output for MCP-routed calls in the wild.
