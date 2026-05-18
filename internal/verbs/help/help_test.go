@@ -62,6 +62,32 @@ func TestNoArgTokenBudget(t *testing.T) {
 	}
 }
 
+// TestGlobalFlagsFooter pins the trailing "global flags" section
+// surfaced by every help response (ASH-174). The footer is the
+// canonical place an agent learns --format exists, since the CLI strips
+// it before the request hits the daemon and it is absent from every
+// verb's arg schema.
+func TestGlobalFlagsFooter(t *testing.T) {
+	for _, in := range []*Args{
+		{Verb: ""},      // list-all branch
+		{Verb: "grep"},  // single-verb branch
+	} {
+		result, perr := Run(in, nil)
+		if perr != nil {
+			t.Fatalf("Run(%+v): %v", in, perr)
+		}
+		rsp := &proto.Response{OK: true, Data: proto.MustData(result)}
+		req := &proto.Request{Verb: "help", Args: map[string]any{"verb": in.Verb}}
+		out := PrettyResponse(req, rsp)
+		if !strings.Contains(out, "global flags:") {
+			t.Errorf("Run(verb=%q): missing 'global flags:' footer\n\n%s", in.Verb, out)
+		}
+		if !strings.Contains(out, "--format") {
+			t.Errorf("Run(verb=%q): footer missing --format\n\n%s", in.Verb, out)
+		}
+	}
+}
+
 // TestVerboseSurfacesLong guards against the msgpack:"-" regression that
 // silently stripped Long off the wire (ASH-144). Verifies that for at least
 // one well-known Long-only string ("@PATH" — appears in edit --old/--new

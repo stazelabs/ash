@@ -778,6 +778,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		for _, vs := range r.Verbs {
 			fmt.Fprintf(&b, "  %-*s  %s\n", verbNameW, vs.Verb, vs.Description)
 		}
+		writeGlobalFlags(&b)
 		return strings.TrimRight(b.String(), "\n")
 	}
 	fmt.Fprintf(&b, "§help: %d verb(s)\n", r.Count)
@@ -800,7 +801,17 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 			writeArg(&b, arg, verbose)
 		}
 	}
+	writeGlobalFlags(&b)
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// writeGlobalFlags renders the trailing "global flags" section shared by
+// every help output. --format is stripped by the CLI before the request
+// hits the daemon, so it does not appear in any verb's arg schema; this
+// footer is the canonical place an agent learns it exists.
+func writeGlobalFlags(b *strings.Builder) {
+	b.WriteString("\nglobal flags:\n")
+	b.WriteString("  --format:string=pretty — Output format [pretty|json|msgpack]\n")
 }
 
 func writeArg(b *strings.Builder, a ArgSchema, verbose bool) {

@@ -2324,7 +2324,7 @@
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 783
+            "line": 784
           }
         ]
       },
@@ -2529,6 +2529,16 @@
         ]
       },
       {
+        "literal": "global flags:",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/help/help.go",
+            "line": 813
+          }
+        ]
+      },
+      {
         "literal": "guidance:",
         "cl100k_tokens": 3,
         "sites": [
@@ -2670,7 +2680,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 1058
+            "line": 1069
           }
         ]
       },
@@ -2792,7 +2802,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 796
+            "line": 797
           }
         ]
       },
