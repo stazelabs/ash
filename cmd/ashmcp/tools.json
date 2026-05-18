@@ -1292,7 +1292,7 @@
           },
           "since": {
             "type": "string",
-            "description": "Time window (e.g. 15m, 1h, 7d); supports Go duration + d."
+            "description": "Time window (e.g. 15m, 1h, 7d, 1w, 2mo); Go duration + d/w/mo."
           },
           "top": {
             "type": "integer",
@@ -1666,7 +1666,7 @@
           },
           "since": {
             "type": "string",
-            "description": "Time window (e.g. 15m, 1h, 24h); supports Go duration + d.",
+            "description": "Time window (e.g. 15m, 1h, 24h, 7d, 1w); Go duration + d/w/mo.",
             "default": "1h"
           },
           "top": {
@@ -1817,7 +1817,7 @@
           },
           "since": {
             "type": "string",
-            "description": "Time window for relevance, default 30m; max 24h.",
+            "description": "Time window for relevance, default 30m; max 24h. Go duration + d/w/mo.",
             "default": "30m"
           }
         },
@@ -1991,7 +1991,7 @@
           },
           "since": {
             "type": "string",
-            "description": "Time window (e.g. 1h, 7d); supports Go duration + d."
+            "description": "Time window (e.g. 1h, 7d, 1w, 2mo); Go duration + d/w/mo."
           },
           "top": {
             "type": "integer",

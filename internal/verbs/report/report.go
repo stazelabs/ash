@@ -207,7 +207,7 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if since, perr := argutil.OptionalString(in, "since", ""); perr != nil {
 		return nil, perr
 	} else if since != "" {
-		d, err := parseDuration(since)
+		d, err := argutil.ParseDuration(since)
 		if err != nil {
 			return nil, &proto.Error{Code: "args", Msg: "since: " + err.Error()}
 		}
@@ -1128,24 +1128,6 @@ func suggestedAshVerb(suggested string) string {
 		}
 	}
 	return ""
-}
-
-// parseDuration extends time.ParseDuration to support day units ("7d", "1d").
-func parseDuration(s string) (time.Duration, error) {
-	if strings.HasSuffix(s, "d") {
-		n, err := parseInt(s[:len(s)-1])
-		if err != nil || n <= 0 {
-			return 0, fmt.Errorf("invalid day value %q", s)
-		}
-		return time.Duration(n) * 24 * time.Hour, nil
-	}
-	return time.ParseDuration(s)
-}
-
-func parseInt(s string) (int, error) {
-	var n int
-	_, err := fmt.Sscanf(s, "%d", &n)
-	return n, err
 }
 
 func toFloat64(v any) (float64, bool) {

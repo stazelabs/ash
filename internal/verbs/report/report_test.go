@@ -70,36 +70,9 @@ func TestPct(t *testing.T) {
 	}
 }
 
-func TestParseDuration(t *testing.T) {
-	tests := []struct {
-		in      string
-		want    time.Duration
-		wantErr bool
-	}{
-		{"1h", time.Hour, false},
-		{"15m", 15 * time.Minute, false},
-		{"1d", 24 * time.Hour, false},
-		{"7d", 7 * 24 * time.Hour, false},
-		{"0d", 0, true},
-		{"-1d", 0, true},
-		{"bad", 0, true},
-	}
-	for _, tt := range tests {
-		got, err := parseDuration(tt.in)
-		if tt.wantErr {
-			if err == nil {
-				t.Errorf("parseDuration(%q) expected error, got nil", tt.in)
-			}
-			continue
-		}
-		if err != nil {
-			t.Errorf("parseDuration(%q) unexpected error: %v", tt.in, err)
-		}
-		if got != tt.want {
-			t.Errorf("parseDuration(%q) = %v, want %v", tt.in, got, tt.want)
-		}
-	}
-}
+// TestParseDuration: cases moved to internal/verbs/argutil/duration_test.go
+// (ASH-171). The verb-local parseDuration was consolidated; this test no
+// longer exercises a unique code path.
 
 func TestParseArgs(t *testing.T) {
 	// Defaults

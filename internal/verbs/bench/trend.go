@@ -10,12 +10,12 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/stazelabs/ash/internal/ledger"
 	"github.com/stazelabs/ash/internal/proto"
+	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
 
 // RunSummary is the listed/header form of one bench_runs row.
@@ -128,7 +128,7 @@ func runCompare(d Deps, a *Args) (*CompareResult, *proto.Error) {
 // (e.g. "7d"). The comparison's B side is the fresh run; A is the
 // rolling baseline.
 func runWithBaseline(d Deps, a *Args) (*CompareResult, *proto.Error) {
-	dur, err := parseDuration(a.Baseline)
+	dur, err := argutil.ParseDuration(a.Baseline)
 	if err != nil {
 		return nil, &proto.Error{Code: "args", Msg: "baseline: " + err.Error()}
 	}
@@ -462,19 +462,4 @@ func min(a, b int) int {
 	return b
 }
 
-// parseDuration accepts the standard Go forms (h, m, s) plus the
 
-// agent-friendly "d" suffix for days. Empty string returns an error.
-func parseDuration(s string) (time.Duration, error) {
-	if s == "" {
-		return 0, fmt.Errorf("empty duration")
-	}
-	if strings.HasSuffix(s, "d") {
-		n, err := strconv.Atoi(s[:len(s)-1])
-		if err != nil {
-			return 0, fmt.Errorf("bad days value %q", s)
-		}
-		return time.Duration(n) * 24 * time.Hour, nil
-	}
-	return time.ParseDuration(s)
-}

@@ -17,11 +17,11 @@ heuristics for pattern-matching, that's the wrong answer.
 
 ## Step 1 — gather signals (run in parallel)
 
-Let `WINDOW` be `$ARGUMENTS` if non-empty, otherwise `7d`.
+Let `WINDOW` be `$ARGUMENTS` if non-empty, otherwise `1w`.
 
-Note: `ash report` / `recap`'s `--since` accepts Go duration syntax plus
-`d` for days only (`7d`, not `1w` — ASH-171 will add `w`/`mo`). Use
-`7d`, `14d`, `30d` for typical windows.
+`--since` accepts Go duration syntax (e.g. `15m`, `1h`) plus `d` =
+24h, `w` = 7d, `mo` = 30d (calendar-approximate). Typical: `1w`,
+`2w`, `1mo`.
 
 Run all three in one tool batch:
 
