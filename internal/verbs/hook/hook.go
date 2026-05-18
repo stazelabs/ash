@@ -400,6 +400,19 @@ func suggestTest(packages []string) string {
 	return "ash test --packages " + shellquote(strings.Join(packages, " "))
 }
 
+// truncateSegmentMarker trims long segment text for the deny-reason
+// marker so a 4-line heredoc segment doesn't overwhelm the message.
+// 60 chars is enough for any typical command form (e.g. "git status",
+// "grep -c TODO README.md") while bounding the worst case.
+const maxSegmentMarkerLen = 60
+
+func truncateSegmentMarker(s string) string {
+	if len(s) <= maxSegmentMarkerLen {
+		return s
+	}
+	return s[:maxSegmentMarkerLen] + "…"
+}
+
 func suggestBuild(packages []string) string {
 	if len(packages) == 0 {
 		return "ash build"
@@ -1055,13 +1068,24 @@ func decideBash(command string, excludeVerbs []string) *Result {
 	if strings.TrimSpace(command) == "" {
 		return &Result{Decision: "allow", ToolName: "Bash"}
 	}
-	deny := func(toolName, rule, reason string) *Result {
+	// ASH-170: for chained commands (multiple segments), append a
+	// "[matched in segment ...]" marker to the deny reason so the
+	// agent can spot which part of `A && B && C` triggered the
+	// rule. Single-segment commands keep their reason byte-identical
+	// to today's (the segment text equals the command text — no signal
+	// added by repeating it).
+	segs := segments(command)
+	multi := len(segs) > 1
+	deny := func(toolName, rule, reason, seg string) *Result {
 		if r := allowedByExclusion(toolName, rule, excludeVerbs); r != nil {
 			return r
 		}
+		if multi && seg != "" {
+			reason = strings.TrimSuffix(reason, ".") + " [matched in segment `" + truncateSegmentMarker(seg) + "`]."
+		}
 		return denyResult(toolName, rule, reason)
 	}
-	for _, seg := range segments(command) {
+	for _, seg := range segs {
 		prog, args := firstToken(seg)
 		if prog == "" {
 			continue
@@ -1070,7 +1094,7 @@ func decideBash(command string, excludeVerbs []string) *Result {
 			if target, ok := detectOutputRedirect(args); ok {
 				reason := fmt.Sprintf("Use ash instead: `%s` (bash `%s ... > FILE` is redirected to ash write in this repo).",
 					suggestWriteRedirect(target), prog)
-				return deny("Bash", "Bash:redirect-write", reason)
+				return deny("Bash", "Bash:redirect-write", reason, seg)
 			}
 		}
 		if grepLike[prog] {
@@ -1085,7 +1109,7 @@ func decideBash(command string, excludeVerbs []string) *Result {
 			path := pos[1]
 			reason := fmt.Sprintf("Use ash instead: `%s` (bash `%s` is redirected to ash grep in this repo).",
 				suggestGrep(pattern, path, ""), prog)
-			return deny("Bash", "Bash:"+prog, reason)
+			return deny("Bash", "Bash:"+prog, reason, seg)
 		}
 
 		if prog == "find" {
@@ -1103,7 +1127,7 @@ func decideBash(command string, excludeVerbs []string) *Result {
 			}
 			reason := fmt.Sprintf("Use ash instead: `%s` (bash `find` is redirected to ash find in this repo).",
 				suggestFind(path, glob, ""))
-			return deny("Bash", "Bash:find", reason)
+			return deny("Bash", "Bash:find", reason, seg)
 		}
 		if readLike[prog] {
 			pos := pipelinePositionals(prog, args)
@@ -1116,7 +1140,7 @@ func decideBash(command string, excludeVerbs []string) *Result {
 			path := pos[0]
 			reason := fmt.Sprintf("Use ash instead: `%s` (bash `%s` is redirected to ash read in this repo).",
 				suggestRead(path), prog)
-			return deny("Bash", "Bash:"+prog, reason)
+			return deny("Bash", "Bash:"+prog, reason, seg)
 		}
 
 		if prog == "ls" && lsIsRecursive(args) {
@@ -1127,33 +1151,33 @@ func decideBash(command string, excludeVerbs []string) *Result {
 			}
 			reason := fmt.Sprintf("Use ash instead: `%s` (recursive `ls -R` is redirected to ash find in this repo).",
 				suggestFind(path, "", ""))
-			return deny("Bash", "Bash:ls-R", reason)
+			return deny("Bash", "Bash:ls-R", reason, seg)
 		}
 		if prog == "stat" {
 			pos := positionalArgs(args)
 			reason := fmt.Sprintf("Use ash instead: `%s` (bash `stat` is redirected to ash stat in this repo).",
 				suggestStat(pos))
-			return deny("Bash", "Bash:stat", reason)
+			return deny("Bash", "Bash:stat", reason, seg)
 		}
 		if prog == "git" {
 			sub := gitSubcommand(args)
 			if gitRedirect[sub] {
 				reason := fmt.Sprintf("Use ash instead: `ash git --op %s` (bash `git %s` is redirected to the ash git verb in this repo).",
 					sub, sub)
-				return deny("Bash", "Bash:git-"+sub, reason)
+				return deny("Bash", "Bash:git-"+sub, reason, seg)
 			}
 		}
 		if prog == "go" && len(args) > 0 && args[0] == "test" {
 			pos := positionalArgs(args[1:])
 			reason := fmt.Sprintf("Use ash instead: `%s` (bash `go test` is redirected to ash test in this repo).",
 				suggestTest(pos))
-			return deny("Bash", "Bash:go-test", reason)
+			return deny("Bash", "Bash:go-test", reason, seg)
 		}
 		if prog == "go" && len(args) > 0 && args[0] == "build" {
 			pos := positionalArgs(args[1:])
 			reason := fmt.Sprintf("Use ash instead: `%s` (bash `go build` is redirected to ash build in this repo).",
 				suggestBuild(pos))
-			return deny("Bash", "Bash:go-build", reason)
+			return deny("Bash", "Bash:go-build", reason, seg)
 		}
 		if prog == "sed" {
 			file, suggestion := parseSedCommand(args)
@@ -1164,7 +1188,7 @@ func decideBash(command string, excludeVerbs []string) *Result {
 			}
 			reason := fmt.Sprintf("Use ash instead: `%s` (bash `sed` is redirected to ash edit/read in this repo).",
 				suggestion)
-			return deny("Bash", "Bash:sed", reason)
+			return deny("Bash", "Bash:sed", reason, seg)
 		}
 		// Other programs (gh, mv, rm, …) pass through.
 	}

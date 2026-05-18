@@ -374,6 +374,57 @@ func TestDecide_bash(t *testing.T) {
 	}
 }
 
+// ASH-170: multi-segment denies append a [matched in segment ...]
+// marker to the deny reason so the agent can spot which part of a
+// chained command triggered the rule. Single-segment denies must
+// stay byte-identical to today's output (no marker).
+func TestDecide_bash_segmentMarker(t *testing.T) {
+	// Single segment: no marker.
+	r := Decide(&Args{ToolName: "Bash", Command: "cat foo.txt"})
+	if r.Decision != "deny" {
+		t.Fatalf("single-segment cat should deny, got %q", r.Decision)
+	}
+	if strings.Contains(r.Reason, "matched in segment") {
+		t.Errorf("single-segment deny should NOT carry segment marker (redundant): %q", r.Reason)
+	}
+
+	// Multi-segment (trailing denied): marker names the denied segment.
+	r = Decide(&Args{ToolName: "Bash", Command: "git add . && git commit -m msg && git status"})
+	if r.Decision != "deny" {
+		t.Fatalf("chained git status should deny, got %q", r.Decision)
+	}
+	if !strings.Contains(r.Reason, "matched in segment") {
+		t.Errorf("multi-segment deny should carry segment marker: %q", r.Reason)
+	}
+	if !strings.Contains(r.Reason, "git status") {
+		t.Errorf("segment marker should name the matched segment 'git status': %q", r.Reason)
+	}
+	// The earlier segments must NOT appear in the marker.
+	if strings.Contains(r.Reason, "[matched in segment `git add") {
+		t.Errorf("marker should point at the denied segment, not the first one: %q", r.Reason)
+	}
+
+	// Multi-segment (long segment) gets truncated with an ellipsis.
+	long := "cat " + strings.Repeat("x", 200) + " && echo ok"
+	r = Decide(&Args{ToolName: "Bash", Command: long})
+	if r.Decision != "deny" {
+		t.Fatalf("long-segment cat should deny, got %q", r.Decision)
+	}
+	if !strings.Contains(r.Reason, "…") {
+		t.Errorf("segment marker on long segment should truncate with …: %q", r.Reason)
+	}
+
+	// The suggestion (first backtick pair) must still be the ash
+	// invocation, not the segment text — extractSuggested invariant.
+	r = Decide(&Args{ToolName: "Bash", Command: "echo hi && grep -r foo ."})
+	if r.Decision != "deny" {
+		t.Fatalf("chained grep should deny, got %q", r.Decision)
+	}
+	if !strings.HasPrefix(r.Suggested, "ash ") {
+		t.Errorf("Suggested must remain the ash invocation, got %q", r.Suggested)
+	}
+}
+
 func TestExtractArgs_roundtrip(t *testing.T) {
 	payload := []byte(`{
 		"tool_name": "Grep",
