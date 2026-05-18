@@ -1,143 +1,142 @@
 {
   "schema": "ash-bench-baseline-v1",
-  "ts": "2026-05-11T01:46:23Z",
+  "ts": "2026-05-18T04:08:55Z",
   "ash_version": "0.1.0",
-  "ash_commit_sha": "a2510969f3064d3e31109b0426222f2d99f6c915",
+  "ash_commit_sha": "f35cf2c5304223629e4645d39f408a976975c3b8",
   "case_set_version": "cs-37ed1eba686fb647",
-  "repo_sha": "a2510969f3064d3e31109b0426222f2d99f6c915",
-  "repo_dirty": true,
+  "repo_sha": "f35cf2c5304223629e4645d39f408a976975c3b8",
   "cases": [
     {
       "name": "diff_stat_only",
       "verb": "diff",
-      "ash_tokens": 17,
-      "bash_tokens": 9599
+      "ash_tokens": 15,
+      "bash_tokens": 12154
     },
     {
       "name": "diff_two_files",
       "verb": "diff",
-      "ash_tokens": 9184,
-      "bash_tokens": 9599
+      "ash_tokens": 11562,
+      "bash_tokens": 12154
     },
     {
       "name": "edit_string_replace",
       "verb": "edit",
-      "ash_tokens": 22,
+      "ash_tokens": 20,
       "bash_tokens": 0
     },
     {
       "name": "find_go_files",
       "verb": "find",
-      "ash_tokens": 834,
-      "bash_tokens": 929
+      "ash_tokens": 1440,
+      "bash_tokens": 1609
     },
     {
       "name": "find_go_files_absolute",
       "verb": "find",
-      "ash_tokens": 834,
-      "bash_tokens": 1959
+      "ash_tokens": 1440,
+      "bash_tokens": 3359
     },
     {
       "name": "find_md_in_docs",
       "verb": "find",
-      "ash_tokens": 808,
-      "bash_tokens": 800
+      "ash_tokens": 194,
+      "bash_tokens": 188
     },
     {
       "name": "find_shallow",
       "verb": "find",
-      "ash_tokens": 44,
-      "bash_tokens": 72
+      "ash_tokens": 47,
+      "bash_tokens": 91
     },
     {
       "name": "git_log_20",
       "verb": "git",
-      "ash_tokens": 734,
-      "bash_tokens": 6785
+      "ash_tokens": 750,
+      "bash_tokens": 8577
     },
     {
       "name": "git_status",
       "verb": "git",
-      "ash_tokens": 87,
-      "bash_tokens": 141
+      "ash_tokens": 20,
+      "bash_tokens": 39
     },
     {
       "name": "grep_files_only",
       "verb": "grep",
-      "ash_tokens": 732,
-      "bash_tokens": 856
+      "ash_tokens": 910,
+      "bash_tokens": 1109
     },
     {
       "name": "grep_heavy_func_internal",
       "verb": "grep",
-      "ash_tokens": 4993,
-      "bash_tokens": 27985
+      "ash_tokens": 5015,
+      "bash_tokens": 44486
     },
     {
       "name": "grep_parseargs_absolute",
       "verb": "grep",
-      "ash_tokens": 5882,
-      "bash_tokens": 9759
+      "ash_tokens": 5985,
+      "bash_tokens": 13175
     },
     {
       "name": "grep_parseargs_internal",
       "verb": "grep",
-      "ash_tokens": 5882,
-      "bash_tokens": 6976
+      "ash_tokens": 5985,
+      "bash_tokens": 9424
     },
     {
       "name": "grep_rare_pattern",
       "verb": "grep",
-      "ash_tokens": 82,
-      "bash_tokens": 276
+      "ash_tokens": 88,
+      "bash_tokens": 314
     },
     {
       "name": "grep_todo_repo",
       "verb": "grep",
-      "ash_tokens": 1183,
-      "bash_tokens": 1326
+      "ash_tokens": 1139,
+      "bash_tokens": 1306
     },
     {
       "name": "read_range",
       "verb": "read",
-      "ash_tokens": 735,
-      "bash_tokens": 725
+      "ash_tokens": 739,
+      "bash_tokens": 731
     },
     {
       "name": "read_small",
       "verb": "read",
-      "ash_tokens": 5912,
-      "bash_tokens": 5898
+      "ash_tokens": 6331,
+      "bash_tokens": 6320
     },
     {
       "name": "read_tiny_range",
       "verb": "read",
-      "ash_tokens": 27,
+      "ash_tokens": 25,
       "bash_tokens": 17
     },
     {
       "name": "stat_bulk",
       "verb": "stat",
-      "ash_tokens": 33,
-      "bash_tokens": 273
+      "ash_tokens": 30,
+      "bash_tokens": 270
     },
     {
       "name": "stat_single",
       "verb": "stat",
-      "ash_tokens": 17,
+      "ash_tokens": 14,
       "bash_tokens": 87
     },
     {
       "name": "write_small",
       "verb": "write",
-      "ash_tokens": 20,
+      "ash_tokens": 18,
       "bash_tokens": 0
     }
   ],
   "summary": {
     "n_cases": 21,
-    "ash_tokens_total": 38062,
-    "bash_tokens_total": 84062,
-    "delta_tok_pct": -54.721515072208604
+    "ash_tokens_total": 41767,
+    "bash_tokens_total": 115410,
+    "delta_tok_pct": -63.80989515639892
   }
 }
