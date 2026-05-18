@@ -8,6 +8,36 @@ import (
 	"github.com/stazelabs/ash/internal/proto"
 )
 
+// TestRegistry_StabilityClassification pins the experimental verb set
+// (ASH-165). When intentionally moving a verb to/from experimental,
+// update both this list and experimentalVerbs in help.go. The
+// classification is surfaced in ash help and in MCP tools.json
+// descriptions, so a silent drift would mislead adopters.
+func TestRegistry_StabilityClassification(t *testing.T) {
+	wantExperimental := map[string]bool{
+		"lang":      true,
+		"replay":    true,
+		"usage":     true,
+		"bench":     true,
+		"recap":     true,
+		"workspace": true,
+		"init":      true,
+		"uninit":    true,
+	}
+	for _, vs := range Registry() {
+		wantExp := wantExperimental[vs.Verb]
+		gotExp := vs.Stability == "experimental"
+		if wantExp != gotExp {
+			t.Errorf("%s: stability mismatch (want experimental=%v, got Stability=%q)",
+				vs.Verb, wantExp, vs.Stability)
+		}
+		if !wantExp && vs.Stability != "" {
+			t.Errorf("%s: stable verbs must leave Stability empty (got %q) so omitempty fires",
+				vs.Verb, vs.Stability)
+		}
+	}
+}
+
 // TestNoArgTokenBudget guards against PrettyResponse regressing to full-schema
 // output for the no-arg form. ASH-73 reduced ash help (no args) from ~3700
 // tokens to ~700 by emitting one-liner per verb instead of full arg schemas.

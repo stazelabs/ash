@@ -38,8 +38,15 @@ type VerbSchema struct {
 	// "B" (episodic agent), "C" (bootstrap), "D" (instrumentation/meta).
 	// Always populated for shipped verbs; the omitempty tag is defensive
 	// for golden-file tests that build VerbSchema literals without it.
-	Tier string      `msgpack:"tier,omitempty"`
-	Args []ArgSchema `msgpack:"args"`
+	Tier string `msgpack:"tier,omitempty"`
+	// Stability classifies the verb's API commitment for adopters
+	// (ASH-165). "experimental" means the arg schema or output shape
+	// may change in a point release without notice. Empty == stable
+	// (the default) — most verbs are committed. Populated centrally
+	// from experimentalVerbs in Registry() so adding/removing a verb
+	// from the experimental set is a one-line edit.
+	Stability string      `msgpack:"stability,omitempty"`
+	Args      []ArgSchema `msgpack:"args"`
 }
 
 type Result struct {
@@ -642,7 +649,36 @@ var registry = []VerbSchema{
 }
 
 // Registry returns the full verb schema registry (read-only view for tests and tooling).
-func Registry() []VerbSchema { return registry }
+// experimentalVerbs is the central classification set for ASH-165.
+// Verbs not listed here are treated as stable — the API-commitment
+// default. Add a verb here when its arg schema or output shape might
+// change in a point release without notice; remove when it settles.
+var experimentalVerbs = map[string]bool{
+	"lang":      true,
+	"replay":    true,
+	"usage":     true,
+	"bench":     true,
+	"recap":     true,
+	"workspace": true,
+	"init":      true,
+	"uninit":    true,
+}
+
+// Registry returns the live verb registry with Stability populated
+// from experimentalVerbs. Returned slice is a copy so callers cannot
+// accidentally mutate the package-internal registry. The Stability
+// field is decorative metadata — wire shape is unchanged for the
+// stable default (omitempty hides the empty string).
+func Registry() []VerbSchema {
+	out := make([]VerbSchema, len(registry))
+	copy(out, registry)
+	for i := range out {
+		if experimentalVerbs[out[i].Verb] {
+			out[i].Stability = "experimental"
+		}
+	}
+	return out
+}
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	a := &Args{}
@@ -668,13 +704,16 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 // strip-from-wire bug that change was fixing.
 func Run(a *Args, _ *proto.Tracer) (*Result, *proto.Error) {
 	if a.Verb == "" {
-		verbs := registry
+		// Registry() is the Stability-populating entry point;
+		// registryWithoutLong then strips Long and (re-)applies
+		// experimental marking via verbWithoutLong.
+		verbs := Registry()
 		if !a.Verbose {
 			verbs = registryWithoutLong()
 		}
 		return &Result{Verbs: verbs, Count: len(verbs)}, nil
 	}
-	for _, vs := range registry {
+	for _, vs := range Registry() {
 		if vs.Verb == a.Verb {
 			if !a.Verbose {
 				vs = verbWithoutLong(vs)
@@ -691,6 +730,13 @@ func Run(a *Args, _ *proto.Tracer) (*Result, *proto.Error) {
 // never mutate them.
 func verbWithoutLong(vs VerbSchema) VerbSchema {
 	out := vs
+	// ASH-165: apply stability classification here too so the
+	// non-verbose path (which bypasses Registry()) still surfaces
+	// the experimental marker. Stable verbs leave Stability empty
+	// (omitempty hides it on the wire).
+	if experimentalVerbs[out.Verb] {
+		out.Stability = "experimental"
+	}
 	out.Args = make([]ArgSchema, len(vs.Args))
 	for i, a := range vs.Args {
 		a.Long = ""
@@ -739,9 +785,14 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		if i > 0 {
 			b.WriteByte('\n')
 		}
-		if vs.Tier != "" {
+		switch {
+		case vs.Tier != "" && vs.Stability == "experimental":
+			fmt.Fprintf(&b, "verb: %s [tier %s, experimental]\n", vs.Verb, vs.Tier)
+		case vs.Tier != "":
 			fmt.Fprintf(&b, "verb: %s [tier %s]\n", vs.Verb, vs.Tier)
-		} else {
+		case vs.Stability == "experimental":
+			fmt.Fprintf(&b, "verb: %s [experimental]\n", vs.Verb)
+		default:
 			fmt.Fprintf(&b, "verb: %s\n", vs.Verb)
 		}
 		fmt.Fprintf(&b, "  %s\n", vs.Description)

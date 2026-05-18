@@ -1649,7 +1649,7 @@
     },
     {
       "name": "ash_recap",
-      "description": "Compact session summary: files touched, patterns searched, edits made.",
+      "description": "Compact session summary: files touched, patterns searched, edits made. [experimental: arg schema may change in a point release]",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -1795,7 +1795,7 @@
     },
     {
       "name": "ash_workspace",
-      "description": "Re-orientation snapshot: relevant files, recent searches, branch + status, last error.",
+      "description": "Re-orientation snapshot: relevant files, recent searches, branch + status, last error. [experimental: arg schema may change in a point release]",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -1949,7 +1949,7 @@
     },
     {
       "name": "ash_replay",
-      "description": "Re-run prior ledger calls; report per-verb token deltas vs originals.",
+      "description": "Re-run prior ledger calls; report per-verb token deltas vs originals. [experimental: arg schema may change in a point release]",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -2420,6 +2420,10 @@
                 "description": {
                   "type": "string"
                 },
+                "stability": {
+                  "type": "string",
+                  "description": "Stability classifies the verb's API commitment for adopters\n(ASH-165). \"experimental\" means the arg schema or output shape\nmay change in a point release without notice. Empty == stable\n(the default) — most verbs are committed. Populated centrally\nfrom experimentalVerbs in Registry() so adding/removing a verb\nfrom the experimental set is a one-line edit."
+                },
                 "tier": {
                   "type": "string",
                   "description": "Tier classifies the verb by usage pattern for optimization policy\n(see docs/optimization-tiers.md). One of \"A\" (inner-loop agent),\n\"B\" (episodic agent), \"C\" (bootstrap), \"D\" (instrumentation/meta).\nAlways populated for shipped verbs; the omitempty tag is defensive\nfor golden-file tests that build VerbSchema literals without it."
@@ -2810,7 +2814,7 @@
     },
     {
       "name": "ash_bench",
-      "description": "Benchmark ash vs bash; report token/latency deltas per case.",
+      "description": "Benchmark ash vs bash; report token/latency deltas per case. [experimental: arg schema may change in a point release]",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -3395,7 +3399,7 @@
     },
     {
       "name": "ash_init",
-      "description": "Bootstrap a repo for ash: hook, gitignore, CLAUDE.md, registry. Idempotent.",
+      "description": "Bootstrap a repo for ash: hook, gitignore, CLAUDE.md, registry. Idempotent. [experimental: arg schema may change in a point release]",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -3471,7 +3475,7 @@
     },
     {
       "name": "ash_uninit",
-      "description": "Reverse ash init: remove hook, gitignore entry, CLAUDE.md section, registry.",
+      "description": "Reverse ash init: remove hook, gitignore entry, CLAUDE.md section, registry. [experimental: arg schema may change in a point release]",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -3626,7 +3630,7 @@
     },
     {
       "name": "ash_usage",
-      "description": "Annotate a prior call with Anthropic prompt-cache hit/miss tokens.",
+      "description": "Annotate a prior call with Anthropic prompt-cache hit/miss tokens. [experimental: arg schema may change in a point release]",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -3690,7 +3694,7 @@
     },
     {
       "name": "ash_lang",
-      "description": "Semantic queries via the LSP broker: outline, def, refs, callers, impl.",
+      "description": "Semantic queries via the LSP broker: outline, def, refs, callers, impl. [experimental: arg schema may change in a point release]",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",

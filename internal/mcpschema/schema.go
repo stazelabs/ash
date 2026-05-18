@@ -136,9 +136,17 @@ func toolForVerb(vs help.VerbSchema) (Tool, error) {
 		Enum:        []string{FormatJSON, FormatPretty, FormatCompact},
 		Default:     FormatJSON,
 	}
+	// ASH-165: decorate the tool description with an [experimental]
+	// suffix when the verb's API commitment is provisional. Stable verbs
+	// (the default) carry an unmodified description so they don't pay
+	// the suffix tokens.
+	desc := vs.Description
+	if vs.Stability == "experimental" {
+		desc += " [experimental: arg schema may change in a point release]"
+	}
 	return Tool{
 		Name:        ToolNamePrefix + vs.Verb,
-		Description: vs.Description,
+		Description: desc,
 		InputSchema: InputSchema{
 			Schema:               Dialect,
 			Type:                 "object",
