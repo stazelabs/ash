@@ -19,6 +19,10 @@
 // Patch mode (requires patch):
 //
 //	patch        string (required) — unified diff to apply; pass "-" to read from stdin
+//	fuzz         int    (optional, default 3, cap 10) — relax hunk placement: when the
+//	                    context at the hunk header's line doesn't match, scan ±fuzz lines
+//	                    for the first matching position. Default 3 mirrors GNU patch(1)
+//	                    --fuzz=3. Set to 0 for strict matching (ASH-152).
 //
 // Exactly one of old_string, range, or patch must be provided.
 // The write is atomic (temp-file + rename on the same filesystem).
@@ -56,9 +60,18 @@ import (
 // client's resolveStdin, but edit ignored args["content"] and ran with an
 // empty NewContent — silently deleting the requested range.
 var knownArgs = map[string]struct{}{
-	"path": {}, "old": {}, "new": {}, "range": {}, "patch": {},
+	"path": {}, "old": {}, "new": {}, "range": {}, "patch": {}, "fuzz": {},
 	"all": {}, "dry": {}, "absolute": {}, "quiet": {},
 }
+
+// DefaultFuzz is the default ±lines window applyPatch searches when the
+// hunk header's expected position doesn't match. 3 mirrors GNU patch(1)
+// --fuzz=3. ASH-152.
+const DefaultFuzz = 3
+
+// MaxFuzz is the hard cap on the --fuzz arg. Above ~10 the "match
+// anywhere nearby" semantics start lying about the diff's intent.
+const MaxFuzz = 10
 
 type Args struct {
 	Path       string
@@ -67,6 +80,7 @@ type Args struct {
 	Range      string
 	NewContent string
 	Patch      string // unified diff to apply; "-" means caller resolved stdin already
+	Fuzz       int    // ASH-152: ±lines window for context-shift recovery on --patch; default DefaultFuzz, cap MaxFuzz
 	ReplaceAll bool
 	DryRun     bool
 	Absolute   bool
@@ -79,7 +93,8 @@ type Result struct {
 	LinesTotal   int    `msgpack:"lines_total"`
 	Occurrences  int    `msgpack:"occurrences"` // replacements made; hunk count in patch mode
 	DryRun       bool   `msgpack:"dry_run,omitempty"`
-	Patch        string `msgpack:"patch,omitempty"` // unified diff when dry_run=true
+	Patch        string `msgpack:"patch,omitempty"`         // unified diff when dry_run=true
+	FuzzApplied  int    `msgpack:"fuzz_applied,omitempty"`  // ASH-152: hunks placed via fuzz scan (line-number drift > 0); 0 when every hunk matched at its authored position
 }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
@@ -103,6 +118,9 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 		return nil, perr
 	}
 	if a.Patch, perr = argutil.OptionalString(in, "patch", ""); perr != nil {
+		return nil, perr
+	}
+	if a.Fuzz, perr = argutil.OptionalNonNegInt(in, "fuzz", DefaultFuzz, MaxFuzz); perr != nil {
 		return nil, perr
 	}
 	if a.ReplaceAll, perr = argutil.OptionalBool(in, "all", false); perr != nil {
@@ -184,6 +202,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	content := string(raw)
 	var newContent string
 	var occurrences int
+	var fuzzApplied int // ASH-152: number of patch hunks placed via fuzz scan; 0 outside patch mode
 
 	switch {
 	case a.OldString != "":
@@ -204,7 +223,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		occurrences = 1
 	default: // patch mode
 		var perr *proto.Error
-		newContent, occurrences, perr = applyPatch(content, a.Patch)
+		newContent, occurrences, fuzzApplied, perr = applyPatch(content, a.Patch, a.Fuzz)
 		if perr != nil {
 			return nil, perr
 		}
@@ -224,6 +243,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 			Occurrences: occurrences,
 			DryRun:      true,
 			Patch:       patch,
+			FuzzApplied: fuzzApplied,
 		}, nil
 	}
 
@@ -248,6 +268,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		BytesWritten: len(data),
 		LinesTotal:   countLines(newContent),
 		Occurrences:  occurrences,
+		FuzzApplied:  fuzzApplied,
 	}, nil
 }
 
@@ -380,11 +401,24 @@ func parsePatch(patchText string) ([]patchHunk, error) {
 }
 
 // applyPatch applies a unified diff to content and returns (newContent,
-// hunksApplied, error). Error codes: patch_parse_error, patch_failed.
-func applyPatch(content, patchText string) (string, int, *proto.Error) {
+// hunksApplied, fuzzApplied, error). Error codes: patch_parse_error,
+// patch_failed.
+//
+// fuzz (ASH-152): when > 0, the hunk header's line number becomes a hint
+// rather than a constraint. If the hunk's authored start line doesn't
+// match the first source-side line (anchor) of the hunk body, applyPatch
+// scans ±fuzz lines outward for the first matching position and applies
+// the hunk there. fuzz=0 preserves the original strict behavior — every
+// context line must match at the authored position.
+//
+// Per-line context matching within the hunk body remains strict regardless
+// of fuzz: only the *placement* of the hunk start is relaxed, not the
+// internal shape of the hunk. fuzzApplied counts hunks whose matched
+// position differed from the authored position.
+func applyPatch(content, patchText string, fuzz int) (string, int, int, *proto.Error) {
 	hunks, err := parsePatch(patchText)
 	if err != nil {
-		return "", 0, &proto.Error{Code: "patch_parse_error", Msg: err.Error()}
+		return "", 0, 0, &proto.Error{Code: "patch_parse_error", Msg: err.Error()}
 	}
 
 	// Split file into lines without trailing newlines (mirrors internal/diff.SplitLines).
@@ -399,6 +433,7 @@ func applyPatch(content, patchText string) (string, int, *proto.Error) {
 
 	var out []string
 	srcPos := 0 // 0-indexed cursor into fileLines
+	fuzzApplied := 0
 
 	for _, h := range hunks {
 		// hunkStart is 0-indexed; oldStart=0 means insert before first line.
@@ -407,10 +442,38 @@ func applyPatch(content, patchText string) (string, int, *proto.Error) {
 			hunkStart = 0
 		}
 
+		// Fuzz placement (ASH-152). With fuzz=0 the placement is strict —
+		// the hunk applies at its authored start, and any context mismatch
+		// falls through to the loud per-line error below. With fuzz>0 the
+		// anchor (first context or delete line in the hunk body) is used to
+		// locate the hunk: try the authored position first, then expand
+		// outward symmetrically up to ±fuzz lines. Pure-insertion hunks
+		// (only `+` lines) have no anchor and are placed at the authored
+		// position regardless of fuzz.
+		if fuzz > 0 {
+			if anchor, ok := firstSrcAnchor(h.lines); ok {
+				found := scanForAnchor(fileLines, anchor, hunkStart, fuzz, srcPos)
+				if found < 0 {
+					got := "<EOF>"
+					if hunkStart < len(fileLines) {
+						got = fmt.Sprintf("%q", fileLines[hunkStart])
+					}
+					return "", 0, 0, &proto.Error{
+						Code: "patch_failed",
+						Msg:  fmt.Sprintf("hunk at line %d: anchor %q not found within ±%d lines (got %s at authored position)", h.oldStart, anchor, fuzz, got),
+					}
+				}
+				if found != hunkStart {
+					fuzzApplied++
+				}
+				hunkStart = found
+			}
+		}
+
 		// Copy untouched lines up to this hunk's start.
 		for srcPos < hunkStart {
 			if srcPos >= len(fileLines) {
-				return "", 0, &proto.Error{
+				return "", 0, 0, &proto.Error{
 					Code: "patch_failed",
 					Msg:  fmt.Sprintf("hunk at line %d extends beyond file length (%d lines)", h.oldStart, len(fileLines)),
 				}
@@ -429,7 +492,7 @@ func applyPatch(content, patchText string) (string, int, *proto.Error) {
 					if srcPos < len(fileLines) {
 						got = fmt.Sprintf("%q", fileLines[srcPos])
 					}
-					return "", 0, &proto.Error{
+					return "", 0, 0, &proto.Error{
 						Code: "patch_failed",
 						Msg:  fmt.Sprintf("hunk mismatch at line %d: expected empty context, got %s", srcPos+1, got),
 					}
@@ -447,7 +510,7 @@ func applyPatch(content, patchText string) (string, int, *proto.Error) {
 					if srcPos < len(fileLines) {
 						got = fmt.Sprintf("%q", fileLines[srcPos])
 					}
-					return "", 0, &proto.Error{
+					return "", 0, 0, &proto.Error{
 						Code: "patch_failed",
 						Msg:  fmt.Sprintf("hunk mismatch at line %d: expected context %q, got %s", srcPos+1, lineContent, got),
 					}
@@ -460,7 +523,7 @@ func applyPatch(content, patchText string) (string, int, *proto.Error) {
 					if srcPos < len(fileLines) {
 						got = fmt.Sprintf("%q", fileLines[srcPos])
 					}
-					return "", 0, &proto.Error{
+					return "", 0, 0, &proto.Error{
 						Code: "patch_failed",
 						Msg:  fmt.Sprintf("hunk mismatch at line %d: expected to delete %q, got %s", srcPos+1, lineContent, got),
 					}
@@ -469,7 +532,7 @@ func applyPatch(content, patchText string) (string, int, *proto.Error) {
 			case '+': // insert
 				out = append(out, lineContent)
 			default:
-				return "", 0, &proto.Error{
+				return "", 0, 0, &proto.Error{
 					Code: "patch_parse_error",
 					Msg:  fmt.Sprintf("unexpected line prefix %q in hunk body", string(prefix)),
 				}
@@ -481,9 +544,51 @@ func applyPatch(content, patchText string) (string, int, *proto.Error) {
 	out = append(out, fileLines[srcPos:]...)
 
 	if len(out) == 0 {
-		return "", len(hunks), nil
+		return "", len(hunks), fuzzApplied, nil
 	}
-	return strings.Join(out, "\n") + "\n", len(hunks), nil
+	return strings.Join(out, "\n") + "\n", len(hunks), fuzzApplied, nil
+}
+
+// firstSrcAnchor returns the first source-side line (context ' ' or delete
+// '-') in a hunk body — the first line the hunk expects to match against
+// fileLines. Used to anchor fuzz placement (ASH-152). Returns ("", false)
+// if the hunk has no source-side lines (pure insertion); such hunks
+// place at the authored line number regardless of fuzz.
+func firstSrcAnchor(body []string) (string, bool) {
+	for _, bl := range body {
+		if len(bl) == 0 {
+			// Empty context line (from " \n" body with trailing space stripped).
+			return "", true
+		}
+		switch bl[0] {
+		case ' ', '-':
+			return bl[1:], true
+		}
+	}
+	return "", false
+}
+
+// scanForAnchor searches fileLines for the first index where the entry
+// equals anchor, ordered authored → authored±1 → authored±2 → ... up to
+// ±fuzz. Restricted to [srcMin, len(fileLines)). Returns -1 when no
+// match exists within the window. Symmetric outward search matches GNU
+// patch(1)'s placement order.
+func scanForAnchor(fileLines []string, anchor string, authored, fuzz, srcMin int) int {
+	inBounds := func(idx int) bool {
+		return idx >= srcMin && idx < len(fileLines)
+	}
+	if inBounds(authored) && fileLines[authored] == anchor {
+		return authored
+	}
+	for delta := 1; delta <= fuzz; delta++ {
+		for _, sign := range []int{-1, 1} {
+			idx := authored + sign*delta
+			if inBounds(idx) && fileLines[idx] == anchor {
+				return idx
+			}
+		}
+	}
+	return -1
 }
 
 func applyStringReplace(content, oldStr, newStr string, replaceAll bool) (string, int, *proto.Error) {
@@ -659,6 +764,9 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	var detail string
 	if patchMode {
 		detail = hunkLabel(r.Occurrences) + " applied"
+		if r.FuzzApplied > 0 {
+			detail += fmt.Sprintf(" (fuzz: %d)", r.FuzzApplied)
+		}
 	} else if req != nil {
 		if rangeVal, _ := req.Args["range"].(string); rangeVal != "" {
 			detail = fmt.Sprintf("lines %s replaced", rangeVal)

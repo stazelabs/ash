@@ -47,21 +47,23 @@ Any `ash` invocation auto-starts the daemon. Use `bin/ash` from the repo root, o
 
 7. **Writing files in this repo** — use `ash write` instead of the harness Write tool. (Do not fall back to harness `Write`: it requires a prior harness `Read`, which the hook also denies — go straight to `ash write`.) Canonical: `ash write --path <p> --content - << 'EOF' … EOF` for non-trivial content; `--content '…'` only for short ASCII-only writes. Atomic via temp-file+rename. `ash help --verb write` for the full schema.
 
-
+8. **Multi-line two-sided edits** (ASH-152) — use `ash edit --patch -` instead of the `--old @/tmp/x --new @/tmp/y` tmpfile dance. Canonical: `ash edit --path foo.go --patch - << 'EOF' … unified diff … EOF`. The `--fuzz N` arg (default 3, cap 10) means hunk header line numbers are hints — context anchoring lets the patch land within ±N lines of the authored position, so you don't have to count lines exactly. Per-line context matching within the hunk remains strict. Result reports `fuzz_applied` when scan moved any hunk. The two-tmpfile `--old @/tmp/x --new @/tmp/y` pattern stays as a fallback for cases where the diff can't produce stable context lines.
 
 9. **Diffing content in this repo** — use `ash diff`. Canonical: `ash diff --path a.go --other b.go` or `ash diff --path f.go --content - < new.go`. Add `--stat true` for token-cheap counts only. Both inputs capped at 4000 lines. `ash help --verb diff` for the full schema.
 
 10. **Running Go tests** — use `ash test` instead of `go test`. Canonical: `ash test` (defaults to `./...`, `count=1` to bypass cache, 60s timeout). Add `--packages internal/walker` for one package, `--run TestX` for name filter, `--race true` for race detector, `--short true` for `-short` mode, `--timeout 10m` for big suites. Failures arrive as a structured `Tests []Test` slice with `file:line` extracted; build failures land as `Status=build_failed`. `ash help --verb test` for the full schema.
 
-11. **Bash equivalents to retire** — `find`, `cat`, `head`, `tail`, `ls -R`, `grep`, `rg`, `git status`, `git log`, `git diff`, `go test`, `stat`, `sed` should be replaced by their `ash` equivalents in this repo. The PreToolUse hook (next subsection) enforces this. (`sed` routes to `ash edit` for in-place edits and `ash read --range` for line-range reads; pure pipeline `cmd | sed …` is allowed through.)
+11. **Blaming a file in this repo** — use `ash git --op blame --path <p>` instead of `git blame`. Canonical: `ash git --op blame --path internal/foo.go --lines 100:200 --rev HEAD~3`. Output is run-compacted hunks (consecutive lines sharing a commit collapse into one record); follow up with `ash git --op show --ref <sha>` to inspect any hunk's commit in full. Default cap 8000 lines per file, 256 KiB serialized output. go-git backend only — rename-following blame falls back to system git (rare; ASH-190). `ash help --verb git --op blame` for the schema.
 
-12. **Restarting the daemon** (after editing `ash.toml`, or after a rebuild) — use `ash stop`. The next `ash` invocation auto-starts a fresh daemon. Don't reach for `pkill ashd`.
+12. **Bash equivalents to retire** — `find`, `cat`, `head`, `tail`, `ls -R`, `grep`, `rg`, `git status`, `git log`, `git diff`, `git show`, `git blame`, `go test`, `stat`, `sed`, `patch`, `git apply` should be replaced by their `ash` equivalents in this repo. The PreToolUse hook (next subsection) enforces this. (`sed` routes to `ash edit` for in-place edits and `ash read --range` for line-range reads; pure pipeline `cmd | sed …` is allowed through. `patch` and `git apply` route to `ash edit --patch` for single-file diffs; multi-file diffs pass through since `ash edit --patch` is single-file only — ASH-152 deferred.)
+
+13. **Restarting the daemon** (after editing `ash.toml`, or after a rebuild) — use `ash stop`. The next `ash` invocation auto-starts a fresh daemon. Don't reach for `pkill ashd`.
 
 **The whole point** is that you are the first user. If a verb errors, hangs, or feels heavier than the bash equivalent, that's a bug or design gap — investigate, don't paper over. Write the session note.
 
 ### Enforcement
 
-The repo ships a `PreToolUse` hook (registered in [.claude/settings.json](.claude/settings.json)) that runs `ash hook` to deny the harness's built-in `Grep`/`Glob`/`Edit`/`Write`/`Read` tools and bash `grep`/`rg`/`find`/`cat`/`head`/`tail`/`ls -R`/`git status`/`git log`/`stat` in this project, returning the equivalent `ash` invocation as the deny reason. Image/PDF/notebook reads are allowed through (`ash read` can't render them). `git blame`/`commit`/etc. and other not-yet-shipped ops are allowed through. See [docs/PreToolUse.md](docs/PreToolUse.md) for the full design and behavior matrix.
+The repo ships a `PreToolUse` hook (registered in [.claude/settings.json](.claude/settings.json)) that runs `ash hook` to deny the harness's built-in `Grep`/`Glob`/`Edit`/`Write`/`Read` tools and bash `grep`/`rg`/`find`/`cat`/`head`/`tail`/`ls -R`/`git status`/`git log`/`git diff`/`git show`/`git blame`/`stat` in this project, returning the equivalent `ash` invocation as the deny reason. Image/PDF/notebook reads are allowed through (`ash read` can't render them). `git commit`/`push`/etc. and other intentionally-out-of-scope ops are allowed through. See [docs/PreToolUse.md](docs/PreToolUse.md) for the full design and behavior matrix.
 
 `ash hook` is the only client-only verb in ash with ledger instrumentation: the deny decision runs in-process for low latency, then a best-effort fire-and-forget request to the daemon writes a ledger row when the daemon is up. Hook denials are queryable via `ash report --verb hook`. (`ash stop` is also fully client-side — it cannot contact the daemon it is stopping.)
 
@@ -168,7 +170,7 @@ Workflow: capture findings as you go (scratch in `/tmp/` or your task list). At 
 
 Even after primordial `ash` ships, some operations stay in bash. Track them here so the dogfooding rule doesn't push agents into pretending verbs exist that don't.
 
-- **`git` ops other than `status`, `log`, `diff`, `show`** — `blame` and all destructive ops (commit/push/reset/rebase/checkout/etc.) stay in bash until they ship under `ash git --op <name>`.
+- **Destructive `git` ops** (`commit`, `push`, `reset`, `rebase`, `checkout`, `merge`, `cherry-pick`, `add`, `branch`, `stash`, `tag -d`, `branch -D`, etc.) stay in bash, deliberately. The read-side surface — `status`, `log`, `diff`, `show`, `blame` — is the agent-facing slice; mutations are an authorization boundary that benefits from composing with native bash (heredoc commit messages, multi-arg pathspecs), emit low-token output to begin with, and have shown no demand signal in 90 days of session ledger data. ASH-104 / ASH-161 scope `ashmcp` to reads for the same reason. This list is intentionally closed — new entries here are real design decisions, not "verbs not shipped yet."
 - **`go vet`** — vet orchestration stays in bash; no demand signal for an `ash vet` verb today (per ASH-160 recalibration). `go test` is `ash test`; `go build` is `ash build` (ASH-163).
 - **System package management** (`brew`, `apt`, `npm install -g`, etc.) — never in scope for `ash`.
 - **Process management at the OS level** — bash. (`proc` hasn't shipped yet.)

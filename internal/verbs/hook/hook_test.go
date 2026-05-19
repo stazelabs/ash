@@ -2,6 +2,8 @@ package hook
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -128,7 +130,7 @@ func TestDecide_bash(t *testing.T) {
 		{name: "git diff", command: "git diff", want: "deny", wantRule: "Bash:git-diff", wantSugg: "ash git --op diff"},
 		{name: "git diff staged", command: "git diff --staged", want: "deny", wantRule: "Bash:git-diff"},
 		{name: "git show", command: "git show HEAD", want: "deny", wantRule: "Bash:git-show", wantSugg: "ash git --op show"},
-		{name: "git blame allows", command: "git blame foo.go", want: "allow"},
+		{name: "git blame", command: "git blame foo.go", want: "deny", wantRule: "Bash:git-blame", wantSugg: "ash git --op blame"},
 		{name: "git commit allows", command: "git commit -m 'msg'", want: "allow"},
 
 		// Allow paths.
@@ -798,5 +800,144 @@ func TestDetectOutputRedirect(t *testing.T) {
 			t.Errorf("%s: detectOutputRedirect(%v) = (%q, %v), want (%q, %v)",
 				tc.name, tc.args, got, ok, tc.wantTarget, tc.wantOk)
 		}
+	}
+}
+
+// TestDecide_PatchAndGitApply covers ASH-152's hook redirect for the
+// `patch` and `git apply` bash idioms. Single-file diffs route to
+// `ash edit --patch @FILE`; multi-file diffs and stdin pipes fall
+// through to the bash invocation.
+func TestDecide_PatchAndGitApply(t *testing.T) {
+	dir := t.TempDir()
+	single := filepath.Join(dir, "single.diff")
+	if err := os.WriteFile(single,
+		[]byte("--- a/foo.go\n+++ b/foo.go\n@@ -1 +1 @@\n-old\n+new\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	multi := filepath.Join(dir, "multi.diff")
+	if err := os.WriteFile(multi,
+		[]byte("--- a/foo.go\n+++ b/foo.go\n@@ -1 +1 @@\n-x\n+y\n--- a/bar.go\n+++ b/bar.go\n@@ -1 +1 @@\n-a\n+b\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	missing := filepath.Join(dir, "missing.diff")
+
+	cases := []struct {
+		name, command, want, wantRule, wantSugg string
+	}{
+		// patch with stdin redirect: single-file diff → redirect
+		{name: "patch -p1 < single denies",
+			command:  "patch -p1 < " + single,
+			want:     "deny",
+			wantRule: "Bash:patch",
+			wantSugg: "ash edit --path foo.go --patch @" + single},
+		// patch -i flag: single-file diff → redirect
+		{name: "patch -i single denies",
+			command:  "patch -i " + single,
+			want:     "deny",
+			wantRule: "Bash:patch",
+			wantSugg: "ash edit --path foo.go --patch @" + single},
+		// patch with explicit target: target wins over diff header
+		{name: "patch TARGET < single uses positional as target",
+			command:  "patch foo.txt < " + single,
+			want:     "deny",
+			wantRule: "Bash:patch",
+			wantSugg: "ash edit --path foo.txt --patch @" + single},
+		// patch with multi-file diff: falls through
+		{name: "patch -p1 < multi allows (single-file verb can't handle)",
+			command: "patch -p1 < " + multi,
+			want:    "allow"},
+		// patch with missing diff: soft-fail to allow
+		{name: "patch -p1 < missing allows (soft-fail on unreadable diff)",
+			command: "patch -p1 < " + missing,
+			want:    "allow"},
+		// patch with stdin pipe: no diff to introspect, allow
+		{name: "diff | patch allows (stdin pipe)",
+			command: "diff foo.go bar.go | patch -p1",
+			want:    "allow"},
+		// git apply: single-file → redirect
+		{name: "git apply single denies",
+			command:  "git apply " + single,
+			want:     "deny",
+			wantRule: "Bash:git-apply",
+			wantSugg: "ash edit --path foo.go --patch @" + single},
+		// git apply with --check: still redirects (lossy on the --check
+		// semantic, documented in the message; --check users likely want
+		// dry-run via `ash edit --patch ... --dry true` instead)
+		{name: "git apply --check single denies",
+			command:  "git apply --check " + single,
+			want:     "deny",
+			wantRule: "Bash:git-apply"},
+		// git apply with multi-file diff: allow through
+		{name: "git apply multi allows",
+			command: "git apply " + multi,
+			want:    "allow"},
+		// git apply with two diff files: allow through
+		{name: "git apply two-file invocation allows",
+			command: "git apply " + single + " " + single,
+			want:    "allow"},
+		// git apply with stdin redirect: same as patch
+		{name: "git apply < single denies",
+			command:  "git apply < " + single,
+			want:     "deny",
+			wantRule: "Bash:git-apply",
+			wantSugg: "ash edit --path foo.go --patch @" + single},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := Decide(&Args{ToolName: "Bash", Command: tc.command})
+			if r.Decision != tc.want {
+				t.Fatalf("command %q: want %q, got %q (rule=%q reason=%q)",
+					tc.command, tc.want, r.Decision, r.MatchedRule, r.Reason)
+			}
+			if tc.wantRule != "" && r.MatchedRule != tc.wantRule {
+				t.Errorf("matched_rule: want %q, got %q", tc.wantRule, r.MatchedRule)
+			}
+			if tc.wantSugg != "" && !strings.Contains(r.Suggested, tc.wantSugg) {
+				t.Errorf("suggested: want substring %q, got %q", tc.wantSugg, r.Suggested)
+			}
+		})
+	}
+}
+
+// TestInspectDiff_CountsSourceHeaders directly exercises the diff-file
+// scanner that drives the multi-file detection in the hook.
+func TestInspectDiff_CountsSourceHeaders(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) string {
+		t.Helper()
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	cases := []struct {
+		name        string
+		body        string
+		wantTarget  string
+		wantMulti   bool
+	}{
+		{"single git-style", "--- a/foo.go\n+++ b/foo.go\n@@ -1 +1 @@\n-x\n+y\n", "foo.go", false},
+		{"single bare path", "--- foo.go\n+++ foo.go\n@@ -1 +1 @@\n-x\n+y\n", "foo.go", false},
+		{"with tab metadata", "+++ b/foo.go\t2026-05-18\n@@ -1 +1 @@\n-x\n+y\n", "foo.go", false},
+		{"two files = multi", "+++ b/a.go\n@@ -1 +1 @@\n-x\n+y\n+++ b/b.go\n@@ -1 +1 @@\n-a\n+b\n", "a.go", true},
+		{"no headers = empty", "@@ -1 +1 @@\n-x\n+y\n", "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := write(tc.name+".diff", tc.body)
+			gotTarget, gotMulti := inspectDiff(p)
+			if gotTarget != tc.wantTarget {
+				t.Errorf("target: got %q, want %q", gotTarget, tc.wantTarget)
+			}
+			if gotMulti != tc.wantMulti {
+				t.Errorf("multi: got %v, want %v", gotMulti, tc.wantMulti)
+			}
+		})
+	}
+	// Missing file: soft-fail to ("", false).
+	target, multi := inspectDiff(filepath.Join(dir, "nonexistent.diff"))
+	if target != "" || multi {
+		t.Errorf("missing file: got (%q, %v), want (\"\", false)", target, multi)
 	}
 }

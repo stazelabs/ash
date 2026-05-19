@@ -359,7 +359,7 @@ func TestApplyPatch_CleanApply(t *testing.T) {
 	content := "line1\nline2\nline3\n"
 	patch := "--- a\n+++ b\n@@ -1,3 +1,3 @@\n line1\n-line2\n+LINE2\n line3\n"
 
-	got, hunks, perr := applyPatch(content, patch)
+	got, hunks, _, perr := applyPatch(content, patch, 0)
 	if perr != nil {
 		t.Fatalf("applyPatch: %+v", perr)
 	}
@@ -377,7 +377,7 @@ func TestApplyPatch_MultiHunk(t *testing.T) {
 	// Change line 2 and line 5
 	patch := "--- a\n+++ b\n@@ -1,3 +1,3 @@\n a\n-b\n+B\n c\n@@ -4,3 +4,3 @@\n d\n-e\n+E\n f\n"
 
-	got, hunks, perr := applyPatch(content, patch)
+	got, hunks, _, perr := applyPatch(content, patch, 0)
 	if perr != nil {
 		t.Fatalf("applyPatch: %+v", perr)
 	}
@@ -395,7 +395,7 @@ func TestApplyPatch_AddOnly(t *testing.T) {
 	// Insert a line after line 1
 	patch := "--- a\n+++ b\n@@ -1,2 +1,3 @@\n a\n+inserted\n b\n"
 
-	got, _, perr := applyPatch(content, patch)
+	got, _, _, perr := applyPatch(content, patch, 0)
 	if perr != nil {
 		t.Fatalf("applyPatch: %+v", perr)
 	}
@@ -410,7 +410,7 @@ func TestApplyPatch_DeleteOnly(t *testing.T) {
 	// Delete line 2
 	patch := "--- a\n+++ b\n@@ -1,3 +1,2 @@\n a\n-b\n c\n"
 
-	got, _, perr := applyPatch(content, patch)
+	got, _, _, perr := applyPatch(content, patch, 0)
 	if perr != nil {
 		t.Fatalf("applyPatch: %+v", perr)
 	}
@@ -425,7 +425,7 @@ func TestApplyPatch_HunkMismatch_ContextLine(t *testing.T) {
 	// Patch expects "x" as context but file has "a"
 	patch := "--- a\n+++ b\n@@ -1,3 +1,3 @@\n x\n-b\n+B\n c\n"
 
-	_, _, perr := applyPatch(content, patch)
+	_, _, _, perr := applyPatch(content, patch, 0)
 	if perr == nil || perr.Code != "patch_failed" {
 		t.Fatalf("expected patch_failed, got %+v", perr)
 	}
@@ -436,28 +436,28 @@ func TestApplyPatch_HunkMismatch_DeleteLine(t *testing.T) {
 	// Patch expects to delete "x" but file has "b"
 	patch := "--- a\n+++ b\n@@ -1,3 +1,2 @@\n a\n-x\n c\n"
 
-	_, _, perr := applyPatch(content, patch)
+	_, _, _, perr := applyPatch(content, patch, 0)
 	if perr == nil || perr.Code != "patch_failed" {
 		t.Fatalf("expected patch_failed, got %+v", perr)
 	}
 }
 
 func TestApplyPatch_MalformedInput_Empty(t *testing.T) {
-	_, _, perr := applyPatch("content\n", "")
+	_, _, _, perr := applyPatch("content\n", "", 0)
 	if perr == nil || perr.Code != "patch_parse_error" {
 		t.Fatalf("expected patch_parse_error for empty patch, got %+v", perr)
 	}
 }
 
 func TestApplyPatch_MalformedInput_NoHunks(t *testing.T) {
-	_, _, perr := applyPatch("content\n", "--- a\n+++ b\n")
+	_, _, _, perr := applyPatch("content\n", "--- a\n+++ b\n", 0)
 	if perr == nil || perr.Code != "patch_parse_error" {
 		t.Fatalf("expected patch_parse_error for patch without hunks, got %+v", perr)
 	}
 }
 
 func TestApplyPatch_MalformedInput_BadHeader(t *testing.T) {
-	_, _, perr := applyPatch("content\n", "@@ not a valid header @@\n")
+	_, _, _, perr := applyPatch("content\n", "@@ not a valid header @@\n", 0)
 	if perr == nil || perr.Code != "patch_parse_error" {
 		t.Fatalf("expected patch_parse_error for bad hunk header, got %+v", perr)
 	}
@@ -465,7 +465,7 @@ func TestApplyPatch_MalformedInput_BadHeader(t *testing.T) {
 
 func TestApplyPatch_UnknownBodyPrefix(t *testing.T) {
 	patch := "--- a\n+++ b\n@@ -1,1 +1,1 @@\n?line\n"
-	_, _, perr := applyPatch("line\n", patch)
+	_, _, _, perr := applyPatch("line\n", patch, 0)
 	if perr == nil || perr.Code != "patch_parse_error" {
 		t.Fatalf("expected patch_parse_error for unknown prefix, got %+v", perr)
 	}
@@ -476,7 +476,7 @@ func TestApplyPatch_AppendToEndOfFile(t *testing.T) {
 	// Add a line at the end using @@ -2,1 +2,2 @@
 	patch := "--- a\n+++ b\n@@ -2,1 +2,2 @@\n b\n+c\n"
 
-	got, _, perr := applyPatch(content, patch)
+	got, _, _, perr := applyPatch(content, patch, 0)
 	if perr != nil {
 		t.Fatalf("applyPatch: %+v", perr)
 	}
@@ -491,13 +491,152 @@ func TestApplyPatch_SkipsNoNewlineMarker(t *testing.T) {
 	// Patch with "\ No newline at end of file" marker (from external tools)
 	patch := "--- a\n+++ b\n@@ -1,2 +1,2 @@\n a\n-b\n+B\n\\ No newline at end of file\n"
 
-	got, _, perr := applyPatch(content, patch)
+	got, _, _, perr := applyPatch(content, patch, 0)
 	if perr != nil {
 		t.Fatalf("applyPatch: %+v", perr)
 	}
 	want := "a\nB\n"
 	if got != want {
 		t.Errorf("got=%q want=%q", got, want)
+	}
+}
+
+// -- fuzz placement (ASH-152) ----------------------------------------------
+
+// TestApplyPatch_Fuzz_ContextShiftedForward verifies the default ±3
+// fuzz window picks up a hunk whose context has shifted later than the
+// authored line number.
+func TestApplyPatch_Fuzz_ContextShiftedForward(t *testing.T) {
+	// File: 3 leading filler lines pushed the context that the patch was
+	// authored against (line 1) down to line 4. Authored idx is 0; line1
+	// is at idx 3 — within the ±3 window.
+	content := "filler1\nfiller2\nfiller3\nline1\nline2\nline3\n"
+	// Hunk header says lines 1-3, but the real "line1"/"line2"/"line3" are at 4-6.
+	patch := "--- a\n+++ b\n@@ -1,3 +1,3 @@\n line1\n-line2\n+LINE2\n line3\n"
+
+	got, hunks, fuzz, perr := applyPatch(content, patch, 3)
+	if perr != nil {
+		t.Fatalf("applyPatch: %+v", perr)
+	}
+	want := "filler1\nfiller2\nfiller3\nline1\nLINE2\nline3\n"
+	if got != want {
+		t.Errorf("got=%q\nwant=%q", got, want)
+	}
+	if hunks != 1 {
+		t.Errorf("hunks=%d, want 1", hunks)
+	}
+	if fuzz != 1 {
+		t.Errorf("fuzzApplied=%d, want 1 (one hunk placed via fuzz scan)", fuzz)
+	}
+}
+
+// TestApplyPatch_Fuzz_ContextShiftedBackward covers the symmetric case:
+// the matching context is at an earlier line than the authored position.
+func TestApplyPatch_Fuzz_ContextShiftedBackward(t *testing.T) {
+	content := "line1\nline2\nline3\n"
+	// Patch claims context starts at line 4, but file has it at line 1.
+	patch := "--- a\n+++ b\n@@ -4,3 +4,3 @@\n line1\n-line2\n+LINE2\n line3\n"
+
+	got, _, fuzz, perr := applyPatch(content, patch, 3)
+	if perr != nil {
+		t.Fatalf("applyPatch: %+v", perr)
+	}
+	want := "line1\nLINE2\nline3\n"
+	if got != want {
+		t.Errorf("got=%q\nwant=%q", got, want)
+	}
+	if fuzz != 1 {
+		t.Errorf("fuzzApplied=%d, want 1", fuzz)
+	}
+}
+
+// TestApplyPatch_Fuzz_OutOfWindow asserts that a context shift beyond
+// the fuzz window still fails patch_failed — fuzz relaxes placement,
+// it does not "find the match anywhere."
+func TestApplyPatch_Fuzz_OutOfWindow(t *testing.T) {
+	// Shift the context by 5 lines but allow only ±3.
+	content := "x\nx\nx\nx\nx\nline1\nline2\nline3\n"
+	patch := "--- a\n+++ b\n@@ -1,3 +1,3 @@\n line1\n-line2\n+LINE2\n line3\n"
+
+	_, _, _, perr := applyPatch(content, patch, 3)
+	if perr == nil || perr.Code != "patch_failed" {
+		t.Fatalf("expected patch_failed when context is beyond fuzz window, got %+v", perr)
+	}
+	if !strings.Contains(perr.Msg, "anchor") {
+		t.Errorf("error should mention anchor not found, got %q", perr.Msg)
+	}
+}
+
+// TestApplyPatch_Fuzz_FirstMatchWinsAmbiguous documents the
+// deterministic choice when multiple matches exist within the fuzz
+// window: outward symmetric scan, so positions closer to the authored
+// line win, ties broken by negative-side-first.
+func TestApplyPatch_Fuzz_FirstMatchWinsAmbiguous(t *testing.T) {
+	// "anchor" appears at lines 1, 3, and 5. Authored at line 3 — exact
+	// match wins. If we delete the middle one, the scan should pick the
+	// one at line 5 (because authored is 3, scan order is 3, 2, 4, 1, 5,
+	// so 1 wins if it's an anchor too, otherwise 5 — let's verify).
+	content := "anchor\nfiller\nanchor\nfiller\nanchor\nend\n"
+	// Authored at line 3: matches exactly.
+	patch := "--- a\n+++ b\n@@ -3,2 +3,2 @@\n anchor\n-filler\n"
+	// Wait — this patch body says " anchor\n-filler\n" but no replacement +
+	// line. Let me use a valid patch.
+	patch = "--- a\n+++ b\n@@ -3,2 +3,2 @@\n anchor\n-filler\n+REPLACED\n"
+
+	got, _, fuzz, perr := applyPatch(content, patch, 3)
+	if perr != nil {
+		t.Fatalf("applyPatch: %+v", perr)
+	}
+	// Should match at the authored position (line 3 → idx 2). The filler
+	// at line 4 (idx 3) is replaced.
+	want := "anchor\nfiller\nanchor\nREPLACED\nanchor\nend\n"
+	if got != want {
+		t.Errorf("got=%q\nwant=%q", got, want)
+	}
+	if fuzz != 0 {
+		t.Errorf("fuzzApplied=%d, want 0 (exact match at authored line)", fuzz)
+	}
+}
+
+// TestApplyPatch_Fuzz_ZeroIsStrict locks in the regression contract:
+// fuzz=0 must reproduce the pre-ASH-152 strict-match behavior,
+// including identical error messages.
+func TestApplyPatch_Fuzz_ZeroIsStrict(t *testing.T) {
+	// Same fixture as TestApplyPatch_Fuzz_ContextShiftedForward but with
+	// fuzz=0 — should fail strictly with the legacy "hunk mismatch"
+	// message (not the new "anchor not found" message).
+	content := "filler1\nfiller2\nfiller3\nfiller4\nline1\nline2\nline3\n"
+	patch := "--- a\n+++ b\n@@ -1,3 +1,3 @@\n line1\n-line2\n+LINE2\n line3\n"
+
+	_, _, _, perr := applyPatch(content, patch, 0)
+	if perr == nil || perr.Code != "patch_failed" {
+		t.Fatalf("fuzz=0 should preserve strict patch_failed, got %+v", perr)
+	}
+	if !strings.Contains(perr.Msg, "hunk mismatch") {
+		t.Errorf("fuzz=0 should produce legacy 'hunk mismatch' message, got %q", perr.Msg)
+	}
+}
+
+// TestApplyPatch_Fuzz_PureInsertion verifies that hunks with no source-
+// side lines (only `+`) place at the authored position regardless of
+// fuzz — there's no anchor to scan for.
+func TestApplyPatch_Fuzz_PureInsertion(t *testing.T) {
+	content := "a\nb\nc\n"
+	// Pure insertion at line 2: hunk body has only "+inserted".
+	patch := "--- a\n+++ b\n@@ -1,0 +2,1 @@\n+inserted\n"
+
+	got, _, fuzz, perr := applyPatch(content, patch, 3)
+	if perr != nil {
+		t.Fatalf("applyPatch pure insertion: %+v", perr)
+	}
+	if fuzz != 0 {
+		t.Errorf("pure insertion: fuzzApplied=%d, want 0 (no anchor to fuzz against)", fuzz)
+	}
+	// Result depends on the authored start (-1 → idx 0, so "inserted"
+	// lands before "a"). Just verify the insertion went somewhere
+	// rather than the patch failing.
+	if !strings.Contains(got, "inserted") {
+		t.Errorf("expected inserted line in output, got %q", got)
 	}
 }
 

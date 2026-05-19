@@ -27,6 +27,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -615,10 +617,10 @@ var verbRuleMap = map[string][]string{
 	"grep":  {"Grep", "Bash:grep", "Bash:rg", "Bash:egrep", "Bash:fgrep"},
 	"find":  {"Glob", "Bash:find", "Bash:ls-R"},
 	"read":  {"Read", "Bash:cat", "Bash:head", "Bash:tail", "Bash:sed"},
-	"edit":  {"Edit", "Bash:sed"},
+	"edit":  {"Edit", "Bash:sed", "Bash:patch", "Bash:git-apply"},
 	"write": {"Write", "Bash:redirect-write"},
 	"stat":  {"Bash:stat"},
-	"git":   {"Bash:git-status", "Bash:git-log", "Bash:git-diff", "Bash:git-show"},
+	"git":   {"Bash:git-status", "Bash:git-log", "Bash:git-diff", "Bash:git-show", "Bash:git-blame"},
 	"test":  {"Bash:go-test"},
 	"build": {"Bash:go-build"},
 }
@@ -1017,7 +1019,7 @@ func isPrefixWord(tok string) bool { return prefixWords[tok] }
 
 var grepLike = map[string]bool{"grep": true, "rg": true, "egrep": true, "fgrep": true}
 var readLike = map[string]bool{"cat": true, "head": true, "tail": true}
-var gitRedirect = map[string]bool{"status": true, "log": true, "diff": true, "show": true}
+var gitRedirect = map[string]bool{"status": true, "log": true, "diff": true, "show": true, "blame": true}
 
 // flagsWithValueArg lists per-program flags whose value is the next arg
 // (e.g. `head -n 10`, `grep -A 3 PATTERN`). Used by pipelinePositionals
@@ -1166,6 +1168,49 @@ func decideBash(command string, excludeVerbs []string) *Result {
 					sub, sub)
 				return deny("Bash", "Bash:git-"+sub, reason, seg)
 			}
+			if sub == "apply" {
+				// `git apply [opts] FILE [FILE...]` or `git apply [opts] < diff`.
+				// The positional is the diff (not a target). Multi-file diffs
+				// fall through because ash edit --patch is single-file (ASH-152).
+				applyArgs := argsAfter(args, "apply")
+				diffPath := gitApplyDiffPath(applyArgs, seg)
+				if diffPath == "" {
+					continue
+				}
+				target, multi := inspectDiff(diffPath)
+				if multi || target == "" {
+					continue
+				}
+				reason := fmt.Sprintf("Use ash instead: `%s` (single-file `git apply` is redirected to ash edit --patch in this repo; multi-file diffs pass through).",
+					suggestEditPatch(target, diffPath))
+				return deny("Bash", "Bash:git-apply", reason, seg)
+			}
+		}
+		if prog == "patch" {
+			// `patch [opts] [TARGET] < diff` or `patch -i diff [opts] [TARGET]`.
+			// Unlike git apply, the positional (if present) is the TARGET file,
+			// not the diff. The diff comes from -i or stdin redirect.
+			diffPath, explicitTarget := patchDiffAndTarget(args, seg)
+			if diffPath == "" {
+				continue
+			}
+			target := explicitTarget
+			if target == "" {
+				t, multi := inspectDiff(diffPath)
+				if multi || t == "" {
+					continue
+				}
+				target = t
+			} else {
+				// User passed an explicit target; require the diff to be
+				// single-file or it can't apply cleanly anyway.
+				if _, multi := inspectDiff(diffPath); multi {
+					continue
+				}
+			}
+			reason := fmt.Sprintf("Use ash instead: `%s` (single-file `patch` is redirected to ash edit --patch in this repo; multi-file diffs pass through).",
+				suggestEditPatch(target, diffPath))
+			return deny("Bash", "Bash:patch", reason, seg)
 		}
 		if prog == "go" && len(args) > 0 && args[0] == "test" {
 			pos := positionalArgs(args[1:])
@@ -1315,6 +1360,181 @@ func lsIsRecursive(args []string) bool {
 		}
 	}
 	return false
+}
+
+// suggestEditPatch builds the `ash edit --path PATH --patch @DIFF` suggestion
+// for `patch` and `git apply` redirects (ASH-152).
+func suggestEditPatch(target, diffPath string) string {
+	return fmt.Sprintf("ash edit --path %s --patch @%s", shellquote(target), shellquote(diffPath))
+}
+
+// argsAfter returns the slice of args following the first occurrence of
+// `sub` (exclusive). Returns nil when sub is absent. Used to peel
+// `apply` off `git apply` before running the patch-target inspection.
+func argsAfter(args []string, sub string) []string {
+	for i, a := range args {
+		if a == sub {
+			return args[i+1:]
+		}
+	}
+	return nil
+}
+
+// patchDiffAndTarget extracts the diff file and (if explicit) the target
+// path from a `patch [opts] [TARGET] < diff` or `patch -i diff [opts]
+// [TARGET]` invocation. Unlike `git apply`, a positional argument to
+// `patch` is the TARGET file the diff applies to, not the diff itself.
+// Returns ("", "") when no diff source is available (stdin pipe) or
+// multiple targets are passed (ambiguous).
+//
+// With `-i FILE`, the diff arg follows `-i` and is not a positional
+// target — the target (if any) is the *next* positional after the diff.
+// We surface that target as explicit when present; otherwise the
+// caller derives it from the diff header.
+func patchDiffAndTarget(args []string, seg string) (diffPath, explicitTarget string) {
+	// `-i FILE` (and `-iFILE`, `--input=FILE`). The arg consumed by -i
+	// is the diff path; it must not be treated as a positional target.
+	for i, a := range args {
+		if a == "-i" && i+1 < len(args) {
+			diff := args[i+1]
+			rest := positionalsExcluding(args, diff)
+			return diff, firstOrEmpty(rest)
+		}
+		if strings.HasPrefix(a, "-i") && len(a) > 2 && a[2] != '=' {
+			diff := a[2:]
+			rest := positionalsExcluding(args, diff)
+			return diff, firstOrEmpty(rest)
+		}
+		if strings.HasPrefix(a, "--input=") {
+			diff := strings.TrimPrefix(a, "--input=")
+			rest := positionalsExcluding(args, diff)
+			return diff, firstOrEmpty(rest)
+		}
+	}
+	rd := detectInputRedirect(args, seg)
+	if rd == "" {
+		return "", "" // diff is on stdin via pipe; can't introspect
+	}
+	pos := positionalArgs(args)
+	if len(pos) > 1 {
+		return "", "" // multi-target patch invocation
+	}
+	if len(pos) == 1 {
+		return rd, pos[0]
+	}
+	return rd, ""
+}
+
+// gitApplyDiffPath extracts the diff file from `git apply [opts] [FILE]`.
+// Returns "" for the stdin-pipe form (no `<` redirect) or when multiple
+// diff files are passed (multi-file invocation handled natively by git).
+func gitApplyDiffPath(args []string, seg string) string {
+	pos := positionalArgs(args)
+	if len(pos) > 1 {
+		return ""
+	}
+	if len(pos) == 1 {
+		return pos[0]
+	}
+	return detectInputRedirect(args, seg)
+}
+
+// positionalsExcluding returns positionalArgs(args) with one occurrence
+// of `skip` removed. Used by patchDiffAndTarget to peel `-i`'s diff
+// argument out of the positional list before checking for an explicit
+// target.
+func positionalsExcluding(args []string, skip string) []string {
+	pos := positionalArgs(args)
+	out := make([]string, 0, len(pos))
+	skipped := false
+	for _, p := range pos {
+		if !skipped && p == skip {
+			skipped = true
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+func firstOrEmpty(xs []string) string {
+	if len(xs) == 0 {
+		return ""
+	}
+	return xs[0]
+}
+
+// detectInputRedirect scans args (raw, before stripRedirections) and the
+// surrounding segment text for a `<` input redirect, returning the source
+// file path. Returns "" when there's no such redirect (e.g. stdin pipe).
+func detectInputRedirect(args []string, seg string) string {
+	// Args-level: bare `<` followed by next arg, or `<FILE` glued.
+	for i, a := range args {
+		if a == "<" && i+1 < len(args) {
+			return args[i+1]
+		}
+		if strings.HasPrefix(a, "<") && len(a) > 1 && a[1] != '<' {
+			return a[1:]
+		}
+	}
+	// Segment-level fallback: tokenize the raw segment in case the
+	// redirect rode in as a single concatenated token that firstToken
+	// left to the right of `prog args`.
+	for i, tok := range tokenize(seg) {
+		if tok == "<" && i+1 < len(tokenize(seg)) {
+			return tokenize(seg)[i+1]
+		}
+		if strings.HasPrefix(tok, "<") && len(tok) > 1 && tok[1] != '<' {
+			return tok[1:]
+		}
+	}
+	return ""
+}
+
+// diffInspectMax caps the byte window we read from a diff file when
+// counting source-file headers. Typical patches are <100 KiB; 1 MiB
+// covers even unusually large refactors without making the hook
+// noticeably slower.
+const diffInspectMax = 1 << 20
+
+// inspectDiff opens the diff at path, reads up to diffInspectMax bytes,
+// and reports (firstTarget, multiFile). multiFile is true when more
+// than one `+++ b/PATH` (or bare `+++ PATH`) header is present.
+// firstTarget is the path from the first such header. Soft-fail: any
+// I/O error returns ("", false) so the caller treats the diff as
+// unintrospectable (and the hook passes the bash invocation through).
+func inspectDiff(path string) (firstTarget string, multiFile bool) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", false
+	}
+	defer f.Close()
+	buf := make([]byte, diffInspectMax)
+	n, err := io.ReadFull(f, buf)
+	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
+		return "", false
+	}
+	body := buf[:n]
+	count := 0
+	for _, raw := range bytes.Split(body, []byte("\n")) {
+		if !bytes.HasPrefix(raw, []byte("+++ ")) {
+			continue
+		}
+		count++
+		if count == 1 {
+			// Strip "+++ " then any "b/" prefix (git-style) and any
+			// trailing whitespace / tab metadata.
+			rest := bytes.TrimPrefix(raw[len("+++ "):], []byte("b/"))
+			if tab := bytes.IndexByte(rest, '\t'); tab >= 0 {
+				rest = rest[:tab]
+			}
+			firstTarget = string(bytes.TrimSpace(rest))
+		}
+		if count > 1 {
+			return firstTarget, true
+		}
+	}
+	return firstTarget, false
 }
 
 func gitSubcommand(args []string) string {
