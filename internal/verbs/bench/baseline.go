@@ -224,10 +224,7 @@ func buildBaselineFile(res *Result, prov bench.Provenance) BaselineFile {
 		NCases:          len(cases),
 		AshTokensTotal:  totalAsh,
 		BashTokensTotal: totalBash,
-		DeltaTokPct:     pctChange(totalBash, totalAsh) - pctChange(totalBash, totalBash), // (ash-bash)/bash style
-	}
-	if totalBash != 0 {
-		bf.Summary.DeltaTokPct = float64(totalAsh-totalBash) / float64(totalBash) * 100
+		DeltaTokPct:     pctChange(totalBash, totalAsh),
 	}
 	return bf
 }
@@ -264,9 +261,7 @@ func buildBaselineFileFromLedger(run ledger.BenchRun, cases []ledger.BenchCaseRe
 		NCases:          len(out),
 		AshTokensTotal:  totalAsh,
 		BashTokensTotal: totalBash,
-	}
-	if totalBash != 0 {
-		bf.Summary.DeltaTokPct = float64(totalAsh-totalBash) / float64(totalBash) * 100
+		DeltaTokPct:     pctChange(totalBash, totalAsh),
 	}
 	return bf
 }
@@ -341,10 +336,7 @@ func renderBaselineMarkdown(bf BaselineFile, lf LatencySnapshotFile) string {
 	b.WriteString("| case | verb | ash_tok | bash_tok | Δtok% | trunc |\n")
 	b.WriteString("|---|---|---:|---:|---:|---|\n")
 	for _, c := range bf.Cases {
-		dpct := 0.0
-		if c.BashTokens != 0 {
-			dpct = float64(c.AshTokens-c.BashTokens) / float64(c.BashTokens) * 100
-		}
+		dpct := pctChange(c.BashTokens, c.AshTokens)
 		trunc := ""
 		switch {
 		case c.AshTruncated && c.BashTruncated:
@@ -443,9 +435,11 @@ func prettyRecord(r *RecordBaselineResult) string {
 		o := r.Run.Overall
 		fmt.Fprintf(&b, "run: %d cases, ash %d tok, bash %d tok\n",
 			o.Cases, o.AshTokensTotal, o.BashTokensTotal)
+		// Suppress entirely when bash is zero — pctChange would return
+		// 0, but "Δtok%=+0.0%" is misleading when there's nothing to
+		// compare against.
 		if o.BashTokensTotal != 0 {
-			dpct := float64(o.AshTokensTotal-o.BashTokensTotal) / float64(o.BashTokensTotal) * 100
-			fmt.Fprintf(&b, "Δtok%%=%+.1f%%\n", dpct)
+			fmt.Fprintf(&b, "Δtok%%=%+.1f%%\n", pctChange(o.BashTokensTotal, o.AshTokensTotal))
 		}
 	}
 	b.WriteString("\nreview the diff: git diff bench/")
