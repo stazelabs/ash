@@ -449,6 +449,135 @@ func TestRun_BenchIntegration(t *testing.T) {
 	}
 }
 
+func TestParseArgs_Cover(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{"cover": "true"})
+	if perr != nil {
+		t.Fatalf("unexpected: %v", perr)
+	}
+	if !a.Cover {
+		t.Errorf("cover: expected true")
+	}
+}
+
+func TestParseArgs_CoverDefault(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{})
+	if perr != nil {
+		t.Fatalf("unexpected: %v", perr)
+	}
+	if a.Cover {
+		t.Errorf("cover default: expected false")
+	}
+}
+
+func TestExtractCoverage(t *testing.T) {
+	cases := []struct {
+		in   string
+		want float64
+		ok   bool
+	}{
+		{"ok  \tfoo\t0.05s\tcoverage: 87.3% of statements\n", 87.3, true},
+		{"coverage: 100.0% of statements", 100.0, true},
+		{"coverage: 0.0% of statements", 0.0, true},
+		{"coverage: 65% of statements", 65.0, true}, // integer form just in case
+		{"coverage: [no statements]\n", 0, false},
+		{"ok  \tfoo\t0.05s\n", 0, false},
+		{"", 0, false},
+	}
+	for _, c := range cases {
+		got, ok := extractCoverage(c.in)
+		if ok != c.ok || got != c.want {
+			t.Errorf("extractCoverage(%q) = (%v, %v), want (%v, %v)", c.in, got, ok, c.want, c.ok)
+		}
+	}
+}
+
+func TestAggregate_Coverage(t *testing.T) {
+	// Pass + cover line on package output → Coverage populated.
+	events := append([]testEvent{}, passEvents("foo", "TestA")...)
+	events = append(events,
+		testEvent{Action: "output", Package: "foo", Output: "PASS\n"},
+		testEvent{Action: "output", Package: "foo", Output: "coverage: 87.3% of statements\n"},
+		testEvent{Action: "output", Package: "foo", Output: "ok  \tfoo\t0.01s\tcoverage: 87.3% of statements\n"},
+		testEvent{Action: "pass", Package: "foo", Elapsed: 0.01},
+	)
+	// "[no statements]" package — Coverage stays nil.
+	events = append(events,
+		testEvent{Action: "output", Package: "bar", Output: "ok  \tbar\t0.00s\t[no statements]\n"},
+		testEvent{Action: "pass", Package: "bar", Elapsed: 0.0},
+	)
+	r := aggregate(events, false)
+	if !r.OK {
+		t.Fatalf("OK should be true: %+v", r)
+	}
+	if len(r.Packages) != 2 {
+		t.Fatalf("expected 2 packages, got %d", len(r.Packages))
+	}
+	// Pkgs are sorted pass-first then alpha; both pass here.
+	var foo, bar *Package
+	for i := range r.Packages {
+		switch r.Packages[i].Path {
+		case "foo":
+			foo = &r.Packages[i]
+		case "bar":
+			bar = &r.Packages[i]
+		}
+	}
+	if foo == nil || bar == nil {
+		t.Fatalf("missing pkgs: foo=%v bar=%v", foo, bar)
+	}
+	if foo.Coverage == nil || *foo.Coverage != 87.3 {
+		t.Errorf("foo coverage: got %v, want 87.3", foo.Coverage)
+	}
+	if bar.Coverage != nil {
+		t.Errorf("bar (no statements) coverage: got %v, want nil", bar.Coverage)
+	}
+}
+
+func TestAggregate_CoverageNotAttachedOnFail(t *testing.T) {
+	// Failing pkg with a coverage line should not get Coverage attached —
+	// coverage of a failed run isn't meaningful to surface.
+	events := append([]testEvent{}, failEvents("foo", "TestB", "foo_test.go", 1)...)
+	events = append(events,
+		testEvent{Action: "output", Package: "foo", Output: "FAIL\n"},
+		testEvent{Action: "output", Package: "foo", Output: "coverage: 40.0% of statements\n"},
+		testEvent{Action: "fail", Package: "foo", Elapsed: 0.01},
+	)
+	r := aggregate(events, false)
+	if r.Packages[0].Coverage != nil {
+		t.Errorf("failing pkg should not carry Coverage, got %v", r.Packages[0].Coverage)
+	}
+}
+
+func TestPretty_Coverage(t *testing.T) {
+	cov1 := 87.3
+	cov2 := 100.0
+	r := &Result{
+		OK:      true,
+		Total:   Counts{Pass: 9, Fail: 0, Skip: 0},
+		Elapsed: 0.1,
+		Packages: []Package{
+			{Path: "internal/foo", Status: "pass", Counts: Counts{Pass: 5}, Coverage: &cov1},
+			{Path: "internal/bar", Status: "pass", Counts: Counts{Pass: 4}, Coverage: &cov2},
+			{Path: "internal/baz", Status: "no_tests"}, // no coverage, listed by path
+		},
+	}
+	out := prettyResult(r)
+	for _, want := range []string{
+		"PASS  internal/foo  87.3%",
+		"PASS  internal/bar  100.0%",
+		"NO_TESTS  internal/baz",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("pretty output missing %q\nactual:\n%s", want, out)
+		}
+	}
+	// The terse "PASS (N): pkg, pkg" tail must NOT fire when coverage mode
+	// is on — otherwise the per-pkg numbers get duplicated by the summary.
+	if strings.Contains(out, "PASS (") {
+		t.Errorf("terse PASS (N): tail should be suppressed in coverage mode, got:\n%s", out)
+	}
+}
+
 func TestExtractBenchLines(t *testing.T) {
 	// Result rows have tab-separated metrics; preamble rows do not.
 	input := "goos: darwin\ngoarch: arm64\nBenchmarkFoo\nBenchmarkFoo-8\t1000000\t1234 ns/op\nBenchmarkBar/sub\nBenchmarkBar/sub-8\t500000\t2000 ns/op\t0 B/op\t0 allocs/op\nok  \tfoo\t1.234s\n"

@@ -14,6 +14,7 @@
 //	bench      string    (optional) - go test -bench pattern; implies -run=^$ when --run is unset
 //	benchmem   bool      (optional) - go test -benchmem; default false
 //	benchtime  string    (optional) - go test -benchtime duration (e.g. "1s", "100x")
+//	cover      bool      (optional) - go test -cover; per-pkg "coverage: X.X% of statements"
 //
 // Result.OK mirrors `git diff` semantics: Metrics.OK=true means the verb ran;
 // Result.OK=false means tests failed. A "tests failed" run is not a verb error.
@@ -61,6 +62,7 @@ type Args struct {
 	Bench     string
 	BenchMem  bool
 	BenchTime string
+	Cover     bool
 }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
@@ -117,6 +119,9 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.BenchTime, perr = argutil.OptionalString(in, "benchtime", ""); perr != nil {
 		return nil, perr
 	}
+	if a.Cover, perr = argutil.OptionalBool(in, "cover", false); perr != nil {
+		return nil, perr
+	}
 	return a, nil
 }
 
@@ -146,6 +151,13 @@ type Package struct {
 	Tests       []Test   `msgpack:"tests,omitempty"`
 	BuildOutput string   `msgpack:"build_output,omitempty"`
 	BenchOutput []string `msgpack:"bench_output,omitempty"`
+	// Coverage is the per-package statement coverage as a percent (0–100),
+	// populated when --cover is set and go reported a numeric value. Nil
+	// when --cover is off or when go emitted "coverage: [no statements]"
+	// for a package with no executable code. Distinguishing nil from 0.0
+	// matters: 0.0 is a real "we have a test binary but it touched no
+	// statements" signal.
+	Coverage *float64 `msgpack:"coverage,omitempty"`
 }
 
 type Test struct {
@@ -210,6 +222,9 @@ func (goDriver) run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 	}
 	if a.Short {
 		args = append(args, "-short")
+	}
+	if a.Cover {
+		args = append(args, "-cover")
 	}
 	if a.Bench != "" {
 		args = append(args, "-bench="+a.Bench)
@@ -385,6 +400,33 @@ func extractFileLine(output string) (string, int) {
 	return m[1], line
 }
 
+// coverageRe matches the `coverage: X.X% of statements` summary line that
+// `go test -cover` appends to each package's package-level output. Examples
+// from the wild:
+//
+//	coverage: 87.3% of statements
+//	coverage: 100.0% of statements
+//	coverage: 0.0% of statements
+//
+// The "[no statements]" form (packages with no executable code) does not
+// match — those packages get a nil Coverage rather than a synthetic 0.0.
+var coverageRe = regexp.MustCompile(`coverage: (\d+(?:\.\d+)?)% of statements`)
+
+// extractCoverage scans package-level output for the coverage summary line
+// and returns the numeric percent. Returns (0, false) if no match — the
+// "[no statements]" case lands here too, which is intentional.
+func extractCoverage(output string) (float64, bool) {
+	m := coverageRe.FindStringSubmatch(output)
+	if m == nil {
+		return 0, false
+	}
+	var pct float64
+	if _, err := fmt.Sscanf(m[1], "%f", &pct); err != nil {
+		return 0, false
+	}
+	return pct, true
+}
+
 // extractBenchLines returns lines from output that look like benchmark result
 // rows: start with "Benchmark" and contain tab-separated numeric metrics.
 // Preamble lines (bare benchmark names without metrics) are excluded.
@@ -519,6 +561,15 @@ func aggregate(events []testEvent, verbose bool) *Result {
 			out := p.outBuf.String()
 			if strings.Contains(out, "[no test files]") {
 				pkg.Status = "no_tests"
+			}
+		}
+		// Capture coverage % when go test -cover emitted it for this
+		// package. Only attached to passing packages — fail / build_failed
+		// / timeout pkgs aren't meaningful to annotate, and "[no statements]"
+		// returns ok=false so we leave Coverage nil.
+		if pkg.Status == "pass" {
+			if pct, ok := extractCoverage(p.outBuf.String()); ok {
+				pkg.Coverage = &pct
 			}
 		}
 		// Capture benchmark result lines from package and test output.
@@ -664,6 +715,17 @@ func prettyResult(r *Result) string {
 			break
 		}
 	}
+	// When --cover was on, at least one package will carry Coverage. In
+	// that case we expand the terse "PASS (N): pkg, pkg" tail into per-line
+	// rows so the % is visible per package. Skip-no-tests pkgs are listed
+	// but get no %.
+	withCoverage := false
+	for _, p := range r.Packages {
+		if p.Coverage != nil {
+			withCoverage = true
+			break
+		}
+	}
 
 	var passing []string
 	for _, p := range r.Packages {
@@ -722,12 +784,18 @@ func prettyResult(r *Result) string {
 				for _, t := range p.Tests {
 					fmt.Fprintf(&b, "  %s %s  %.2fs\n", strings.ToUpper(t.Status), t.Name, t.Elapsed)
 				}
+			} else if withCoverage {
+				if p.Coverage != nil {
+					fmt.Fprintf(&b, "%s  %s  %.1f%%\n", strings.ToUpper(p.Status), p.Path, *p.Coverage)
+				} else {
+					fmt.Fprintf(&b, "%s  %s\n", strings.ToUpper(p.Status), p.Path)
+				}
 			} else {
 				passing = append(passing, p.Path)
 			}
 		}
 	}
-	if !verbose && len(passing) > 0 {
+	if !verbose && !withCoverage && len(passing) > 0 {
 		fmt.Fprintf(&b, "PASS (%d): %s\n", len(passing), strings.Join(passing, ", "))
 	}
 	return strings.TrimRight(b.String(), "\n")
@@ -750,11 +818,15 @@ func CompactResponse(rsp *proto.Response) (any, error) {
 		return nil, err
 	}
 	cd := proto.CompactData{
-		K: []string{"path", "status", "elapsed", "pass", "fail", "skip", "build_out"},
+		K: []string{"path", "status", "elapsed", "pass", "fail", "skip", "build_out", "coverage"},
 		R: make([][]any, len(r.Packages)),
 	}
 	for i, p := range r.Packages {
-		cd.R[i] = []any{p.Path, p.Status, p.Elapsed, p.Counts.Pass, p.Counts.Fail, p.Counts.Skip, p.BuildOutput}
+		var cov any
+		if p.Coverage != nil {
+			cov = *p.Coverage
+		}
+		cd.R[i] = []any{p.Path, p.Status, p.Elapsed, p.Counts.Pass, p.Counts.Fail, p.Counts.Skip, p.BuildOutput, cov}
 	}
 	return map[string]any{
 		"ok":       r.OK,
