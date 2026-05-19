@@ -500,11 +500,11 @@
         "sites": [
           {
             "file": "internal/verbs/verbs.go",
-            "line": 158
+            "line": 161
           },
           {
             "file": "internal/verbs/verbs.go",
-            "line": 205
+            "line": 208
           }
         ]
       },
@@ -870,7 +870,7 @@
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 721
+            "line": 746
           },
           {
             "file": "internal/verbs/initverb/initverb.go",
@@ -1225,20 +1225,24 @@
             "line": 105
           },
           {
+            "file": "internal/verbs/turn/turn.go",
+            "line": 87
+          },
+          {
             "file": "internal/verbs/uninit/uninit.go",
             "line": 71
           },
           {
             "file": "internal/verbs/usage/usage.go",
-            "line": 73
+            "line": 96
           },
           {
             "file": "internal/verbs/usage/usage.go",
-            "line": 77
+            "line": 100
           },
           {
             "file": "internal/verbs/usage/usage.go",
-            "line": 84
+            "line": 107
           },
           {
             "file": "internal/verbs/workspace/workspace.go",
@@ -1398,7 +1402,7 @@
           },
           {
             "file": "internal/verbs/usage/usage.go",
-            "line": 112
+            "line": 135
           },
           {
             "file": "internal/verbs/workspace/workspace.go",
@@ -1603,9 +1607,24 @@
     ],
     "flags": [
       {
+        "literal": "--harness_session_id",
+        "cl100k_tokens": 5,
+        "context": "turn"
+      },
+      {
         "literal": "--micro_benchtime",
         "cl100k_tokens": 5,
         "context": "bench"
+      },
+      {
+        "literal": "--cache_creation_tokens",
+        "cl100k_tokens": 4,
+        "context": "turn"
+      },
+      {
+        "literal": "--cache_read_tokens",
+        "cl100k_tokens": 4,
+        "context": "turn"
       },
       {
         "literal": "--no-clobber",
@@ -1626,6 +1645,11 @@
         "literal": "--regress_tokens",
         "cl100k_tokens": 4,
         "context": "bench,replay"
+      },
+      {
+        "literal": "--timestamp_nanos",
+        "cl100k_tokens": 4,
+        "context": "turn"
       },
       {
         "literal": "--benchmem",
@@ -1651,6 +1675,11 @@
         "literal": "--export_md",
         "cl100k_tokens": 3,
         "context": "bench"
+      },
+      {
+        "literal": "--input_tokens",
+        "cl100k_tokens": 3,
+        "context": "turn"
       },
       {
         "literal": "--internal-only",
@@ -1683,6 +1712,11 @@
         "context": "grep"
       },
       {
+        "literal": "--output_tokens",
+        "cl100k_tokens": 3,
+        "context": "turn"
+      },
+      {
         "literal": "--pathspec",
         "cl100k_tokens": 3,
         "context": "git"
@@ -1701,6 +1735,11 @@
         "literal": "--staged",
         "cl100k_tokens": 3,
         "context": "git"
+      },
+      {
+        "literal": "--turn_id",
+        "cl100k_tokens": 3,
+        "context": "turn"
       },
       {
         "literal": "--untracked",
@@ -1886,6 +1925,11 @@
         "literal": "--mkdir",
         "cl100k_tokens": 2,
         "context": "write"
+      },
+      {
+        "literal": "--model",
+        "cl100k_tokens": 2,
+        "context": "turn"
       },
       {
         "literal": "--multiline",
@@ -2291,11 +2335,11 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 774
+            "line": 799
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 781
+            "line": 806
           }
         ]
       },
@@ -2354,12 +2398,22 @@
         ]
       },
       {
+        "literal": "§turn:",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/turn/turn.go",
+            "line": 128
+          }
+        ]
+      },
+      {
         "literal": "§usage:",
         "cl100k_tokens": 3,
         "sites": [
           {
             "file": "internal/verbs/usage/usage.go",
-            "line": 183
+            "line": 223
           }
         ]
       },
@@ -2515,7 +2569,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 810
+            "line": 835
           }
         ]
       },
@@ -2641,7 +2695,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 1066
+            "line": 1091
           }
         ]
       },
@@ -2753,7 +2807,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 794
+            "line": 819
           }
         ]
       },
@@ -2968,6 +3022,10 @@
       },
       {
         "literal": "test",
+        "cl100k_tokens": 1
+      },
+      {
+        "literal": "turn",
         "cl100k_tokens": 1
       },
       {

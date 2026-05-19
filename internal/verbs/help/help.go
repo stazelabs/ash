@@ -613,6 +613,30 @@ var registry = []VerbSchema{
 		},
 	},
 	{
+		Verb:        "turn",
+		Tier:        "D",
+		Description: "Record an Anthropic API turn's usage/cache numbers; fed by the Stop hook.",
+		Args: []ArgSchema{
+			{Name: "turn_id", Type: "string", Required: true, PH: "<msg-id>",
+				Description: "Anthropic message.id; UNIQUE key (insert is idempotent).",
+				Long:        "The message.id Anthropic returned on the assistant turn. Used as the UNIQUE key in the ledger turns table; repeat fires for the same message are dropped."},
+			{Name: "harness_session_id", Type: "string", Default: "", PH: "<sid>",
+				Description: "Claude Code session id from the transcript (optional, for cross-ref)."},
+			{Name: "model", Type: "string", Default: "", PH: "<m>",
+				Description: "Model id from the API response (e.g. claude-opus-4-7)."},
+			{Name: "input_tokens", Type: "int", Default: "0",
+				Description: "Non-cached input tokens from usage.input_tokens."},
+			{Name: "output_tokens", Type: "int", Default: "0",
+				Description: "Output tokens from usage.output_tokens."},
+			{Name: "cache_read_tokens", Type: "int", Default: "0",
+				Description: "Cached input tokens from usage.cache_read_input_tokens."},
+			{Name: "cache_creation_tokens", Type: "int", Default: "0",
+				Description: "Cache-creation tokens from usage.cache_creation_input_tokens."},
+			{Name: "timestamp_nanos", Type: "int", Default: "0",
+				Description: "Override turn ts (unix nanos); default uses server time on insert."},
+		},
+	},
+	{
 		Verb:        "lang",
 		Tier:        "B",
 		Description: "Semantic queries via the LSP broker: outline, def, refs, callers, impl.",
@@ -654,6 +678,7 @@ var experimentalVerbs = map[string]bool{
 	"lang":      true,
 	"replay":    true,
 	"usage":     true,
+	"turn":      true,
 	"bench":     true,
 	"recap":     true,
 	"workspace": true,
@@ -841,7 +866,7 @@ var verbDisplayOrder = []string{
 	"find", "grep", "git",
 	"lang",
 	"metrics", "report", "recap", "workspace", "replay", "stat", "bench", "build", "test",
-	"help", "hook", "init", "uninit", "stop", "usage",
+	"help", "hook", "init", "uninit", "stop", "usage", "turn",
 }
 
 // RenderUsage produces the full usage string printed when `ash` is invoked

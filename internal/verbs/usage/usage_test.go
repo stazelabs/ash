@@ -2,10 +2,12 @@ package usage
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stazelabs/ash/internal/ledger"
+	"github.com/stazelabs/ash/internal/proto"
 )
 
 func openTestLedger(t *testing.T) *ledger.Ledger {
@@ -162,6 +164,77 @@ func TestRunWithLedger_ExcludesUsageVerb(t *testing.T) {
 		if vs.Verb == "usage" {
 			t.Errorf("usage verb leaked into output: %+v", vs)
 		}
+	}
+}
+
+// TestRunWithLedger_TurnsSummary pins the ASH-188 behaviour: when the
+// ledger has turn rows in the window, Turns is populated with the
+// per-window aggregate; when there are none it stays nil so the
+// pretty surface remains byte-identical to the pre-ASH-188 proxy.
+func TestRunWithLedger_TurnsSummary(t *testing.T) {
+	l := openTestLedger(t)
+	now := time.Now()
+	// One call to keep PerVerb non-empty so the absence of Turns is
+	// distinguishable from an empty-window response.
+	if _, err := l.Record(&ledger.Call{
+		Timestamp: now, RequestID: 1, Verb: "find", OK: true,
+	}); err != nil {
+		t.Fatalf("Record: %v", err)
+	}
+
+	r, perr := RunWithLedger(l, &Args{Since: time.Hour, Session: "current"})
+	if perr != nil {
+		t.Fatalf("RunWithLedger empty turns: %+v", perr)
+	}
+	if r.Turns != nil {
+		t.Fatalf("no turn rows: want Turns=nil, got %+v", r.Turns)
+	}
+
+	if _, ok := l.InsertTurn(&ledger.Turn{
+		TurnID: "msg_a", Timestamp: now, CacheReadTokens: 100, InputTokens: 10, OutputTokens: 50,
+	}); !ok {
+		t.Fatal("InsertTurn msg_a: want ok=true")
+	}
+	if _, ok := l.InsertTurn(&ledger.Turn{
+		TurnID: "msg_b", Timestamp: now, CacheReadTokens: 200, CacheCreationTokens: 30, InputTokens: 5,
+	}); !ok {
+		t.Fatal("InsertTurn msg_b: want ok=true")
+	}
+
+	r, perr = RunWithLedger(l, &Args{Since: time.Hour, Session: "current"})
+	if perr != nil {
+		t.Fatalf("RunWithLedger with turns: %+v", perr)
+	}
+	if r.Turns == nil {
+		t.Fatal("with turn rows: want Turns populated, got nil")
+	}
+	want := TurnsSummary{
+		Turns: 2, InputTokens: 15, OutputTokens: 50,
+		CacheReadTokens: 300, CacheCreationTokens: 30,
+	}
+	if *r.Turns != want {
+		t.Errorf("Turns summary: got %+v, want %+v", *r.Turns, want)
+	}
+}
+
+// TestPrettyResponse_TurnsLineHitRate confirms the rendered hit rate
+// uses the canonical denominator (cache_read + cache_creation + input).
+// 800 cached / (800+200+0) = 80%.
+func TestPrettyResponse_TurnsLineHitRate(t *testing.T) {
+	r := &Result{
+		Since: "1h", Session: "current", Calls: 1,
+		PerVerb: []VerbStats{{Verb: "find", Calls: 1, UniqueArgs: 1}},
+		Turns: &TurnsSummary{
+			Turns: 3, CacheReadTokens: 800, CacheCreationTokens: 200,
+		},
+	}
+	rsp := &proto.Response{OK: true, Data: proto.MustData(r)}
+	pretty := PrettyResponse(nil, rsp)
+	if !strings.Contains(pretty, "cache: 80.0%") {
+		t.Errorf("expected 'cache: 80.0%%' line, got:\n%s", pretty)
+	}
+	if !strings.Contains(pretty, "across 3 turns") {
+		t.Errorf("expected 'across 3 turns' marker, got:\n%s", pretty)
 	}
 }
 

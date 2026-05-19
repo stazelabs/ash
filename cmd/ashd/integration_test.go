@@ -163,6 +163,11 @@ func TestIntegration_AllVerbs(t *testing.T) {
 		// calls in this freshly-opened daemon session the verb
 		// returns OK with Calls=0 / PerVerb empty.
 		{"usage", map[string]any{}, ""},
+		// ASH-188: turn ingests harness-reported Anthropic API turn
+		// usage. The Stop hook normally feeds it; here we exercise
+		// the verb directly with a minimal valid turn_id. INSERT OR
+		// IGNORE keeps repeat runs idempotent.
+		{"turn", map[string]any{"turn_id": "msg_integration_test"}, ""},
 		// ASH-138: lang dispatches through the LSP broker. Runners is
 		// invoked here with broker=nil, so RunWithDeps returns
 		// lsp_disabled — exactly the contract we want for a default

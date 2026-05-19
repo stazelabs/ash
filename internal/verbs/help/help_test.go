@@ -18,6 +18,7 @@ func TestRegistry_StabilityClassification(t *testing.T) {
 		"lang":      true,
 		"replay":    true,
 		"usage":     true,
+		"turn":      true,
 		"bench":     true,
 		"recap":     true,
 		"workspace": true,

@@ -235,6 +235,7 @@ var ExemptVerbs = map[string]string{
 	"workspace": "reads ledger + git status; re-orientation snapshot, no honest bash equivalent",
 	"usage":     "annotates the ledger row of a prior call; no bash equivalent, and the call is trivial (one UPDATE)",
 	"lang":      "LSP-broker semantic queries; no bash equivalent (gopls round-trip vs grep+read sequences is exactly what ASH-141 is set up to measure independently)",
+	"turn":      "meta-instrumentation fed by the Stop hook (ASH-188); no bash equivalent, trivial insert",
 }
 
 // BenchTmpDir is the working directory cases use for write/edit

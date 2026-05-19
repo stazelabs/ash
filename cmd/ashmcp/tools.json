@@ -3706,6 +3706,34 @@
           },
           "since": {
             "type": "string"
+          },
+          "turns": {
+            "type": "object",
+            "properties": {
+              "cache_creation_tokens": {
+                "type": "integer"
+              },
+              "cache_read_tokens": {
+                "type": "integer"
+              },
+              "input_tokens": {
+                "type": "integer"
+              },
+              "output_tokens": {
+                "type": "integer"
+              },
+              "turns": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "cache_creation_tokens",
+              "cache_read_tokens",
+              "input_tokens",
+              "output_tokens",
+              "turns"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -3713,6 +3741,84 @@
           "per_verb",
           "session",
           "since"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ash_turn",
+      "description": "Record an Anthropic API turn's usage/cache numbers; fed by the Stop hook. [experimental: arg schema may change in a point release]",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "cache_creation_tokens": {
+            "type": "integer",
+            "description": "Cache-creation tokens from usage.cache_creation_input_tokens.",
+            "default": 0
+          },
+          "cache_read_tokens": {
+            "type": "integer",
+            "description": "Cached input tokens from usage.cache_read_input_tokens.",
+            "default": 0
+          },
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as named per-record maps; \"pretty\" ships the daemon-pretty text matching CLI token cost; \"compact\" (ASH-153) ships a cols/rows hybrid where field names are listed once per call instead of once per record — only meaningful for row-shaped verbs (find, grep, metrics, report, git log/diff/show, stat, test). MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty",
+              "compact"
+            ],
+            "default": "json"
+          },
+          "harness_session_id": {
+            "type": "string",
+            "description": "Claude Code session id from the transcript (optional, for cross-ref)."
+          },
+          "input_tokens": {
+            "type": "integer",
+            "description": "Non-cached input tokens from usage.input_tokens.",
+            "default": 0
+          },
+          "model": {
+            "type": "string",
+            "description": "Model id from the API response (e.g. claude-opus-4-7)."
+          },
+          "output_tokens": {
+            "type": "integer",
+            "description": "Output tokens from usage.output_tokens.",
+            "default": 0
+          },
+          "timestamp_nanos": {
+            "type": "integer",
+            "description": "Override turn ts (unix nanos); default uses server time on insert.",
+            "default": 0
+          },
+          "turn_id": {
+            "type": "string",
+            "description": "Anthropic message.id; UNIQUE key (insert is idempotent)."
+          }
+        },
+        "required": [
+          "turn_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "inserted": {
+            "type": "boolean"
+          },
+          "turn_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "inserted",
+          "turn_id"
         ],
         "additionalProperties": false
       }

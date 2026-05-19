@@ -32,6 +32,14 @@ import (
 const hookDaemonDialTimeout = 5 * time.Millisecond
 
 func runHook() {
+	// `--event stop` routes to the Stop-hook fast path
+	// (cmd/ash/hook_stop.go). The default `ash hook` shape with no
+	// flags remains the PreToolUse path. Both share the same
+	// soft-fail discipline: any failure exits 0.
+	if len(os.Args) >= 3 && stopArgvHasEvent(os.Args[2:]) {
+		runHookStop()
+		return
+	}
 	root, wireArgs, ok := runHookFromReader(os.Stdin, os.Stdout)
 	if !ok {
 		return

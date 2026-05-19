@@ -258,6 +258,103 @@ func TestUpdateCacheStats_RoundTrip(t *testing.T) {
 	}
 }
 
+// TestInsertTurn_RoundTrip pins the happy path: insert a turn, query
+// it back, fields survive.
+func TestInsertTurn_RoundTrip(t *testing.T) {
+	l := openTestLedger(t)
+	ts := time.Unix(1700000000, 0)
+	turn := &Turn{
+		TurnID:              "msg_01abc",
+		HarnessSessionID:    "sess-xyz",
+		Model:               "claude-opus-4-7",
+		Timestamp:           ts,
+		InputTokens:         42,
+		OutputTokens:        300,
+		CacheReadTokens:     180_000,
+		CacheCreationTokens: 5_000,
+	}
+	rowID, inserted := l.InsertTurn(turn)
+	if !inserted {
+		t.Fatal("InsertTurn: first call should insert, got inserted=false")
+	}
+	if rowID == 0 {
+		t.Fatal("InsertTurn: rowID should be non-zero on insert")
+	}
+	got, err := l.QueryTurns(QueryOpts{SessionID: "current"})
+	if err != nil {
+		t.Fatalf("QueryTurns: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("QueryTurns: got %d rows, want 1", len(got))
+	}
+	g := got[0]
+	if g.TurnID != turn.TurnID || g.HarnessSessionID != turn.HarnessSessionID ||
+		g.Model != turn.Model || g.InputTokens != turn.InputTokens ||
+		g.OutputTokens != turn.OutputTokens || g.CacheReadTokens != turn.CacheReadTokens ||
+		g.CacheCreationTokens != turn.CacheCreationTokens {
+		t.Errorf("round-trip mismatch:\nwant %+v\ngot  %+v", *turn, g)
+	}
+	if !g.Timestamp.Equal(ts) {
+		t.Errorf("timestamp: want %v, got %v", ts, g.Timestamp)
+	}
+}
+
+// TestInsertTurn_Idempotent confirms duplicate turn_id is silently
+// dropped — the Stop hook may fire twice for the same assistant turn
+// (rapid Claude Code session resumption, retries, etc.) and we must
+// not double-count.
+func TestInsertTurn_Idempotent(t *testing.T) {
+	l := openTestLedger(t)
+	turn := &Turn{
+		TurnID:          "msg_dup",
+		Timestamp:       time.Unix(1700000000, 0),
+		CacheReadTokens: 100,
+	}
+	if _, ok := l.InsertTurn(turn); !ok {
+		t.Fatal("first insert: want ok=true")
+	}
+	// Second insert with same turn_id but different numbers — the
+	// existing row must win (no overwrite) and the helper must
+	// report inserted=false.
+	turn.CacheReadTokens = 999
+	if _, ok := l.InsertTurn(turn); ok {
+		t.Fatal("second insert with same turn_id: want ok=false")
+	}
+	got, err := l.QueryTurns(QueryOpts{SessionID: "current"})
+	if err != nil {
+		t.Fatalf("QueryTurns: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("QueryTurns: got %d rows, want 1", len(got))
+	}
+	if got[0].CacheReadTokens != 100 {
+		t.Errorf("idempotency: CacheReadTokens=%d, want 100 (no overwrite)", got[0].CacheReadTokens)
+	}
+}
+
+// TestQueryTurns_SinceFilter verifies that the Since opt drops rows
+// older than the cutoff. Mirrors QueryWindow's contract.
+func TestQueryTurns_SinceFilter(t *testing.T) {
+	l := openTestLedger(t)
+	now := time.Now()
+	mk := func(id string, ts time.Time) {
+		t.Helper()
+		if _, ok := l.InsertTurn(&Turn{TurnID: id, Timestamp: ts}); !ok {
+			t.Fatalf("InsertTurn %s: want ok=true", id)
+		}
+	}
+	mk("msg_old", now.Add(-2*time.Hour))
+	mk("msg_recent", now.Add(-30*time.Minute))
+
+	got, err := l.QueryTurns(QueryOpts{SessionID: "current", Since: now.Add(-time.Hour)})
+	if err != nil {
+		t.Fatalf("QueryTurns: %v", err)
+	}
+	if len(got) != 1 || got[0].TurnID != "msg_recent" {
+		t.Fatalf("Since filter: got %+v, want one msg_recent row", got)
+	}
+}
+
 func TestFindRowByRequestID(t *testing.T) {
 	l := openTestLedger(t)
 	_, err := l.Record(&Call{Timestamp: time.Now(), RequestID: 100, Verb: "find", OK: true})

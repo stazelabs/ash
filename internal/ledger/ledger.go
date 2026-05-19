@@ -121,6 +121,22 @@ CREATE TABLE IF NOT EXISTS bench_case_results (
 );
 CREATE INDEX IF NOT EXISTS idx_bench_case_results_run  ON bench_case_results(run_id);
 CREATE INDEX IF NOT EXISTS idx_bench_case_results_case ON bench_case_results(case_name);
+
+CREATE TABLE IF NOT EXISTS turns (
+	id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+	session_id            TEXT NOT NULL,
+	turn_id               TEXT NOT NULL UNIQUE,
+	harness_session_id    TEXT,
+	model                 TEXT,
+	ts                    INTEGER NOT NULL,
+	input_tokens          INTEGER NOT NULL DEFAULT 0,
+	output_tokens         INTEGER NOT NULL DEFAULT 0,
+	cache_read_tokens     INTEGER NOT NULL DEFAULT 0,
+	cache_creation_tokens INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_turns_session ON turns(session_id);
+CREATE INDEX IF NOT EXISTS idx_turns_harness_session ON turns(harness_session_id);
+CREATE INDEX IF NOT EXISTS idx_turns_ts ON turns(ts);
 `
 
 type Ledger struct {
@@ -553,6 +569,111 @@ func (l *Ledger) UpdateCacheStats(rowID int64, hit, miss int) error {
 		hit, miss, rowID,
 	)
 	return err
+}
+
+// Turn is one harness-reported turn of API usage. Populated by the
+// `turn` verb when the Stop hook scrapes Anthropic's `usage` block out
+// of the Claude Code transcript JSONL after each assistant message.
+// ASH-188 / ASH-185 Option A — see docs/cache-telemetry.md.
+type Turn struct {
+	RowID               int64
+	SessionID           string // ash session that recorded the row
+	TurnID              string // Anthropic message.id; UNIQUE
+	HarnessSessionID    string // Claude Code session id from the transcript
+	Model               string
+	Timestamp           time.Time
+	InputTokens         int
+	OutputTokens        int
+	CacheReadTokens     int
+	CacheCreationTokens int
+}
+
+// InsertTurn upserts a turn row. Idempotent on turn_id: the Stop hook
+// can fire repeatedly for the same assistant message without
+// double-counting. INSERT OR IGNORE because the Anthropic usage block
+// for a given message.id is immutable — no point in overwriting.
+// Returns (rowID, true) when the insert happened, (0, false) when it
+// was a duplicate or insert failed.
+func (l *Ledger) InsertTurn(t *Turn) (int64, bool) {
+	res, err := l.db.Exec(
+		`INSERT OR IGNORE INTO turns (
+			session_id, turn_id, harness_session_id, model, ts,
+			input_tokens, output_tokens,
+			cache_read_tokens, cache_creation_tokens
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		l.sessionID, t.TurnID, t.HarnessSessionID, t.Model, t.Timestamp.UnixNano(),
+		t.InputTokens, t.OutputTokens,
+		t.CacheReadTokens, t.CacheCreationTokens,
+	)
+	if err != nil {
+		return 0, false
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return 0, false
+	}
+	id, _ := res.LastInsertId()
+	return id, true
+}
+
+// QueryTurns returns turn rows matching the same SessionID / Since /
+// Limit filter that QueryWindow uses (VerbFilter is ignored — turns
+// have no verb dimension). Order is reverse-chronological by ts.
+func (l *Ledger) QueryTurns(opts QueryOpts) ([]Turn, error) {
+	limit := opts.Limit
+	if limit <= 0 {
+		limit = DefaultWindowLimit
+	}
+	sid := opts.SessionID
+	if sid == "current" {
+		sid = l.sessionID
+	}
+	where := []string{}
+	args := []any{}
+	if sid != "" {
+		where = append(where, "session_id = ?")
+		args = append(args, sid)
+	}
+	if !opts.Since.IsZero() {
+		where = append(where, "ts >= ?")
+		args = append(args, opts.Since.UnixNano())
+	}
+	args = append(args, limit)
+	clause := ""
+	if len(where) > 0 {
+		clause = "WHERE " + strings.Join(where, " AND ") + " "
+	}
+	rows, err := l.db.Query(`
+		SELECT id, session_id, turn_id, harness_session_id, model, ts,
+		       input_tokens, output_tokens,
+		       cache_read_tokens, cache_creation_tokens
+		FROM turns `+clause+`ORDER BY ts DESC LIMIT ?`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Turn
+	for rows.Next() {
+		var t Turn
+		var ts int64
+		var hsid, model sql.NullString
+		if err := rows.Scan(
+			&t.RowID, &t.SessionID, &t.TurnID, &hsid, &model, &ts,
+			&t.InputTokens, &t.OutputTokens,
+			&t.CacheReadTokens, &t.CacheCreationTokens,
+		); err != nil {
+			return nil, err
+		}
+		if hsid.Valid {
+			t.HarnessSessionID = hsid.String
+		}
+		if model.Valid {
+			t.Model = model.String
+		}
+		t.Timestamp = time.Unix(0, ts)
+		out = append(out, t)
+	}
+	return out, rows.Err()
 }
 
 // FindRowByRequestID returns the row id and verb for the call recorded

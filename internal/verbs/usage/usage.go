@@ -13,6 +13,13 @@
 // prompt-cache TTL would land on a warm prefix. We can compute that
 // from the ledger alone, no harness callback required.
 //
+// ASH-188 augmentation: when the harness's Stop hook is wired up
+// (see cmd/ash/hook_stop.go + the `turn` verb), real Anthropic cache
+// hit/miss numbers land in the ledger `turns` table. This verb
+// summarizes them on a one-line cache header above the proxy table,
+// turning the structural proxy into a sanity check against the real
+// signal. See docs/cache-telemetry.md for design context.
+//
 // Args:
 //
 //	since   string  (optional) - time window; Go duration + d/w/mo, default 24h.
@@ -57,12 +64,28 @@ type VerbStats struct {
 	CacheRatio  int    `msgpack:"cache_ratio"`  // percent — CachePairs / max(Calls-1, 1) * 100
 }
 
-// Result is the structured response of `ash usage`.
+// TurnsSummary is the harness-reported Anthropic cache accounting for
+// the report window. Populated by the Stop hook → `turn` verb path
+// (ASH-188 / ASH-185 Option A). When no rows in the window have turn
+// data, the field is nil and pretty output is byte-identical to the
+// pre-ASH-188 surface — the arg-repetition proxy.
+type TurnsSummary struct {
+	Turns               int `msgpack:"turns"`
+	InputTokens         int `msgpack:"input_tokens"`
+	OutputTokens        int `msgpack:"output_tokens"`
+	CacheReadTokens     int `msgpack:"cache_read_tokens"`
+	CacheCreationTokens int `msgpack:"cache_creation_tokens"`
+}
+
+// Result is the structured response of `ash usage`. Turns rides at the
+// end so adding it doesn't shift the cache-stable prefix of the
+// pre-ASH-188 envelope (docs/cache-shape.md).
 type Result struct {
-	Since   string      `msgpack:"since"`
-	Session string      `msgpack:"session"`
-	Calls   int         `msgpack:"calls"`
-	PerVerb []VerbStats `msgpack:"per_verb"`
+	Since   string        `msgpack:"since"`
+	Session string        `msgpack:"session"`
+	Calls   int           `msgpack:"calls"`
+	PerVerb []VerbStats   `msgpack:"per_verb"`
+	Turns   *TurnsSummary `msgpack:"turns,omitempty"`
 }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
@@ -161,11 +184,28 @@ func RunWithLedger(led *ledger.Ledger, a *Args) (*Result, *proto.Error) {
 	if a.Since > 0 {
 		since = a.Since.String()
 	}
+
+	// Pull turn rows for the same window. QueryTurns reuses QueryOpts
+	// shape but ignores VerbFilter (turns have no verb dimension). Soft-
+	// fail: if the turns table is unreadable we just omit the summary.
+	var turnsSummary *TurnsSummary
+	if turns, err := led.QueryTurns(opts); err == nil && len(turns) > 0 {
+		s := &TurnsSummary{Turns: len(turns)}
+		for _, t := range turns {
+			s.InputTokens += t.InputTokens
+			s.OutputTokens += t.OutputTokens
+			s.CacheReadTokens += t.CacheReadTokens
+			s.CacheCreationTokens += t.CacheCreationTokens
+		}
+		turnsSummary = s
+	}
+
 	return &Result{
 		Since:   since,
 		Session: a.Session,
 		Calls:   total,
 		PerVerb: stats,
+		Turns:   turnsSummary,
 	}, nil
 }
 
@@ -182,6 +222,9 @@ func PrettyResponse(_ *proto.Request, rsp *proto.Response) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "§usage: %s, since=%s — %d calls across %d verbs\n",
 		r.Session, r.Since, r.Calls, len(r.PerVerb))
+	if r.Turns != nil {
+		writeTurnsLine(&b, r.Turns)
+	}
 	if len(r.PerVerb) == 0 {
 		b.WriteString("\nno calls in window.\n")
 		return b.String()
@@ -197,5 +240,47 @@ func PrettyResponse(_ *proto.Request, rsp *proto.Response) string {
 	b.WriteString("\npairs = consecutive same-args calls within 5 min " +
 		"(Anthropic prompt-cache TTL). For structural prefix-overlap stats " +
 		"see `ash replay --cache_prefix true --since <window>`.\n")
+	if r.Turns != nil {
+		b.WriteString("turns = harness-reported Anthropic API turns " +
+			"(ASH-188; populated by the Stop hook).\n")
+	}
 	return b.String()
+}
+
+// writeTurnsLine renders the one-line real-cache summary above the
+// per-verb table. Hit rate is cache_read / total-input, matching
+// Anthropic's own usage accounting (cache_read + cache_creation +
+// input together make up the full prompt).
+func writeTurnsLine(b *strings.Builder, t *TurnsSummary) {
+	totalInput := t.CacheReadTokens + t.CacheCreationTokens + t.InputTokens
+	hitPct := 0.0
+	if totalInput > 0 {
+		hitPct = float64(t.CacheReadTokens) * 100 / float64(totalInput)
+	}
+	turnsWord := "turns"
+	if t.Turns == 1 {
+		turnsWord = "turn"
+	}
+	fmt.Fprintf(b, "cache: %.1f%% hit (%s read / %s created / %s fresh in / %s out across %d %s)\n",
+		hitPct,
+		humanizeTokens(t.CacheReadTokens),
+		humanizeTokens(t.CacheCreationTokens),
+		humanizeTokens(t.InputTokens),
+		humanizeTokens(t.OutputTokens),
+		t.Turns, turnsWord,
+	)
+}
+
+// humanizeTokens renders large token counts in K/M form. Cutoffs are
+// the conventional 1k / 1M boundaries; below 1k we keep the raw int
+// so small workloads stay legible.
+func humanizeTokens(n int) string {
+	switch {
+	case n >= 1_000_000:
+		return fmt.Sprintf("%.1fM", float64(n)/1_000_000)
+	case n >= 1_000:
+		return fmt.Sprintf("%.1fK", float64(n)/1_000)
+	default:
+		return fmt.Sprintf("%d", n)
+	}
 }
