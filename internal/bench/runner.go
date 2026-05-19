@@ -92,15 +92,27 @@ func RunBash(ctx context.Context, argv []string) BashResult {
 	res.Stderr = stderrBuf.Bytes()
 
 	if waitErr != nil {
-		var exitErr *exec.ExitError
-		if errors.As(waitErr, &exitErr) {
-			res.ExitCode = exitErr.ExitCode()
-			// Non-zero exit is informational (grep returns 1 on no
-			// matches; that's not a bench failure).
-		} else if ctx.Err() != nil {
+		// Order matters: check ctx.Err() before unwrapping ExitError.
+		// A SIGKILL from context cancellation manifests as ExitError,
+		// so the naive ExitError-first classifier would label timeouts
+		// as "normal non-zero exit" and silently corrupt bench data
+		// (ASH-194). When ctx is cancelled, surface "timeout" in RunErr
+		// even if ExitCode is also available.
+		if ctx.Err() != nil {
 			res.RunErr = "timeout: " + ctx.Err().Error()
+			var exitErr *exec.ExitError
+			if errors.As(waitErr, &exitErr) {
+				res.ExitCode = exitErr.ExitCode()
+			}
 		} else {
-			res.RunErr = "wait: " + waitErr.Error()
+			var exitErr *exec.ExitError
+			if errors.As(waitErr, &exitErr) {
+				res.ExitCode = exitErr.ExitCode()
+				// Non-zero exit is informational (grep returns 1 on no
+				// matches; that's not a bench failure).
+			} else {
+				res.RunErr = "wait: " + waitErr.Error()
+			}
 		}
 	}
 

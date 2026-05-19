@@ -64,15 +64,12 @@ func TestRunBash_StderrCaptured(t *testing.T) {
 	}
 }
 
-// TestRunBash_TimeoutFromContext pins what the runner DOES on context
-// cancellation, not what it SHOULD do. Today the SIGKILL from
-// context cancellation manifests as exec.ExitError, which the runner
-// classifies as a "normal" non-zero exit — so RunErr stays empty and
-// only ExitCode != 0 / short elapsed signal the timeout. This is a
-// known limitation worth tracking separately; see ASH-192 for the
-// follow-up note. The test exists to (a) cover the timeout path and
-// (b) catch a future regression that makes the runner hang past the
-// deadline.
+// TestRunBash_TimeoutFromContext pins ctx-cancellation classification
+// (ASH-194). The wait-error classifier checks ctx.Err() before
+// unwrapping ExitError so a SIGKILL from ctx cancel is surfaced as
+// "timeout" in RunErr, not buried as a normal non-zero exit. ExitCode
+// may still be populated (informational); RunErr is the authoritative
+// signal.
 func TestRunBash_TimeoutFromContext(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
@@ -82,9 +79,8 @@ func TestRunBash_TimeoutFromContext(t *testing.T) {
 	if elapsed >= 2*time.Second {
 		t.Fatalf("runner did not honor context timeout: elapsed %s", elapsed)
 	}
-	timedOut := strings.Contains(res.RunErr, "timeout") || res.ExitCode != 0
-	if !timedOut {
-		t.Errorf("expected RunErr=timeout or non-zero ExitCode after ctx cancel; got RunErr=%q ExitCode=%d",
+	if !strings.Contains(res.RunErr, "timeout") {
+		t.Errorf("RunErr should contain 'timeout' after ctx cancel; got RunErr=%q ExitCode=%d",
 			res.RunErr, res.ExitCode)
 	}
 }
