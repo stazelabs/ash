@@ -103,3 +103,134 @@ func TestParseArgs_MicroFlags(t *testing.T) {
 		t.Errorf("MicroPackages: got %q", a.MicroPackages)
 	}
 }
+
+func TestParseArgs_WarmupDefaults(t *testing.T) {
+	cases := []struct {
+		name string
+		in   map[string]any
+		want int
+	}{
+		// Implicit warmup. Default = 1 when Repeat>1, else 0.
+		{name: "repeat_1_no_warmup", in: map[string]any{"repeat": "1"}, want: 0},
+		{name: "repeat_3_implies_warmup_1", in: map[string]any{"repeat": "3"}, want: 1},
+		{name: "default_repeat_no_warmup", in: map[string]any{}, want: 0},
+		// Explicit warmup wins, regardless of repeat.
+		{name: "explicit_warmup_0_with_high_repeat", in: map[string]any{"repeat": "5", "warmup": "0"}, want: 0},
+		{name: "explicit_warmup_5_with_repeat_1", in: map[string]any{"repeat": "1", "warmup": "5"}, want: 5},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			a, perr := ParseArgs(c.in)
+			if perr != nil {
+				t.Fatalf("ParseArgs: %v", perr)
+			}
+			if a.Warmup != c.want {
+				t.Errorf("Warmup: got %d, want %d", a.Warmup, c.want)
+			}
+		})
+	}
+}
+
+func TestParseArgs_RepeatZeroDefaultsToOne(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{"repeat": "0"})
+	if perr != nil {
+		t.Fatalf("ParseArgs: %v", perr)
+	}
+	if a.Repeat != 1 {
+		t.Errorf("Repeat: got %d, want 1 (zero coerces to 1)", a.Repeat)
+	}
+}
+
+func TestParseArgs_CompareConvenienceForm(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{"compare": "abc,def"})
+	if perr != nil {
+		t.Fatalf("ParseArgs: %v", perr)
+	}
+	if a.CompareA != "abc" || a.CompareB != "def" {
+		t.Errorf("compare split wrong: a=%q b=%q", a.CompareA, a.CompareB)
+	}
+}
+
+func TestParseArgs_CompareConvenienceFormErrors(t *testing.T) {
+	bad := []string{"only-one", "a,", ",b", ","}
+	for _, in := range bad {
+		_, perr := ParseArgs(map[string]any{"compare": in})
+		if perr == nil || perr.Code != "args" {
+			t.Errorf("compare=%q: expected args error, got %v", in, perr)
+		}
+	}
+}
+
+func TestParseArgs_RegressThresholds(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{})
+	if perr != nil {
+		t.Fatalf("ParseArgs: %v", perr)
+	}
+	if a.RegressTokPct != 10 || a.RegressLatPct != 20 {
+		t.Errorf("default thresholds: tok=%d, lat=%d", a.RegressTokPct, a.RegressLatPct)
+	}
+	a, perr = ParseArgs(map[string]any{"regress_tokens": "25", "regress_latency": "50"})
+	if perr != nil {
+		t.Fatalf("ParseArgs: %v", perr)
+	}
+	if a.RegressTokPct != 25 || a.RegressLatPct != 50 {
+		t.Errorf("override thresholds: tok=%d, lat=%d", a.RegressTokPct, a.RegressLatPct)
+	}
+}
+
+func TestParseArgs_BaselineAndPublishFlags(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{
+		"baseline":        "7d",
+		"record_baseline": "true",
+		"export_md":       "true",
+	})
+	if perr != nil {
+		t.Fatalf("ParseArgs: %v", perr)
+	}
+	if a.Baseline != "7d" {
+		t.Errorf("Baseline: got %q", a.Baseline)
+	}
+	if !a.RecordBaseline {
+		t.Error("RecordBaseline: expected true")
+	}
+	if !a.ExportMd {
+		t.Error("ExportMd: expected true")
+	}
+}
+
+func TestParseArgs_ListAndListLimit(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{})
+	if perr != nil {
+		t.Fatalf("ParseArgs: %v", perr)
+	}
+	if a.ListLimit != 20 {
+		t.Errorf("default ListLimit: got %d, want 20", a.ListLimit)
+	}
+	a, perr = ParseArgs(map[string]any{"list": "true", "list_limit": "5"})
+	if perr != nil {
+		t.Fatalf("ParseArgs: %v", perr)
+	}
+	if !a.List || a.ListLimit != 5 {
+		t.Errorf("list flags: %+v", a)
+	}
+}
+
+func TestParseArgs_VerbAndCaseFilters(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{"verb": "find", "case": "find_shallow"})
+	if perr != nil {
+		t.Fatalf("ParseArgs: %v", perr)
+	}
+	if a.Verb != "find" || a.Case != "find_shallow" {
+		t.Errorf("filters: %+v", a)
+	}
+}
+
+func TestParseArgs_MicroCountZeroDefaultsToOne(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{"micro_count": "0"})
+	if perr != nil {
+		t.Fatalf("ParseArgs: %v", perr)
+	}
+	if a.MicroCount != 1 {
+		t.Errorf("MicroCount: got %d, want 1", a.MicroCount)
+	}
+}
