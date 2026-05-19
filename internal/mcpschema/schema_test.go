@@ -208,8 +208,8 @@ func TestGenerateEnums(t *testing.T) {
 		t.Errorf("ash_read.unit enum = %v, want [lines bytes]", read.Enum)
 	}
 	git := byName["ash_git"].InputSchema.Properties["op"]
-	if !equalStringSet(git.Enum, []string{"status", "log", "diff", "show"}) {
-		t.Errorf("ash_git.op enum = %v, want [status log diff show]", git.Enum)
+	if !equalStringSet(git.Enum, []string{"status", "log", "diff", "show", "blame"}) {
+		t.Errorf("ash_git.op enum = %v, want [status log diff show blame]", git.Enum)
 	}
 }
 

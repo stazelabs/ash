@@ -59,8 +59,9 @@ func currentBackend() backendKind {
 }
 
 // notImplementedBackend returns the typed error for an op a backend
-// genuinely cannot perform. Currently unused (both backends implement
-// every live op) but kept for future ops that may diverge.
+// genuinely cannot perform. ASH-190: blame is the first live op with a
+// real backend split — go-git implements it, shellout does not (no
+// demand to justify a porcelain-v2 parser yet).
 func notImplementedBackend(op string) *proto.Error {
 	return &proto.Error{Code: "not_implemented", Msg: op + " is not implemented for the active git backend"}
 }
@@ -102,6 +103,11 @@ func runShow(a *Args, tr *proto.Tracer) (*ShowResult, *proto.Error) {
 	}
 }
 
-// _ = notImplementedBackend silences the unused-helper lint for now.
-// When a future op diverges, drop this.
-var _ = notImplementedBackend
+func runBlame(a *Args, tr *proto.Tracer) (*BlameResult, *proto.Error) {
+	switch currentBackend() {
+	case backendShellout:
+		return nil, notImplementedBackend("blame")
+	default:
+		return runBlameGogit(a, tr)
+	}
+}

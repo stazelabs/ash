@@ -24,6 +24,11 @@
         "context": "write:--encoding"
       },
       {
+        "literal": "blame",
+        "cl100k_tokens": 2,
+        "context": "git:--op"
+      },
+      {
         "literal": "callers",
         "cl100k_tokens": 2,
         "context": "lang:--op"
@@ -190,16 +195,34 @@
         ]
       },
       {
+        "literal": "path_not_in_rev",
+        "cl100k_tokens": 4,
+        "sites": [
+          {
+            "file": "internal/verbs/git/gogit_blame.go",
+            "line": 168
+          },
+          {
+            "file": "internal/verbs/git/gogit_blame.go",
+            "line": 175
+          }
+        ]
+      },
+      {
         "literal": "range_out_of_bounds",
         "cl100k_tokens": 4,
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 524
+            "line": 629
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 527
+            "line": 632
+          },
+          {
+            "file": "internal/verbs/git/gogit_blame.go",
+            "line": 117
           },
           {
             "file": "internal/verbs/read/read.go",
@@ -274,7 +297,7 @@
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 256
+            "line": 271
           }
         ]
       },
@@ -376,7 +399,7 @@
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 492
+            "line": 597
           }
         ]
       },
@@ -434,7 +457,7 @@
         "sites": [
           {
             "file": "internal/verbs/git/backend.go",
-            "line": 65
+            "line": 66
           }
         ]
       },
@@ -444,11 +467,11 @@
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 387
+            "line": 421
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 472
+            "line": 535
           }
         ]
       },
@@ -459,6 +482,16 @@
           {
             "file": "internal/jail/policy.go",
             "line": 218
+          }
+        ]
+      },
+      {
+        "literal": "path_not_found",
+        "cl100k_tokens": 3,
+        "sites": [
+          {
+            "file": "internal/verbs/git/gogit_blame.go",
+            "line": 42
           }
         ]
       },
@@ -547,6 +580,30 @@
           {
             "file": "internal/verbs/git/git.go",
             "line": 47
+          },
+          {
+            "file": "internal/verbs/git/gogit_blame.go",
+            "line": 44
+          },
+          {
+            "file": "internal/verbs/git/gogit_blame.go",
+            "line": 59
+          },
+          {
+            "file": "internal/verbs/git/gogit_blame.go",
+            "line": 66
+          },
+          {
+            "file": "internal/verbs/git/gogit_blame.go",
+            "line": 70
+          },
+          {
+            "file": "internal/verbs/git/gogit_blame.go",
+            "line": 74
+          },
+          {
+            "file": "internal/verbs/git/gogit_blame.go",
+            "line": 177
           },
           {
             "file": "internal/verbs/git/gogit_common.go",
@@ -700,15 +757,15 @@
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 248
+            "line": 263
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 258
+            "line": 273
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 294
+            "line": 309
           }
         ]
       },
@@ -718,7 +775,7 @@
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 174
+            "line": 192
           },
           {
             "file": "internal/verbs/lang/lang.go",
@@ -780,11 +837,11 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 314
+            "line": 329
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 316
+            "line": 331
           }
         ]
       },
@@ -858,7 +915,7 @@
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 166
+            "line": 184
           },
           {
             "file": "internal/verbs/find/find.go",
@@ -870,7 +927,7 @@
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 746
+            "line": 758
           },
           {
             "file": "internal/verbs/initverb/initverb.go",
@@ -892,19 +949,23 @@
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 413
+            "line": 461
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 432
+            "line": 476
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 450
+            "line": 495
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 463
+            "line": 513
+          },
+          {
+            "file": "internal/verbs/edit/edit.go",
+            "line": 526
           }
         ]
       },
@@ -970,13 +1031,13 @@
         "sites": [
           {
             "file": "internal/verbs/git/git.go",
-            "line": 174
+            "line": 191
           }
         ],
         "hints": [
           {
-            "text": "live ops: status, log, diff, show",
-            "cl100k_tokens": 10
+            "text": "live ops: status, log, diff, show, blame",
+            "cl100k_tokens": 12
           }
         ]
       },
@@ -986,7 +1047,7 @@
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 495
+            "line": 600
           }
         ],
         "hints": [
@@ -1066,27 +1127,27 @@
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 136
+            "line": 154
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 138
+            "line": 156
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 147
+            "line": 165
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 510
+            "line": 615
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 515
+            "line": 620
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 518
+            "line": 623
           },
           {
             "file": "internal/verbs/find/find.go",
@@ -1107,6 +1168,38 @@
           {
             "file": "internal/verbs/find/find.go",
             "line": 279
+          },
+          {
+            "file": "internal/verbs/git/blame.go",
+            "line": 72
+          },
+          {
+            "file": "internal/verbs/git/blame.go",
+            "line": 77
+          },
+          {
+            "file": "internal/verbs/git/blame.go",
+            "line": 84
+          },
+          {
+            "file": "internal/verbs/git/blame.go",
+            "line": 89
+          },
+          {
+            "file": "internal/verbs/git/gogit_blame.go",
+            "line": 32
+          },
+          {
+            "file": "internal/verbs/git/gogit_blame.go",
+            "line": 37
+          },
+          {
+            "file": "internal/verbs/git/gogit_blame.go",
+            "line": 47
+          },
+          {
+            "file": "internal/verbs/git/gogit_blame.go",
+            "line": 78
           },
           {
             "file": "internal/verbs/git/gogit_log.go",
@@ -1218,11 +1311,11 @@
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 102
+            "line": 104
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 105
+            "line": 107
           },
           {
             "file": "internal/verbs/turn/turn.go",
@@ -1438,7 +1531,7 @@
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 306
+            "line": 321
           }
         ]
       },
@@ -1456,11 +1549,11 @@
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 169
+            "line": 187
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 236
+            "line": 256
           },
           {
             "file": "internal/verbs/find/find.go",
@@ -1498,7 +1591,7 @@
           },
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 181
+            "line": 199
           },
           {
             "file": "internal/verbs/read/read.go",
@@ -1522,7 +1615,7 @@
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 171
+            "line": 189
           },
           {
             "file": "internal/verbs/find/find.go",
@@ -1552,7 +1645,7 @@
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 575
+            "line": 680
           }
         ],
         "hints": [
@@ -1572,7 +1665,7 @@
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 288
+            "line": 303
           }
         ]
       },
@@ -1596,7 +1689,7 @@
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 238
+            "line": 258
           },
           {
             "file": "internal/verbs/write/write.go",
@@ -1675,6 +1768,11 @@
         "literal": "--export_md",
         "cl100k_tokens": 3,
         "context": "bench"
+      },
+      {
+        "literal": "--fuzz",
+        "cl100k_tokens": 3,
+        "context": "edit"
       },
       {
         "literal": "--input_tokens",
@@ -1822,6 +1920,11 @@
         "context": "test"
       },
       {
+        "literal": "--cover",
+        "cl100k_tokens": 2,
+        "context": "test"
+      },
+      {
         "literal": "--depth",
         "cl100k_tokens": 2,
         "context": "find,grep"
@@ -1900,6 +2003,11 @@
         "literal": "--limit",
         "cl100k_tokens": 2,
         "context": "bench,find,git,grep,lang,replay"
+      },
+      {
+        "literal": "--lines",
+        "cl100k_tokens": 2,
+        "context": "git"
       },
       {
         "literal": "--list",
@@ -2010,6 +2118,11 @@
         "literal": "--repeat",
         "cl100k_tokens": 2,
         "context": "bench"
+      },
+      {
+        "literal": "--rev",
+        "cl100k_tokens": 2,
+        "context": "git"
       },
       {
         "literal": "--root",
@@ -2149,7 +2262,7 @@
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 652
+            "line": 757
           }
         ]
       },
@@ -2200,6 +2313,16 @@
           {
             "file": "internal/verbs/stop/stop.go",
             "line": 181
+          }
+        ]
+      },
+      {
+        "literal": "§git blame:",
+        "cl100k_tokens": 4,
+        "sites": [
+          {
+            "file": "internal/verbs/git/blame.go",
+            "line": 174
           }
         ]
       },
@@ -2301,7 +2424,7 @@
         "sites": [
           {
             "file": "internal/verbs/edit/edit.go",
-            "line": 674
+            "line": 782
           }
         ]
       },
@@ -2335,11 +2458,11 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 799
+            "line": 811
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 806
+            "line": 818
           }
         ]
       },
@@ -2393,7 +2516,7 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 654
+            "line": 705
           }
         ]
       },
@@ -2485,7 +2608,7 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 288
+            "line": 303
           }
         ]
       },
@@ -2569,7 +2692,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 835
+            "line": 847
           }
         ]
       },
@@ -2613,7 +2736,7 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 248
+            "line": 263
           }
         ]
       },
@@ -2695,7 +2818,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 1091
+            "line": 1103
           }
         ]
       },
@@ -2787,7 +2910,7 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 258
+            "line": 273
           }
         ]
       },
@@ -2807,7 +2930,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 819
+            "line": 831
           }
         ]
       },
@@ -2827,7 +2950,7 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 294
+            "line": 309
           }
         ]
       },

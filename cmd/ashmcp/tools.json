@@ -491,7 +491,7 @@
     },
     {
       "name": "ash_git",
-      "description": "Structured git calls via --op discriminator: status, log, diff, show.",
+      "description": "Structured git calls via --op discriminator: status, log, diff, show, blame.",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -502,7 +502,7 @@
           },
           "bytes": {
             "type": "integer",
-            "description": "[op=diff|show] Max patch bytes; omits patch past cap, preserves stats. Max 4 MiB.",
+            "description": "[op=diff|show|blame] Max output bytes; truncates trailing content past cap.",
             "default": 262144
           },
           "context": {
@@ -530,6 +530,10 @@
             "description": "[op=log] Max commits to return; hard cap 200.",
             "default": 20
           },
+          "lines": {
+            "type": "string",
+            "description": "[op=blame] 1-based inclusive line range start:end; open endpoints allowed."
+          },
           "op": {
             "type": "string",
             "description": "Subcommand to run.",
@@ -537,7 +541,8 @@
               "status",
               "log",
               "diff",
-              "show"
+              "show",
+              "blame"
             ]
           },
           "path": {
@@ -556,6 +561,11 @@
           "ref": {
             "type": "string",
             "description": "[op=show] Commit ref for show: SHA, branch, tag, HEAD~1. Required."
+          },
+          "rev": {
+            "type": "string",
+            "description": "[op=blame] Revision to blame at; defaults to HEAD.",
+            "default": "HEAD"
           },
           "since": {
             "type": "string",
@@ -590,6 +600,88 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
+          "blame": {
+            "type": "object",
+            "properties": {
+              "hunks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "aname": {
+                      "type": "string"
+                    },
+                    "atime": {
+                      "type": "integer"
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "sha": {
+                      "type": "string"
+                    },
+                    "short": {
+                      "type": "string"
+                    },
+                    "start": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "aname",
+                    "atime",
+                    "lines",
+                    "sha",
+                    "short",
+                    "start"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "path": {
+                "type": "string"
+              },
+              "rev": {
+                "type": "string"
+              },
+              "trunc": {
+                "type": "object",
+                "description": "Truncation hint: how many records were dropped and the caps that triggered the drop.",
+                "properties": {
+                  "limit": {
+                    "type": "integer",
+                    "description": "Cap that triggered truncation."
+                  },
+                  "max": {
+                    "type": "integer",
+                    "description": "Hard cap (max possible value of limit)."
+                  },
+                  "trunc": {
+                    "type": "integer",
+                    "description": "Number of records dropped."
+                  }
+                },
+                "required": [
+                  "limit",
+                  "max",
+                  "trunc"
+                ],
+                "additionalProperties": false
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "hunks",
+              "path",
+              "rev"
+            ],
+            "additionalProperties": false
+          },
           "diff": {
             "type": "object",
             "properties": {
@@ -2666,6 +2758,11 @@
             ],
             "default": "json"
           },
+          "fuzz": {
+            "type": "integer",
+            "description": "[mode=patch] Relax hunk placement: search ±N lines for matching context; 0 = strict.",
+            "default": 3
+          },
           "new": {
             "type": "string",
             "description": "[mode=string] Replacement text; empty string deletes the match. / [mode=range] Replacement lines; empty string deletes the range."
@@ -2706,6 +2803,10 @@
           },
           "dry_run": {
             "type": "boolean"
+          },
+          "fuzz_applied": {
+            "type": "integer",
+            "description": "ASH-152: hunks placed via fuzz scan (line-number drift \u003e 0); 0 when every hunk matched at its authored position"
           },
           "lines_total": {
             "type": "integer"
@@ -3232,6 +3333,11 @@
             "description": "go test -count; 1 bypasses cache, 0 uses cache.",
             "default": 1
           },
+          "cover": {
+            "type": "boolean",
+            "description": "go test -cover; per-pkg coverage % surfaced on Package.Coverage.",
+            "default": false
+          },
           "format": {
             "type": "string",
             "description": "Response shape: \"compact\" (default for this row-shape verb, ASH-153) ships a cols/rows hybrid where field names are listed once per call; \"json\" ships structured data as named per-record maps; \"pretty\" ships the daemon-pretty text matching CLI token cost. MCP-only knob; ignored on the CLI.",
@@ -3317,6 +3423,10 @@
                     "skip"
                   ],
                   "additionalProperties": false
+                },
+                "coverage": {
+                  "type": "number",
+                  "description": "Coverage is the per-package statement coverage as a percent (0–100),\npopulated when --cover is set and go reported a numeric value. Nil\nwhen --cover is off or when go emitted \"coverage: [no statements]\"\nfor a package with no executable code. Distinguishing nil from 0.0\nmatters: 0.0 is a real \"we have a test binary but it touched no\nstatements\" signal."
                 },
                 "elapsed": {
                   "type": "number"

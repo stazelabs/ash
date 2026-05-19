@@ -56,6 +56,7 @@ type Result struct {
 	Log    *LogResult    `msgpack:"log,omitempty"`
 	Diff   *DiffResult   `msgpack:"diff,omitempty"`
 	Show   *ShowResult   `msgpack:"show,omitempty"`
+	Blame  *BlameResult  `msgpack:"blame,omitempty"`
 }
 
 type Args struct {
@@ -74,6 +75,9 @@ type Args struct {
 	Pathspec string
 	// show-op flags
 	Ref string
+	// blame-op flags
+	Rev   string
+	Lines string
 	// diff-op flags
 	Staged    bool
 	Context   int
@@ -119,6 +123,13 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	}
 	// show-op flags
 	if a.Ref, perr = argutil.OptionalString(in, "ref", ""); perr != nil {
+		return nil, perr
+	}
+	// blame-op flags
+	if a.Rev, perr = argutil.OptionalString(in, "rev", ""); perr != nil {
+		return nil, perr
+	}
+	if a.Lines, perr = argutil.OptionalString(in, "lines", ""); perr != nil {
 		return nil, perr
 	}
 	// diff-op flags
@@ -170,8 +181,14 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 			return nil, perr
 		}
 		return &Result{Op: "show", Show: s}, nil
+	case "blame":
+		b, perr := runBlame(a, tr)
+		if perr != nil {
+			return nil, perr
+		}
+		return &Result{Op: "blame", Blame: b}, nil
 	default:
-		return nil, &proto.Error{Code: "unknown_op", Msg: "unknown op: " + a.Op, Hint: "live ops: status, log, diff, show"}
+		return nil, &proto.Error{Code: "unknown_op", Msg: "unknown op: " + a.Op, Hint: "live ops: status, log, diff, show, blame"}
 	}
 }
 
@@ -194,6 +211,8 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		return prettyDiff(r.Diff)
 	case "show":
 		return prettyShow(r.Show)
+	case "blame":
+		return prettyBlame(r.Blame)
 	default:
 		return "ok\n<unknown git op: " + r.Op + ">"
 	}
@@ -239,6 +258,24 @@ func CompactResponse(rsp *proto.Response) (any, error) {
 		m := compactDiffResult("show", &r.Show.Diff).(map[string]any)
 		m["commit"] = r.Show.Commit
 		return m, nil
+	case "blame":
+		if r.Blame == nil {
+			return nil, nil
+		}
+		cd := proto.CompactData{
+			K: []string{"sha", "short", "aname", "atime", "start", "lines"},
+			R: make([][]any, len(r.Blame.Hunks)),
+		}
+		for i, h := range r.Blame.Hunks {
+			cd.R[i] = []any{h.SHA, h.ShortSHA, h.AuthorName, h.AuthorTime, h.StartLine, h.Lines}
+		}
+		return map[string]any{
+			"op":   "blame",
+			"path": r.Blame.Path,
+			"rev":  r.Blame.Rev,
+			"k":    cd.K,
+			"r":    cd.R,
+		}, nil
 	default:
 		// status and unknown ops: fall back to json-decoded object
 		return nil, nil
