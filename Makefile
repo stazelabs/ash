@@ -5,7 +5,7 @@ PREFIX ?= $(HOME)/.local/bin
 all: bin/ash bin/ashd bin/ashmcp bin/ashd-clean
 
 bin/ash: $(shell find cmd/ash internal -name '*.go')
-	go build -o bin/ash ./cmd/ash
+	go build -ldflags "-X main.version=$(shell git rev-parse --short HEAD 2>/dev/null || echo dev)" -o bin/ash ./cmd/ash
 
 bin/ashd: $(shell find cmd/ashd internal -name '*.go')
 	go build -o bin/ashd ./cmd/ashd

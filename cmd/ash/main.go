@@ -28,6 +28,10 @@ import (
 	"github.com/stazelabs/ash/internal/verbs/stop"
 )
 
+// version is injected at build time via -ldflags "-X main.version=<hash>".
+// Falls back to "dev" for local builds without ldflags.
+var version = "dev"
+
 func main() {
 	if len(os.Args) < 2 || os.Args[1] == "-h" || os.Args[1] == "--help" {
 		printUsage()
@@ -43,7 +47,7 @@ func main() {
 	// instrumentation. It never auto-starts the daemon — hook latency is
 	// on the agent's critical path.
 	if verb == "--version" || verb == "-V" {
-		fmt.Println("ash — use 'ash help' for the verb list")
+		fmt.Printf("ash %s — use 'ash help' for the verb list\n", version)
 		return
 	}
 
