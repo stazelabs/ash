@@ -16,14 +16,14 @@ jobs:
   gates:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # Full history: the git-verb integration tests run `ash git`
           # against this repo, and `show HEAD --stat` needs HEAD's parent
           # commit — absent from a default depth-1 checkout.
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
@@ -51,7 +51,7 @@ jobs:
       # cross-compile all four binaries for every target without
       # publishing. A Go-version bump or dependency drift that breaks
       # the release build fails here, on the PR, not on a tag push.
-      - uses: goreleaser/goreleaser-action@v6
+      - uses: goreleaser/goreleaser-action@v7
         with:
           version: "~> v2"
           install-only: true

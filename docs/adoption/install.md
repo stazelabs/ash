@@ -101,15 +101,15 @@ clears a stale daemon; the next call auto-starts the right one.
 ## Troubleshooting
 
 - **macOS: "cannot be opened because the developer cannot be verified".**
-  The release binaries are not yet code-signed, so Gatekeeper quarantines
-  them. Clear the attribute once:
+  The release binaries are not yet code-signed. `brew install` strips the
+  quarantine attribute from the cask's binaries, so the Homebrew path is
+  unaffected — but a binary downloaded straight from the GitHub Release
+  and run by hand will be blocked. Clear the attribute on the extracted
+  binaries:
 
   ```sh
-  xattr -dr com.apple.quarantine "$(brew --caskroom)/ash"
+  xattr -dr com.apple.quarantine <dir-with-extracted-binaries>
   ```
-
-  (`brew upgrade ash` re-stages the binaries, so re-run this after an
-  upgrade until signed builds land.)
 
 - **`brew install` can't find the cask.** Confirm the tap is reachable:
   `brew tap stazelabs/tap` then retry. A private tap repo needs a
