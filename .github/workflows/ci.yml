@@ -17,6 +17,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history: the git-verb integration tests run `ash git`
+          # against this repo, and `show HEAD --stat` needs HEAD's parent
+          # commit — absent from a default depth-1 checkout.
+          fetch-depth: 0
 
       - uses: actions/setup-go@v5
         with:
