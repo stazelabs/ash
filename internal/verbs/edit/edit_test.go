@@ -26,6 +26,32 @@ func TestParseArgs_RequiresOldStringOrRange(t *testing.T) {
 	}
 }
 
+func TestParseArgs_HarnessAliases(t *testing.T) {
+	// ASH-205: old_string/new_string are the harness Edit tool's arg
+	// names; ash edit accepts them as aliases for old/new.
+	a, perr := ParseArgs(map[string]any{
+		"path": "f.go", "old_string": "x", "new_string": "y",
+	})
+	if perr != nil {
+		t.Fatalf("old_string/new_string should alias to old/new, got %+v", perr)
+	}
+	if a.OldString != "x" || a.NewString != "y" {
+		t.Errorf("alias not applied: OldString=%q NewString=%q, want x/y", a.OldString, a.NewString)
+	}
+}
+
+func TestParseArgs_ExplicitOldWinsOverAlias(t *testing.T) {
+	a, perr := ParseArgs(map[string]any{
+		"path": "f.go", "old": "real", "old_string": "alias",
+	})
+	if perr != nil {
+		t.Fatalf("ParseArgs: %+v", perr)
+	}
+	if a.OldString != "real" {
+		t.Errorf("OldString=%q, want real (explicit --old wins over --old_string)", a.OldString)
+	}
+}
+
 func TestParseArgs_BothOldStringAndRange(t *testing.T) {
 	_, perr := ParseArgs(map[string]any{"path": "f.go", "old": "a", "range": "1:2"})
 	if perr == nil || perr.Code != "args" {

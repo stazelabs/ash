@@ -97,9 +97,32 @@ type Result struct {
 	FuzzApplied  int    `msgpack:"fuzz_applied,omitempty"`  // ASH-152: hunks placed via fuzz scan (line-number drift > 0); 0 when every hunk matched at its authored position
 }
 
+// aliasArg lets a harness-style key stand in for an ash flag: when alias
+// is present, its value moves to canonical (unless canonical is already
+// set, which wins) and the alias key is removed so the unknown-arg
+// check (ASH-116) doesn't reject it. ASH-205.
+func aliasArg(in map[string]any, alias, canonical string) {
+	v, ok := in[alias]
+	if !ok {
+		return
+	}
+	delete(in, alias)
+	if _, exists := in[canonical]; !exists {
+		in[canonical] = v
+	}
+}
+
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	a := &Args{}
 	var perr *proto.Error
+
+	// ASH-205: agents carry the harness Edit tool's arg names into
+	// `ash edit`. Accept old_string/new_string as aliases for old/new
+	// so the call succeeds instead of failing the mode check with
+	// "one of old, range, or patch is required". An explicit old/new
+	// wins; the alias key is consumed either way.
+	aliasArg(in, "old_string", "old")
+	aliasArg(in, "new_string", "new")
 
 	if a.Path, perr = argutil.RequireString(in, "path"); perr != nil {
 		return nil, perr
