@@ -46,3 +46,16 @@ jobs:
       # File-only cl100k-vs-Claude sign-disagreement gate; no API key needed.
       - name: validate-check
         run: make validate-check
+
+      # Release-config gate (ASH-118): validate .goreleaser.yaml and
+      # cross-compile all four binaries for every target without
+      # publishing. A Go-version bump or dependency drift that breaks
+      # the release build fails here, on the PR, not on a tag push.
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          install-only: true
+      - name: goreleaser-check
+        run: goreleaser check
+      - name: goreleaser-build
+        run: goreleaser build --snapshot --clean

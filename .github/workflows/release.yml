@@ -1,0 +1,48 @@
+# Release pipeline (ASH-118). On a v* tag, goreleaser builds the four
+# binaries cross-arch, publishes a GitHub Release with per-platform
+# tarballs + checksums, and updates the Homebrew cask in
+# stazelabs/homebrew-tap.
+#
+# The config lives in .goreleaser.yaml; `make` / CI validate it via
+# `goreleaser check` on every PR (see ci.yml), so a tag push should be
+# the first time the *publish* path runs, never the first time the
+# *build* path runs.
+#
+# Secrets:
+#   GITHUB_TOKEN               — auto-provided; creates the Release.
+#   HOMEBREW_TAP_GITHUB_TOKEN  — a PAT with contents:write on
+#                                stazelabs/homebrew-tap; pushes the cask.
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# Enforce the no-CGO project constraint, same as ci.yml.
+env:
+  CGO_ENABLED: "0"
+
+permissions:
+  contents: write # create the GitHub Release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # goreleaser needs full history + tags to build the changelog.
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}

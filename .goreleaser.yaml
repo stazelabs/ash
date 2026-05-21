@@ -1,0 +1,106 @@
+# .goreleaser.yaml — release pipeline for ash (ASH-118).
+#
+# On a v* tag (driven by .github/workflows/release.yml) this builds the
+# four binaries cross-arch — no CGO, a hard project constraint — publishes
+# a GitHub Release with per-platform tarballs + checksums, and updates the
+# Homebrew cask in stazelabs/homebrew-tap.
+#
+# Validate the config:  goreleaser check
+# Dry-run everything (no tokens needed, nothing is published or pushed):
+#                       goreleaser release --snapshot --clean
+version: 2
+
+project_name: ash
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - id: ash
+    main: ./cmd/ash
+    binary: ash
+    env: [CGO_ENABLED=0]
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    # version powers `ash --version` (ASH-200). The other three binaries
+    # have no such var; -X on a missing symbol is a silent linker no-op,
+    # so they intentionally carry no version ldflags.
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+  - id: ashd
+    main: ./cmd/ashd
+    binary: ashd
+    env: [CGO_ENABLED=0]
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    ldflags: [-s -w]
+  - id: ashmcp
+    main: ./cmd/ashmcp
+    binary: ashmcp
+    env: [CGO_ENABLED=0]
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    ldflags: [-s -w]
+  - id: ashd-clean
+    main: ./cmd/ashd-clean
+    binary: ashd-clean
+    env: [CGO_ENABLED=0]
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    ldflags: [-s -w]
+
+# One tarball per os/arch carrying all four binaries — the formula/cask
+# installs them together so ash/ashd/ashmcp never disagree on the wire
+# protocol (ASH-118 version-skew check).
+archives:
+  - id: ash
+    ids: [ash, ashd, ashmcp, ashd-clean]
+    formats: [tar.gz]
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"
+
+changelog:
+  use: git
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  github:
+    owner: stazelabs
+    name: ash
+
+# Prebuilt-binary Homebrew cask (goreleaser deprecated `brews` formulae in
+# favour of casks for prebuilt binaries). Pushed to stazelabs/homebrew-tap,
+# so `brew install stazelabs/tap/ash` lands all four binaries.
+homebrew_casks:
+  - name: ash
+    ids: [ash]
+    binaries: [ash, ashd, ashmcp, ashd-clean]
+    homepage: "https://github.com/stazelabs/ash"
+    description: "An agentic shell for coding agents"
+    repository:
+      owner: stazelabs
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Casks
+    commit_author:
+      name: goreleaser-bot
+      email: noreply@stazelabs.com
+    commit_msg_template: "ash: cask update for {{ .Tag }}"
+    caveats: |
+      ash auto-starts its daemon (ashd) per project on first use.
+      To wire ash into Claude Code as an MCP server, see:
+        https://github.com/stazelabs/ash/blob/main/docs/adoption/install.md
