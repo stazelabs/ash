@@ -293,11 +293,11 @@
           },
           {
             "file": "internal/verbs/build/build.go",
-            "line": 187
+            "line": 245
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 271
+            "line": 332
           }
         ]
       },
@@ -533,11 +533,11 @@
         "sites": [
           {
             "file": "internal/verbs/verbs.go",
-            "line": 161
+            "line": 163
           },
           {
             "file": "internal/verbs/verbs.go",
-            "line": 208
+            "line": 210
           }
         ]
       },
@@ -749,23 +749,23 @@
           },
           {
             "file": "internal/verbs/build/build.go",
-            "line": 189
+            "line": 247
           },
           {
             "file": "internal/verbs/build/build.go",
-            "line": 203
+            "line": 261
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 263
+            "line": 324
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 273
+            "line": 334
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 309
+            "line": 370
           }
         ]
       },
@@ -837,11 +837,11 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 329
+            "line": 390
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 331
+            "line": 392
           }
         ]
       },
@@ -966,6 +966,20 @@
           {
             "file": "internal/verbs/edit/edit.go",
             "line": 526
+          }
+        ]
+      },
+      {
+        "literal": "runner_failed",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/build/build.go",
+            "line": 172
+          },
+          {
+            "file": "internal/verbs/test/test.go",
+            "line": 235
           }
         ]
       },
@@ -1531,7 +1545,7 @@
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 321
+            "line": 382
           }
         ]
       },
@@ -1661,11 +1675,19 @@
         "sites": [
           {
             "file": "internal/verbs/build/build.go",
-            "line": 180
+            "line": 165
+          },
+          {
+            "file": "internal/verbs/build/build.go",
+            "line": 238
           },
           {
             "file": "internal/verbs/test/test.go",
-            "line": 303
+            "line": 228
+          },
+          {
+            "file": "internal/verbs/test/test.go",
+            "line": 364
           }
         ]
       },
@@ -2396,7 +2418,7 @@
         "sites": [
           {
             "file": "internal/verbs/build/build.go",
-            "line": 380
+            "line": 438
           }
         ]
       },
@@ -2516,7 +2538,7 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 705
+            "line": 766
           }
         ]
       },
@@ -2598,7 +2620,7 @@
         "sites": [
           {
             "file": "internal/verbs/build/build.go",
-            "line": 180
+            "line": 238
           }
         ]
       },
@@ -2608,7 +2630,7 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 303
+            "line": 364
           }
         ]
       },
@@ -2618,7 +2640,21 @@
         "sites": [
           {
             "file": "internal/verbs/build/build.go",
-            "line": 203
+            "line": 261
+          }
+        ]
+      },
+      {
+        "literal": "runner exceeded timeout=",
+        "cl100k_tokens": 4,
+        "sites": [
+          {
+            "file": "internal/verbs/build/build.go",
+            "line": 165
+          },
+          {
+            "file": "internal/verbs/test/test.go",
+            "line": 228
           }
         ]
       },
@@ -2736,7 +2772,7 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 263
+            "line": 324
           }
         ]
       },
@@ -2891,6 +2927,20 @@
         ]
       },
       {
+        "literal": "runner:",
+        "cl100k_tokens": 2,
+        "sites": [
+          {
+            "file": "internal/verbs/build/build.go",
+            "line": 172
+          },
+          {
+            "file": "internal/verbs/test/test.go",
+            "line": 235
+          }
+        ]
+      },
+      {
         "literal": "settings:",
         "cl100k_tokens": 2,
         "sites": [
@@ -2910,7 +2960,7 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 273
+            "line": 334
           }
         ]
       },
@@ -2950,7 +3000,7 @@
         "sites": [
           {
             "file": "internal/verbs/test/test.go",
-            "line": 309
+            "line": 370
           }
         ]
       },
