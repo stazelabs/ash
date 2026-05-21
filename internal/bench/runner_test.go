@@ -74,7 +74,10 @@ func TestRunBash_TimeoutFromContext(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	start := time.Now()
-	res := RunBash(ctx, []string{"sh", "-c", "sleep 5"})
+	// `& wait` forces sh to fork a grandchild rather than exec-optimize,
+	// so honoring the timeout requires killing the whole process group,
+	// not just sh itself (ASH-208).
+	res := RunBash(ctx, []string{"sh", "-c", "sleep 5 & wait"})
 	elapsed := time.Since(start)
 	if elapsed >= 2*time.Second {
 		t.Fatalf("runner did not honor context timeout: elapsed %s", elapsed)

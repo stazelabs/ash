@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"syscall"
 	"time"
 )
 
@@ -57,6 +58,19 @@ func RunBash(ctx context.Context, argv []string) BashResult {
 	}
 
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	// Start the child in its own process group and, on ctx-cancel,
+	// signal the whole group — not just the direct child. A /bin/sh
+	// that forks instead of exec-optimizing leaves a grandchild
+	// holding the stdout pipe open; killing only the shell lets the
+	// io.Copy below block until that grandchild exits, defeating the
+	// timeout (ASH-208).
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
+			return err
+		}
+		return nil
+	}
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
