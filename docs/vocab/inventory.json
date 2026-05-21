@@ -887,7 +887,7 @@
         "sites": [
           {
             "file": "internal/verbs/find/find.go",
-            "line": 142
+            "line": 143
           }
         ],
         "hints": [
@@ -919,7 +919,7 @@
           },
           {
             "file": "internal/verbs/find/find.go",
-            "line": 134
+            "line": 135
           },
           {
             "file": "internal/verbs/grep/grep.go",
@@ -1151,23 +1151,23 @@
           },
           {
             "file": "internal/verbs/find/find.go",
-            "line": 115
+            "line": 116
           },
           {
             "file": "internal/verbs/find/find.go",
-            "line": 118
+            "line": 119
           },
           {
             "file": "internal/verbs/find/find.go",
-            "line": 268
+            "line": 270
           },
           {
             "file": "internal/verbs/find/find.go",
-            "line": 274
+            "line": 276
           },
           {
             "file": "internal/verbs/find/find.go",
-            "line": 279
+            "line": 281
           },
           {
             "file": "internal/verbs/git/blame.go",
@@ -1557,7 +1557,7 @@
           },
           {
             "file": "internal/verbs/find/find.go",
-            "line": 137
+            "line": 138
           },
           {
             "file": "internal/verbs/grep/grep.go",
@@ -1619,7 +1619,7 @@
           },
           {
             "file": "internal/verbs/find/find.go",
-            "line": 139
+            "line": 140
           },
           {
             "file": "internal/verbs/grep/grep.go",
@@ -1675,7 +1675,7 @@
         "sites": [
           {
             "file": "internal/verbs/find/find.go",
-            "line": 195
+            "line": 197
           },
           {
             "file": "internal/verbs/grep/grep.go",
@@ -2434,7 +2434,7 @@
         "sites": [
           {
             "file": "internal/verbs/find/find.go",
-            "line": 328
+            "line": 330
           }
         ]
       },

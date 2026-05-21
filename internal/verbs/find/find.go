@@ -68,6 +68,7 @@ type Record struct {
 type Result struct {
 	Records   []Record         `msgpack:"records"`
 	Count     int              `msgpack:"count"`
+	FilesScanned int           `msgpack:"files_scanned"`
 	Truncated bool             `msgpack:"truncated,omitempty"`
 	TruncInfo *proto.TruncInfo `msgpack:"truncation_hint,omitempty"`
 	// WithMeta echoes the request's --meta flag so downstream shapers
@@ -160,6 +161,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		if ctx.Err() != nil {
 			return walker.Stop, nil
 		}
+		res.FilesScanned++
 		if !typeMatches(a.Type, e.Type) {
 			return walker.Continue, nil
 		}
@@ -325,7 +327,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "§find: %d results", r.Count)
+	fmt.Fprintf(&b, "§find: %d results, %d scanned", r.Count, r.FilesScanned)
 	// Note: the request args are deliberately not echoed in the header
 	// (the agent already has them); only Count and TRUNCATED are novel.
 	// scopeFromArgs() remains in this file for potential future use

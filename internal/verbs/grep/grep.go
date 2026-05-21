@@ -672,7 +672,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		aliases = nil
 	}
 
-	fmt.Fprintf(&b, "§grep: %s in %s", plural(r.MatchCount, "match", "matches"), plural(r.FileCount, "file", "files"))
+	fmt.Fprintf(&b, "§grep: %s in %s, %d scanned", plural(r.MatchCount, "match", "matches"), plural(r.FileCount, "file", "files"), r.FilesScanned)
 	if scope := scopeFromArgs(req); scope != "" {
 		fmt.Fprintf(&b, " [%s]", scope)
 	}
@@ -728,7 +728,7 @@ func prettyFilesOnly(req *proto.Request, r *Result) string {
 		aliases = nil
 	}
 
-	fmt.Fprintf(&b, "§grep: %s", plural(r.Count, "file", "files"))
+	fmt.Fprintf(&b, "§grep: %s, %d scanned", plural(r.Count, "file", "files"), r.FilesScanned)
 	if scope := scopeFromArgs(req); scope != "" {
 		fmt.Fprintf(&b, " [%s]", scope)
 	}
