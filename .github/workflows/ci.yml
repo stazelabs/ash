@@ -1,0 +1,43 @@
+# CI drift gates (ASH-207). Runs the same build/test/lint/regeneration
+# checks contributors are expected to run locally, so stale generated
+# artifacts (docs/vocab, docs/mcp/tools.json) can't reach `main` unnoticed.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Enforce the no-CGO project constraint: a CGO-bound dep would fail here.
+env:
+  CGO_ENABLED: "0"
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: build
+        run: go build ./...
+
+      - name: vet
+        run: go vet ./...
+
+      - name: test
+        run: go test ./...
+
+      # Drift gates — fail when a checked-in generated artifact is stale.
+      - name: vocab-check
+        run: make vocab-check
+
+      - name: schema-check
+        run: make schema-check
+
+      # File-only cl100k-vs-Claude sign-disagreement gate; no API key needed.
+      - name: validate-check
+        run: make validate-check
