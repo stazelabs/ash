@@ -42,6 +42,11 @@ func main() {
 	// effort fires a normal ash request to the daemon for ledger
 	// instrumentation. It never auto-starts the daemon — hook latency is
 	// on the agent's critical path.
+	if verb == "--version" || verb == "-V" {
+		fmt.Println("ash — use 'ash help' for the verb list")
+		return
+	}
+
 	if verb == "hook" {
 		runHook()
 		return

@@ -31,6 +31,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -142,6 +143,17 @@ func Run(a *Args, _ *proto.Tracer) (*Result, *proto.Error) {
 		} else {
 			res.RegistryUpdated = regChanged
 		}
+	}
+
+	// PATH probe: warn if the installed hook command ('ash hook') won't be
+	// resolvable. The hook silently passes through all tool calls when the
+	// binary is not found, which defeats the entire point of ash init.
+	if _, lookErr := exec.LookPath("ash"); lookErr != nil {
+		msg := "ash is not on your PATH — the PreToolUse hook ('ash hook') will not fire"
+		if self, selfErr := os.Executable(); selfErr == nil {
+			msg += fmt.Sprintf("; to fix: export PATH=%s:$PATH", filepath.Dir(self))
+		}
+		res.Warnings = append(res.Warnings, msg)
 	}
 
 	return res, nil
