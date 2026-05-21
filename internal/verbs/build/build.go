@@ -122,11 +122,69 @@ type BuildError struct {
 	Message string `msgpack:"message"`
 }
 
-// Run is the verb entry point. Shells out to `go build`, captures
-// stderr, parses it into per-package + per-error structured output.
-func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
+// Run is the verb entry point. When runnerCmd is non-empty (set via
+// [runner].build in ash.toml), it shells out to that command instead of
+// invoking the Go toolchain (ASH-202).
+func Run(a *Args, tr *proto.Tracer, runnerCmd string) (*Result, *proto.Error) {
+	if runnerCmd != "" {
+		d := shellDriver{cmd: runnerCmd}
+		return d.run(a, tr)
+	}
 	d := goDriver{}
 	return d.run(a, tr)
+}
+
+// shellDriver runs an arbitrary shell command for non-Go stacks.
+// Used when [runner].build is set in ash.toml (ASH-202).
+// Thin pass-through: captures combined stdout+stderr, returns OK/fail.
+// Go-specific args (packages, tags, race) are ignored.
+type shellDriver struct {
+	cmd string
+}
+
+func (d shellDriver) run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
+	ctx, cancel := context.WithTimeout(tr.Context(), a.Timeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "sh", "-c", d.cmd)
+	if env := tr.Env(); env != nil {
+		cmd.Env = env
+	}
+	var outBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &outBuf
+
+	start := time.Now()
+	runErr := cmd.Run()
+	elapsed := time.Since(start)
+	if tr != nil {
+		tr.AddIO(elapsed)
+	}
+
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return nil, &proto.Error{Code: "timeout", Msg: fmt.Sprintf("runner exceeded timeout=%s", a.Timeout)}
+	}
+
+	ok := runErr == nil
+	if runErr != nil {
+		var exitErr *exec.ExitError
+		if !errors.As(runErr, &exitErr) {
+			return nil, &proto.Error{Code: "runner_failed", Msg: "runner: " + runErr.Error()}
+		}
+	}
+
+	if ok {
+		return &Result{OK: true, Elapsed: elapsed.Seconds()}, nil
+	}
+	return &Result{
+		OK:      false,
+		Elapsed: elapsed.Seconds(),
+		Packages: []Package{{
+			Path:        d.cmd,
+			Status:      "build_failed",
+			BuildOutput: strings.TrimSpace(outBuf.String()),
+		}},
+	}, nil
 }
 
 // goDriver is the Go-specific implementation. The struct is the seam

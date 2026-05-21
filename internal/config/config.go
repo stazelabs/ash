@@ -28,6 +28,7 @@ type Config struct {
 	Ledger LedgerConfig `toml:"ledger"`
 	Hook   HookConfig   `toml:"hook"`
 	LSP    LSPConfig    `toml:"lsp"`
+	Runner RunnerConfig `toml:"runner"`
 }
 
 // DaemonConfig collects daemon-process knobs. None of these are
@@ -125,6 +126,16 @@ type LSPConfig struct {
 	// disables the TTL and relies entirely on mtime + the write/edit
 	// invalidation hook.
 	CacheTTL Duration `toml:"cache_ttl"`
+}
+
+// RunnerConfig specifies test and build commands for non-Go projects.
+// When non-empty, ash test and ash build shell out to these commands
+// instead of invoking the Go toolchain. Requires daemon restart (ASH-202).
+type RunnerConfig struct {
+	// Test is the shell command run by ash test (e.g. "npm run typecheck").
+	Test string `toml:"test"`
+	// Build is the shell command run by ash build (e.g. "npm run build").
+	Build string `toml:"build"`
 }
 
 const (

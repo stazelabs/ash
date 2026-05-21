@@ -185,11 +185,72 @@ type testEvent struct {
 	Elapsed float64 `json:"Elapsed"`
 }
 
-// Run is the verb entry point. Shells out to `go test -json`, streams the
-// output through a JSON-line scanner, and aggregates events into a Result.
-func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
+// Run is the verb entry point. When runnerCmd is non-empty (set via
+// [runner].test in ash.toml), it shells out to that command instead of
+// invoking the Go toolchain (ASH-202).
+func Run(a *Args, tr *proto.Tracer, runnerCmd string) (*Result, *proto.Error) {
+	if runnerCmd != "" {
+		d := shellDriver{cmd: runnerCmd}
+		return d.run(a, tr)
+	}
 	d := goDriver{}
 	return d.run(a, tr)
+}
+
+// shellDriver runs an arbitrary shell command for non-Go stacks.
+// Used when [runner].test is set in ash.toml (ASH-202).
+// Thin pass-through: captures combined stdout+stderr, returns OK/fail.
+// Go-specific args (packages, run, race, count, cover) are ignored.
+type shellDriver struct {
+	cmd string
+}
+
+func (d shellDriver) run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
+	ctx, cancel := context.WithTimeout(tr.Context(), a.Timeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "sh", "-c", d.cmd)
+	if env := tr.Env(); env != nil {
+		cmd.Env = env
+	}
+	var outBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &outBuf
+
+	start := time.Now()
+	runErr := cmd.Run()
+	elapsed := time.Since(start)
+	if tr != nil {
+		tr.AddIO(elapsed)
+	}
+
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return nil, &proto.Error{Code: "timeout", Msg: fmt.Sprintf("runner exceeded timeout=%s", a.Timeout)}
+	}
+
+	ok := runErr == nil
+	if runErr != nil {
+		var exitErr *exec.ExitError
+		if !errors.As(runErr, &exitErr) {
+			return nil, &proto.Error{Code: "runner_failed", Msg: "runner: " + runErr.Error()}
+		}
+	}
+
+	status := "pass"
+	if !ok {
+		status = "fail"
+	}
+	pkg := Package{Path: d.cmd, Status: status}
+	if !ok {
+		pkg.BuildOutput = strings.TrimSpace(outBuf.String())
+	}
+	res := &Result{OK: ok, Elapsed: elapsed.Seconds(), Packages: []Package{pkg}}
+	if ok {
+		res.Total.Pass = 1
+	} else {
+		res.Total.Fail = 1
+	}
+	return res, nil
 }
 
 // goDriver is the Go-specific implementation. The struct is the seam for
@@ -767,6 +828,13 @@ func prettyResult(r *Result) string {
 				b.WriteString("  ")
 				b.WriteString(line)
 				b.WriteByte('\n')
+			}
+			if p.BuildOutput != "" {
+				for _, line := range strings.Split(strings.TrimRight(p.BuildOutput, "\n"), "\n") {
+					b.WriteString("  ")
+					b.WriteString(line)
+					b.WriteByte('\n')
+				}
 			}
 		case "timeout":
 			fmt.Fprintf(&b, "TIMEOUT  %s\n", p.Path)

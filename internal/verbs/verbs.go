@@ -121,8 +121,6 @@ func Runners(led *ledger.Ledger, cfg *config.Config, daemonStart time.Time, proj
 	if cfg == nil {
 		cfg = config.Defaults()
 	}
-	_ = cfg // future-proof: ASH-35 git backend selection will read cfg.Git.Backend here.
-
 	pretty := PrettyHandlers()
 	runners := map[string]Runner{
 		"read":    wrap(read.ParseArgs, read.Run, func(r *read.Result) bool { return r.Truncated }),
@@ -138,9 +136,13 @@ func Runners(led *ledger.Ledger, cfg *config.Config, daemonStart time.Time, proj
 		"stat":    wrap(stat.ParseArgs, stat.Run, nil),
 		"write":   wrap(write.ParseArgs, write.Run, nil),
 		"edit":    wrap(edit.ParseArgs, edit.Run, nil),
-		"build":   wrap(build.ParseArgs, build.Run, func(r *build.Result) bool { return r.Truncated }),
+		"build": wrap(build.ParseArgs, func(a *build.Args, tr *proto.Tracer) (*build.Result, *proto.Error) {
+			return build.Run(a, tr, cfg.Runner.Build)
+		}, func(r *build.Result) bool { return r.Truncated }),
 		"diff":    wrap(diff.ParseArgs, diff.Run, nil),
-		"test":    wrap(test.ParseArgs, test.Run, func(r *test.Result) bool { return r.Truncated }),
+		"test": wrap(test.ParseArgs, func(a *test.Args, tr *proto.Tracer) (*test.Result, *proto.Error) {
+			return test.Run(a, tr, cfg.Runner.Test)
+		}, func(r *test.Result) bool { return r.Truncated }),
 		"init":    wrap(initverb.ParseArgs, initverb.Run, nil),
 		"uninit":  wrap(uninit.ParseArgs, uninit.Run, nil),
 		"stop":    wrap(stop.ParseArgs, stop.Run, nil),

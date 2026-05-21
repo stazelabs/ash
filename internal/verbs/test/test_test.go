@@ -432,7 +432,7 @@ func TestRun_BenchIntegration(t *testing.T) {
 	if perr != nil {
 		t.Fatalf("ParseArgs: %v", perr)
 	}
-	res, werr := Run(a, nil)
+	res, werr := Run(a, nil, "")
 	if werr != nil {
 		t.Fatalf("Run: %v", werr)
 	}

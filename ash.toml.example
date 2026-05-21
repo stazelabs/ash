@@ -87,6 +87,19 @@
 # # Valid values: "grep", "find", "read", "edit", "write", "stat", "git", "test"
 # exclude_verbs = []
 
+# [runner]
+# # Commands for non-Go projects (ASH-202). When set, ash test and ash build
+# # shell out to these commands instead of invoking the Go toolchain.
+# # Thin pass-through: combined stdout+stderr is captured, OK/fail is determined
+# # by exit code. Go-specific args (packages, race, run, cover) are ignored.
+# # Requires daemon restart after editing.
+# #
+# # Examples:
+# #   test = "npm run typecheck"   # tsc --noEmit via package.json script
+# #   build = "npm run build"      # next build
+# test = ""
+# build = ""
+
 # [lsp]
 # # ASH-136: Language Server Protocol broker. When enabled, ashd spawns a
 # # gopls subprocess on the first write/edit and routes textDocument
