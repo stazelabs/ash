@@ -208,8 +208,10 @@ func TestRunBlame_ShelloutNotImplemented(t *testing.T) {
 		switch prev {
 		case backendShellout:
 			_ = SetBackend("shellout")
-		default:
+		case backendGogit:
 			_ = SetBackend("go-git")
+		default:
+			_ = SetBackend("")
 		}
 	})
 	_, perr := runBlame(&Args{Op: "blame", Path: "/tmp/anywhere/foo.go"}, nil)

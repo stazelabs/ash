@@ -316,6 +316,24 @@ func TestRunStatus_Integration(t *testing.T) {
 	}
 }
 
+func TestGitDirArg(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "f.txt")
+	if err := os.WriteFile(file, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := gitDirArg(dir); got != dir {
+		t.Errorf("gitDirArg(dir) = %q, want unchanged %q", got, dir)
+	}
+	if got := gitDirArg(file); got != dir {
+		t.Errorf("gitDirArg(file) = %q, want parent %q", got, dir)
+	}
+	missing := filepath.Join(dir, "does-not-exist")
+	if got := gitDirArg(missing); got != missing {
+		t.Errorf("gitDirArg(missing) = %q, want unchanged %q", got, missing)
+	}
+}
+
 func TestRunStatus_NotARepoErrors(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not on PATH")

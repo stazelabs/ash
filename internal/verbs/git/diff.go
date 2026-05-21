@@ -76,7 +76,7 @@ func runDiffShellout(a *Args, tr *proto.Tracer) (*DiffResult, *proto.Error) {
 }
 
 func buildDiffArgs(extra []string, a *Args) []string {
-	args := []string{"-C", a.Path, "diff"}
+	args := []string{"-C", gitDirArg(a.Path), "diff"}
 	args = append(args, extra...)
 	if a.Staged {
 		args = append(args, "--cached")

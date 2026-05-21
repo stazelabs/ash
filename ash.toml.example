@@ -49,15 +49,19 @@
 # deny_paths = [".env", "secrets/"]
 
 # [git]
-# # Backend for the `ash git` verb. Default "go-git" runs in-process via
-# # github.com/go-git/go-git/v5 — no system git required, faster on small
-# # repos (no fork+exec overhead). Set to "shellout" to fork system git
-# # for the remaining divergences: (a) git-CLI rename-detection
-# # thresholds, (b) relative date forms in log --since "1 week ago".
-# # ASH-66 closed the prior counts-only-for-worktree-diffs gap so the
-# # backend choice no longer affects patch text shape for --staged or
-# # default unstaged diffs.
-# backend = "go-git"
+# # Backend for the `ash git` verb. Three states:
+# #   unset (default) — log/show/blame run in-process via go-git; the two
+# #     worktree-walking ops, status and diff, use system git when it is
+# #     on PATH and fall back to go-git otherwise. go-git's worktree walk
+# #     is ~25x slower than system git on large trees such as a JS repo's
+# #     node_modules (ASH-203), so the default delegates those two ops.
+# #   "go-git" — every op runs in-process; no system git required, even
+# #     where it is slower (hermetic environments, or when go-git's
+# #     semantics are specifically wanted).
+# #   "shellout" — every op forks system git, including its native
+# #     rename-detection thresholds and relative date forms in
+# #     log --since "1 week ago". blame is not supported on this backend.
+# backend = ""
 
 # [ledger]
 # # How long to retain call rows in .ash/ledger.db. Default "720h" (30 days).

@@ -27,8 +27,10 @@ func withGogit(t *testing.T) {
 		switch prev {
 		case backendShellout:
 			_ = SetBackend("shellout")
-		default:
+		case backendGogit:
 			_ = SetBackend("go-git")
+		default:
+			_ = SetBackend("")
 		}
 	})
 }

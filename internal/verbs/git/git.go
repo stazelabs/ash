@@ -26,6 +26,8 @@
 package git
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/stazelabs/ash/internal/jail"
@@ -45,6 +47,19 @@ func gitRunError(path string, stderr []byte) *proto.Error {
 		return &proto.Error{Code: "not_a_repo", Msg: jail.PrettyPath(path) + " is not inside a git repository"}
 	}
 	return &proto.Error{Code: "git_failed", Msg: msg}
+}
+
+// gitDirArg resolves a --path value to the directory passed to `git -C`.
+// git's -C requires a directory, but callers may point --path at a file
+// inside the repo — the go-git backend tolerates that via repo
+// discovery, so the shellout backend matches by resolving a file path
+// to its parent directory. A nonexistent path (or any stat error) is
+// returned unchanged so git itself emits the diagnostic (ASH-203).
+func gitDirArg(path string) string {
+	if fi, err := os.Stat(path); err == nil && !fi.IsDir() {
+		return filepath.Dir(path)
+	}
+	return path
 }
 
 // Result is the wire envelope. Op is always set; the populated payload

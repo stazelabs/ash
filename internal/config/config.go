@@ -65,10 +65,12 @@ type JailConfig struct {
 
 // GitConfig selects the git verb's backend.
 //
-// "shellout" (default) preserves today's behavior — fork+exec to system
-// git and parse machine-readable output. "go-git" is reserved for
-// ASH-35 and currently returns a typed not_implemented error from the
-// git verb so the schema is exercisable without the backend being live.
+// An empty Backend (no [git].backend in ash.toml) is the default: the
+// git verb runs log/show/blame in-process via go-git and routes the
+// worktree-walking ops, status and diff, to system git when it is on
+// PATH — go-git's worktree walk is ~25x slower on large trees such as
+// a JS repo's node_modules (ASH-203). "go-git" forces every op
+// in-process; "shellout" forces every op through system git.
 type GitConfig struct {
 	Backend string `toml:"backend"`
 }
@@ -139,12 +141,13 @@ type RunnerConfig struct {
 }
 
 const (
-	// GitBackendShellout is the default backend value. Everything that
-	// works today continues to work without an ash.toml entry.
+	// GitBackendShellout forces every git op through the system git
+	// subprocess ([git].backend = "shellout").
 	GitBackendShellout = "shellout"
-	// GitBackendGoGit reserves the in-process backend selector for
-	// ASH-35. Setting backend = "go-git" today makes the git verb
-	// return not_implemented; the schema is otherwise live.
+	// GitBackendGoGit forces every git op in-process via go-git
+	// ([git].backend = "go-git"). The compiled-in default is the empty
+	// string — neither constant — letting status/diff prefer system
+	// git when available (ASH-203).
 	GitBackendGoGit = "go-git"
 )
 
@@ -175,7 +178,7 @@ func Defaults() *Config {
 			ShutdownGrace:         Duration(DefaultShutdownGrace),
 		},
 		Jail:   JailConfig{},
-		Git:    GitConfig{Backend: GitBackendGoGit},
+		Git:    GitConfig{},
 		Ledger: LedgerConfig{MaxAge: Duration(DefaultLedgerMaxAge)},
 		LSP:    LSPConfig{Enabled: false, GoplsPath: DefaultGoplsPath},
 	}

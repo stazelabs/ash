@@ -39,13 +39,12 @@ type FileChange struct {
 	OldPath string `msgpack:"old_path,omitempty"`
 }
 
-// runStatus shells out to `git status --porcelain=v2 --branch [--ignored]`
-// and parses the output. The exec phase is timed as IO since the cost is
-// dominated by git's own filesystem traversal of the index.
-// runStatusShellout shells out to system git for the status op.
-// Selected by [git].backend = "shellout" in ash.toml.
+// runStatusShellout shells out to `git status --porcelain=v2 --branch
+// [--ignored]` and parses the output. The exec phase is timed as IO
+// since the cost is dominated by git's own filesystem traversal of the
+// index. Selected for the status op by statusDiffShellout (ASH-203).
 func runStatusShellout(a *Args, tr *proto.Tracer) (*StatusResult, *proto.Error) {
-	gitArgs := []string{"-C", a.Path, "status", "--porcelain=v2", "--branch"}
+	gitArgs := []string{"-C", gitDirArg(a.Path), "status", "--porcelain=v2", "--branch"}
 	if !a.Untracked {
 		gitArgs = append(gitArgs, "--untracked-files=no")
 	}

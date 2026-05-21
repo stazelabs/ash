@@ -435,7 +435,7 @@
         "sites": [
           {
             "file": "internal/verbs/git/git.go",
-            "line": 45
+            "line": 47
           },
           {
             "file": "internal/verbs/git/gogit_common.go",
@@ -457,7 +457,7 @@
         "sites": [
           {
             "file": "internal/verbs/git/backend.go",
-            "line": 66
+            "line": 94
           }
         ]
       },
@@ -579,7 +579,7 @@
           },
           {
             "file": "internal/verbs/git/git.go",
-            "line": 47
+            "line": 49
           },
           {
             "file": "internal/verbs/git/gogit_blame.go",
@@ -1045,7 +1045,7 @@
         "sites": [
           {
             "file": "internal/verbs/git/git.go",
-            "line": 191
+            "line": 206
           }
         ],
         "hints": [
@@ -1541,7 +1541,7 @@
           },
           {
             "file": "internal/verbs/git/status.go",
-            "line": 117
+            "line": 116
           },
           {
             "file": "internal/verbs/test/test.go",
@@ -2374,7 +2374,7 @@
         "sites": [
           {
             "file": "internal/verbs/git/status.go",
-            "line": 201
+            "line": 200
           }
         ]
       },
