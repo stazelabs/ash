@@ -20,13 +20,22 @@ Coding agents today drive bash. Bash was designed in 1989 for humans at terminal
 
 ## Quick start
 
-```sh
-# Build (pure Go; no system deps required)
-make all
+Install with Homebrew — client, daemon, and MCP adapter from a single release:
 
-# Install on $PATH (symlinks, not copies; a rebuild here updates every install)
-make install                       # → $HOME/.local/bin (override with PREFIX=/usr/local/bin)
+```sh
+brew install stazelabs/tap/ash
 ```
+
+Or build from source (pure Go; no system deps required):
+
+```sh
+make all                           # builds bin/ash, bin/ashd, bin/ashmcp, bin/ashd-clean
+make install                       # symlinks them onto $PATH at $HOME/.local/bin
+                                   # (override with PREFIX=/usr/local/bin)
+```
+
+Full installation guide — Homebrew, MCP setup, version skew:
+[docs/adoption/install.md](docs/adoption/install.md).
 
 In any target repo:
 
