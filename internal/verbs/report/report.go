@@ -893,19 +893,26 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 		}
 	}
 
-	// Error histogram — only when there are errors with a known code.
-	if len(r.ErrHistogram) > 0 {
-		total := 0
+	// Error histogram. The headline count is the true ok=0 total
+	// (r.Totals.Errors), independent of how many code rows the
+	// histogram shows after the --top cap. A trailing "+N more"
+	// line accounts for capped or uncoded rows so the section never
+	// silently undercounts (ASH-204).
+	if r.Totals.Errors > 0 {
+		shown := 0
 		for _, e := range r.ErrHistogram {
-			total += e.Count
+			shown += e.Count
 		}
-		fmt.Fprintf(&b, "\nerrors (%d):\n", total)
+		fmt.Fprintf(&b, "\nerrors (%d):\n", r.Totals.Errors)
 		for _, e := range r.ErrHistogram {
 			if e.SampleMsg != "" {
 				fmt.Fprintf(&b, "  %s \xc3\x97 %d  \xe2\x80\x94 %q\n", e.Code, e.Count, e.SampleMsg)
 			} else {
 				fmt.Fprintf(&b, "  %s \xc3\x97 %d\n", e.Code, e.Count)
 			}
+		}
+		if more := r.Totals.Errors - shown; more > 0 {
+			fmt.Fprintf(&b, "  \xe2\x80\xa6 +%d more\n", more)
 		}
 	}
 

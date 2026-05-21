@@ -460,6 +460,42 @@ func TestPrettyResponse_NoHotspotSections_WhenClean(t *testing.T) {
 	}
 }
 
+// TestPrettyResponse_ErrorsHeadlineCountsCappedRows guards ASH-204: the
+// "errors (N)" headline must report the true ok=0 total, not the sum of
+// the post-capHotspots histogram rows, and a trailing "+N more" line
+// must account for any code rows dropped by the --top cap.
+func TestPrettyResponse_ErrorsHeadlineCountsCappedRows(t *testing.T) {
+	calls := makeFailedCalls("grep", "args", "bad pattern", 3)
+	calls = append(calls, makeFailedCalls("find", "not_found", "", 2)...)
+	calls = append(calls, makeFailedCalls("read", "path_denied", "", 1)...)
+
+	// Capped to top 2 codes: path_denied(1) is dropped from the histogram.
+	capped := aggregate(calls, Scope{Session: "current"})
+	capHotspots(capped, 2)
+	rsp := &proto.Response{OK: true}
+	rsp.Data = proto.MustData(capped)
+	out := PrettyResponse(nil, rsp)
+
+	if !strings.Contains(out, "errors (6):") {
+		t.Errorf("headline must be the true ok=0 total 'errors (6):', got:\n%s", out)
+	}
+	if !strings.Contains(out, "\xe2\x80\xa6 +1 more") {
+		t.Errorf("expected '+1 more' line for the capped code, got:\n%s", out)
+	}
+
+	// Uncapped: all three codes shown, no "+N more" line.
+	full := aggregate(calls, Scope{Session: "current"})
+	rspFull := &proto.Response{OK: true}
+	rspFull.Data = proto.MustData(full)
+	outFull := PrettyResponse(nil, rspFull)
+	if !strings.Contains(outFull, "errors (6):") {
+		t.Errorf("uncapped headline must be 'errors (6):', got:\n%s", outFull)
+	}
+	if strings.Contains(outFull, "\xe2\x80\xa6") {
+		t.Errorf("uncapped output must not have a '+N more' line, got:\n%s", outFull)
+	}
+}
+
 func makeCallsWithBytes(verb string, n int, tokOut, bytesOut int) []ledger.Call {
 	calls := make([]ledger.Call, n)
 	for i := range calls {
