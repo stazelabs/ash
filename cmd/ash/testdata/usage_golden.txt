@@ -69,5 +69,7 @@ note: pass - as a value to read that arg from stdin (e.g. --content -)
 
 global flags:
   --format pretty|json|msgpack   output format (default: pretty)
+  --version, -V                  print build commit and exit
+  --help, -h                     print this message and exit
 
 ash auto-starts the daemon (ashd) on first call.

@@ -846,6 +846,8 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 func writeGlobalFlags(b *strings.Builder) {
 	b.WriteString("\nglobal flags:\n")
 	b.WriteString("  --format:string=pretty — Output format [pretty|json|msgpack]\n")
+	b.WriteString("  --version, -V          — Print build commit and exit\n")
+	b.WriteString("  --help, -h             — Print this message and exit\n")
 }
 
 func writeArg(b *strings.Builder, a ArgSchema, verbose bool) {
@@ -925,6 +927,8 @@ note: pass - as a value to read that arg from stdin (e.g. --content -)
 
 global flags:
   --format pretty|json|msgpack   output format (default: pretty)
+  --version, -V                  print build commit and exit
+  --help, -h                     print this message and exit
 
 ash auto-starts the daemon (ashd) on first call.`)
 	return b.String()
