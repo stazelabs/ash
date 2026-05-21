@@ -16,7 +16,7 @@ verbs (phase 2):
   find    --path <p> [--glob <pattern>] [--type any|file|dir|symlink] [--depth N] [--limit N]
           [--exclude <pattern>] [--hidden true|false] [--gi true|false] [--meta true|false]
           [--absolute true|false]
-  grep    --pattern <re> --path <p> [--glob <pattern>] [--case smart|sensitive|insensitive]
+  grep    --pattern <re> [--path <p>] [--glob <pattern>] [--case smart|sensitive|insensitive]
           [--lit true|false] [--limit N] [--mpf N] [--cb N] [--ca N] [--context N] [--fo true|false]
           [--no-text true|false] [--depth N] [--hidden true|false] [--gi true|false]
           [--absolute true|false] [--multiline true|false]

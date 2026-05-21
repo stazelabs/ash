@@ -110,7 +110,10 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Pattern, perr = argutil.RequireString(in, "pattern"); perr != nil {
 		return nil, perr
 	}
-	if a.Path, perr = argutil.RequireString(in, "path"); perr != nil {
+	// ASH-206: --path defaults to "." (the walk root) when omitted,
+	// matching grep/rg ergonomics — agents routinely call grep with
+	// just --pattern.
+	if a.Path, perr = argutil.OptionalString(in, "path", "."); perr != nil {
 		return nil, perr
 	}
 	if a.Glob, perr = argutil.OptionalNonEmptyString(in, "glob", DefaultGlob); perr != nil {

@@ -607,10 +607,14 @@ func TestParseArgs_RejectsMissingPattern(t *testing.T) {
 	}
 }
 
-func TestParseArgs_RejectsMissingPath(t *testing.T) {
-	_, perr := ParseArgs(map[string]any{"pattern": "x"})
-	if perr == nil || perr.Code != "args" {
-		t.Fatalf("expected args error for missing path, got %+v", perr)
+func TestParseArgs_DefaultsPathToDot(t *testing.T) {
+	// ASH-206: omitting --path defaults it to "." rather than erroring.
+	a, perr := ParseArgs(map[string]any{"pattern": "x"})
+	if perr != nil {
+		t.Fatalf("omitting --path should default to \".\", got %+v", perr)
+	}
+	if a.Path != "." {
+		t.Errorf("Path = %q, want %q", a.Path, ".")
 	}
 }
 

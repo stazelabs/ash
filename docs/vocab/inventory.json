@@ -923,7 +923,7 @@
           },
           {
             "file": "internal/verbs/grep/grep.go",
-            "line": 209
+            "line": 212
           },
           {
             "file": "internal/verbs/help/help.go",
@@ -1237,10 +1237,6 @@
           },
           {
             "file": "internal/verbs/grep/grep.go",
-            "line": 179
-          },
-          {
-            "file": "internal/verbs/grep/grep.go",
             "line": 182
           },
           {
@@ -1249,7 +1245,11 @@
           },
           {
             "file": "internal/verbs/grep/grep.go",
-            "line": 569
+            "line": 188
+          },
+          {
+            "file": "internal/verbs/grep/grep.go",
+            "line": 572
           },
           {
             "file": "internal/verbs/initverb/initverb.go",
@@ -1575,7 +1575,7 @@
           },
           {
             "file": "internal/verbs/grep/grep.go",
-            "line": 212
+            "line": 215
           },
           {
             "file": "internal/verbs/read/read.go",
@@ -1637,7 +1637,7 @@
           },
           {
             "file": "internal/verbs/grep/grep.go",
-            "line": 214
+            "line": 217
           },
           {
             "file": "internal/verbs/initverb/initverb.go",
@@ -1701,7 +1701,7 @@
           },
           {
             "file": "internal/verbs/grep/grep.go",
-            "line": 258
+            "line": 261
           }
         ]
       },
@@ -2466,11 +2466,11 @@
         "sites": [
           {
             "file": "internal/verbs/grep/grep.go",
-            "line": 675
+            "line": 678
           },
           {
             "file": "internal/verbs/grep/grep.go",
-            "line": 731
+            "line": 734
           }
         ]
       },

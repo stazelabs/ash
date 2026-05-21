@@ -377,7 +377,8 @@
           },
           "path": {
             "type": "string",
-            "description": "File or directory to search."
+            "description": "File or directory to search; defaults to the current directory.",
+            "default": "."
           },
           "pattern": {
             "type": "string",
@@ -385,7 +386,6 @@
           }
         },
         "required": [
-          "path",
           "pattern"
         ],
         "additionalProperties": false
