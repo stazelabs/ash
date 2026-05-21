@@ -207,6 +207,9 @@
           "count": {
             "type": "integer"
           },
+          "files_scanned": {
+            "type": "integer"
+          },
           "records": {
             "type": "array",
             "items": {
@@ -269,6 +272,7 @@
         },
         "required": [
           "count",
+          "files_scanned",
           "records"
         ],
         "additionalProperties": false
