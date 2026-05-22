@@ -29,11 +29,18 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/stazelabs/ash/internal/jail"
 	"github.com/stazelabs/ash/internal/proto"
 	"github.com/stazelabs/ash/internal/verbs/argutil"
 )
+
+// shelloutTimeout caps a single system-git invocation. Read-side git
+// ops on a healthy repo finish well under a second; a longer run means
+// a stuck credential prompt or a stalled filesystem — kill it rather
+// than wedge the daemon handler goroutine (ASH-215).
+const shelloutTimeout = 30 * time.Second
 
 // gitRunError maps a non-zero git exit into a proto.Error. It recognises the
 // "not a git repository" message and returns the typed not_a_repo code; all

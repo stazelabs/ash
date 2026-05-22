@@ -86,7 +86,7 @@ func runLogShellout(a *Args, tr *proto.Tracer) (*LogResult, *proto.Error) {
 		gitArgs = append(gitArgs, "--", a.Pathspec)
 	}
 
-	res, perr := runner.Run("git", gitArgs, runner.Opts{Tracer: tr})
+	res, perr := runner.Run("git", gitArgs, runner.Opts{Tracer: tr, Timeout: shelloutTimeout})
 	if perr != nil {
 		return nil, perr
 	}
