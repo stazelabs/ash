@@ -37,7 +37,7 @@ func runShowShellout(a *Args, tr *proto.Tracer) (*ShowResult, *proto.Error) {
 	// Metadata: limit=1, no pathspec (we want the commit even if it
 	// touched no matching paths). Reuse log's NUL-separated format.
 	metaArgs := []string{"-C", a.Path, "log", "-1", "-z", "--format=" + logFormat, a.Ref}
-	res, perr := runner.Run("git", metaArgs, runner.Opts{Tracer: tr})
+	res, perr := runner.Run("git", metaArgs, runner.Opts{Tracer: tr, Timeout: shelloutTimeout})
 	if perr != nil {
 		return nil, perr
 	}
@@ -82,7 +82,7 @@ func runShowDiff(a *Args, before string, tr *proto.Tracer) (*DiffResult, *proto.
 		gitArgs = append(gitArgs, "--", a.Pathspec)
 	}
 
-	res, perr := runner.Run("git", gitArgs, runner.Opts{Tracer: tr})
+	res, perr := runner.Run("git", gitArgs, runner.Opts{Tracer: tr, Timeout: shelloutTimeout})
 	if perr != nil {
 		return nil, perr
 	}

@@ -3,6 +3,7 @@ package runner
 import (
 	"os/exec"
 	"testing"
+	"time"
 )
 
 func requireSh(t *testing.T) {
@@ -83,5 +84,16 @@ func TestRun_MaxStdoutExactlyAtCapNotTruncated(t *testing.T) {
 	}
 	if string(res.Stdout) != "aaaa" {
 		t.Errorf("stdout = %q, want aaaa", res.Stdout)
+	}
+}
+
+func TestRun_Timeout(t *testing.T) {
+	requireSh(t)
+	res, perr := Run("sh", []string{"-c", "sleep 5"}, Opts{Timeout: 100 * time.Millisecond})
+	if perr == nil {
+		t.Fatalf("expected a timeout error, got result %+v", res)
+	}
+	if perr.Code != "sh_timeout" {
+		t.Errorf("code = %q, want sh_timeout", perr.Code)
 	}
 }

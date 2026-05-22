@@ -94,7 +94,7 @@ func buildDiffArgs(extra []string, a *Args) []string {
 
 // runDiffStat runs `git diff --numstat` for token-cheap per-file counts.
 func runDiffStat(a *Args, tr *proto.Tracer) (*DiffResult, *proto.Error) {
-	res, perr := runner.Run("git", buildDiffArgs([]string{"--numstat"}, a), runner.Opts{Tracer: tr})
+	res, perr := runner.Run("git", buildDiffArgs([]string{"--numstat"}, a), runner.Opts{Tracer: tr, Timeout: shelloutTimeout})
 	if perr != nil {
 		return nil, perr
 	}
@@ -108,7 +108,7 @@ func runDiffStat(a *Args, tr *proto.Tracer) (*DiffResult, *proto.Error) {
 // unified diff into per-file DiffFile records.
 func runDiffFull(a *Args, tr *proto.Tracer) (*DiffResult, *proto.Error) {
 	extra := []string{"--no-color", fmt.Sprintf("--unified=%d", a.Context)}
-	res, perr := runner.Run("git", buildDiffArgs(extra, a), runner.Opts{Tracer: tr})
+	res, perr := runner.Run("git", buildDiffArgs(extra, a), runner.Opts{Tracer: tr, Timeout: shelloutTimeout})
 	if perr != nil {
 		return nil, perr
 	}

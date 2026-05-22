@@ -51,7 +51,7 @@ func runStatusShellout(a *Args, tr *proto.Tracer) (*StatusResult, *proto.Error) 
 	if a.Ignored {
 		gitArgs = append(gitArgs, "--ignored")
 	}
-	res, perr := runner.Run("git", gitArgs, runner.Opts{Tracer: tr})
+	res, perr := runner.Run("git", gitArgs, runner.Opts{Tracer: tr, Timeout: shelloutTimeout})
 	if perr != nil {
 		return nil, perr
 	}
