@@ -259,14 +259,13 @@ func TestIntegration_AllVerbs(t *testing.T) {
 			t.Fatalf("pretty mode: %+v", prettyRsp.Err)
 		}
 
-		// QueryRecent does not project request_id, so we cannot
-		// match rows by Request.ID. Instead, rely on the dispatch
-		// order: jsonReq is sent first, prettyReq second. The two
-		// most-recent stat rows in reverse-chrono order are pretty
-		// then json. The handler commits UpdateMCPEmit synchronously
-		// before the response write, so a completed roundtrip means
-		// the row is on disk; the bounded retry keeps the test robust
-		// to scheduler quirks.
+		// Match the two MCP stat rows by request_id. Post-ASH-214 the
+		// ledger Record runs after the response frame, so handler-
+		// goroutine scheduling — not dispatch order — decides row id
+		// order; matching by position is no longer safe. The retry also
+		// waits for the pretty row's UpdateMCPEmit to land: Record writes
+		// the row with tokens_out_emit still 0, and UpdateMCPEmit patches
+		// it a moment later.
 		var jsonRow, prettyRow *ledger.Call
 		deadline := time.Now().Add(2 * time.Second)
 		for time.Now().Before(deadline) {
@@ -274,11 +273,17 @@ func TestIntegration_AllVerbs(t *testing.T) {
 			if err != nil {
 				t.Fatalf("QueryRecent: %v", err)
 			}
-			if len(calls) >= 2 {
-				p := calls[0]
-				j := calls[1]
-				prettyRow = &p
-				jsonRow = &j
+			jsonRow, prettyRow = nil, nil
+			for i := range calls {
+				c := calls[i]
+				switch c.RequestID {
+				case jsonReq.ID:
+					jsonRow = &c
+				case prettyReq.ID:
+					prettyRow = &c
+				}
+			}
+			if jsonRow != nil && prettyRow != nil && prettyRow.TokensOutEmit != 0 {
 				break
 			}
 			time.Sleep(20 * time.Millisecond)
