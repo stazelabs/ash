@@ -14,9 +14,11 @@ Coding agents today drive bash. Bash was designed in 1989 for humans at terminal
 - **Platform variance.** `find` differs between macOS and GNU. `sed -i` takes different arguments. `grep -P` may or may not exist. Agents waste turns probing the environment.
 - **State traps.** `cd`, environment variables, subshells, and globbing all introduce silent state that agents lose track of across turns.
 - **Tool fragmentation.** Is `rg` installed? `fd`? `jq`? `bat`? Every project's agent has a different available toolset, and the agent has to discover it on every fresh start.
+- **No usage ledger.** A loop of `rg`, `fd`, `jq`, and `git` is a dozen unrelated processes with no shared seam. There is no place to record what each call costs — tokens, latency, truncation, error class — so a concise performance-and-usage history of a session cannot be assembled from fragmented tools at all.
+- **No safety chokepoint.** Every utility reads and writes the filesystem directly. There is nowhere to interpose — no single entry point where a path could be validated, scoped to a project, or denied before the operation runs. Guardrails like a soft project jail have nowhere to live.
 - **No semantic operations.** Agents repeatedly grep for symbols when they actually want callers, definitions, or references — semantic queries that no shell utility provides.
 
-`ash` is the response: a shell where the primary user is a model with a token budget, no eyes, and no hands. The verb surface is small enough to fit in a tool description. Every result is structured, every operation is the same on every platform, and the wire format is chosen for tokenizer efficiency. Every call is recorded in a per-project SQLite ledger with real cl100k_base token counts, so "is this saving tokens?" is an answerable question.
+`ash` is the response: a shell where the primary user is a model with a token budget, no eyes, and no hands. The verb surface is small enough to fit in a tool description. Every result is structured, every operation is the same on every platform, and the wire format is chosen for tokenizer efficiency. One consistent entry point is also one place to optimize — a warm daemon, no per-command process spawn, no environment to re-probe — so what ash cuts is wall-clock time, not just tokens. Every call is recorded in a per-project SQLite ledger with real cl100k_base token counts and latency, so both "is this saving tokens?" and "is this faster?" are answerable questions.
 
 ## Quick start
 
