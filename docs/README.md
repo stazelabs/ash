@@ -9,6 +9,8 @@ schema run `ash help` (never duplicated in markdown).
 - [adoption/install.md](adoption/install.md) — install via Homebrew or from source.
 - [adoption/claude-code.md](adoption/claude-code.md) — wire `ashmcp` into Claude Code.
 - [adoption/claude-desktop.md](adoption/claude-desktop.md) — wire `ashmcp` into Claude Desktop.
+- [adoption/codex.md](adoption/codex.md) — wire `ashmcp` into OpenAI's Codex CLI.
+- [adoption/cursor.md](adoption/cursor.md) — wire `ashmcp` into Cursor.
 - [adoption/migration-from-hook.md](adoption/migration-from-hook.md) — moving from the PreToolUse hook to MCP.
 
 ## Reference — how ash works
