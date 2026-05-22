@@ -11,6 +11,7 @@ schema run `ash help` (never duplicated in markdown).
 - [adoption/claude-desktop.md](adoption/claude-desktop.md) — wire `ashmcp` into Claude Desktop.
 - [adoption/codex.md](adoption/codex.md) — wire `ashmcp` into OpenAI's Codex CLI.
 - [adoption/cursor.md](adoption/cursor.md) — wire `ashmcp` into Cursor.
+- [../claude-plugin/](../claude-plugin/) — the Claude Code skill that steers an agent toward ash verbs.
 - [adoption/migration-from-hook.md](adoption/migration-from-hook.md) — moving from the PreToolUse hook to MCP.
 
 ## Reference — how ash works

@@ -1,0 +1,14 @@
+{
+  "name": "ash",
+  "description": "Skill for ash, the agentic shell — guides a Claude Code agent to prefer ash verbs (grep, find, read, write, edit, diff, git, stat) for file and code operations.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Chris Staszak"
+  },
+  "homepage": "https://github.com/stazelabs/ash",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/stazelabs/ash.git"
+  },
+  "license": "MIT"
+}
