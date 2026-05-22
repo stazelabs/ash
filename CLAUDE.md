@@ -6,7 +6,7 @@ This file is the operational counterpart to [README.md](README.md). The README i
 
 `ash` is an agentic shell for coding agents — see [README §Why](README.md#why) and [§How we're building this](README.md#how-were-building-this) for the pitch and the recursive-development premise. For the four-tier architectural vocabulary (protocol / verb library / dispatch / clients), see [docs/architecture/layers.md](docs/architecture/layers.md) — start there when you need to decide which tier a change belongs in.
 
-**Current phase:** Phase 2, ship 14. Run `ash help` for the live verb list and per-verb arg schemas. Daemon (`ashd`) auto-starts on first invocation, persists per-call instrumentation to a SQLite ledger at `.ash/ledger.db`, and tokenizes every response with `cl100k_base` for honest token counts. A third binary, `ashmcp`, exposes both read-side and write-side verbs as MCP tools over stdio (ASH-104, ASH-161) so MCP-aware harnesses see `ash_read`, `ash_grep`, `ash_write`, `ash_edit`, etc. alongside their built-ins; it dispatches to the same `ashd` over the per-project UDS and is recorded in the same ledger.
+**Current phase:** Phase 4 (adoption); Phase 2 (coding-agent core) is complete and Phase 3 (semantic layer) shipped and is under evaluation — see [README §Roadmap](README.md#roadmap). Run `ash help` for the live verb list and per-verb arg schemas. Daemon (`ashd`) auto-starts on first invocation, persists per-call instrumentation to a SQLite ledger at `.ash/ledger.db`, and tokenizes every response with `cl100k_base` for honest token counts. A third binary, `ashmcp`, exposes both read-side and write-side verbs as MCP tools over stdio (ASH-104, ASH-161) so MCP-aware harnesses see `ash_read`, `ash_grep`, `ash_write`, `ash_edit`, etc. alongside their built-ins; it dispatches to the same `ashd` over the per-project UDS and is recorded in the same ledger.
 
 ## Project constraints
 
@@ -174,7 +174,7 @@ Even after primordial `ash` ships, some operations stay in bash. Track them here
 - **Destructive `git` ops** (`commit`, `push`, `reset`, `rebase`, `checkout`, `merge`, `cherry-pick`, `add`, `branch`, `stash`, `tag -d`, `branch -D`, etc.) stay in bash, deliberately. The read-side surface — `status`, `log`, `diff`, `show`, `blame` — is the agent-facing slice; mutations are an authorization boundary that benefits from composing with native bash (heredoc commit messages, multi-arg pathspecs), emit low-token output to begin with, and have shown no demand signal in 90 days of session ledger data. ASH-104 / ASH-161 scope `ashmcp` to reads for the same reason. This list is intentionally closed — new entries here are real design decisions, not "verbs not shipped yet."
 - **`go vet`** — vet orchestration stays in bash; no demand signal for an `ash vet` verb today (per ASH-160 recalibration). `go test` is `ash test`; `go build` is `ash build` (ASH-163).
 - **System package management** (`brew`, `apt`, `npm install -g`, etc.) — never in scope for `ash`.
-- **Process management at the OS level** — bash. (`proc` hasn't shipped yet.)
+- **Process management at the OS level** — bash. (An `ash proc` verb was considered and dropped in the 2026-05-21 phase-2 re-scope: no demand signal. OS-level process management stays in bash by design.)
 - **Anything not yet implemented as a verb.** When in doubt: bash, with a session note explaining what verb you wished existed.
 
 Update this list as verbs ship and as new bash-only operations are identified.

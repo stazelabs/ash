@@ -4,7 +4,7 @@
 
 `ash` is a shell designed from the ground up for AI coding agents as the primary user. It collapses the sprawling, platform-divergent surface of legacy Unix utilities into a small set of structured verbs that return typed, token-efficient results.
 
-**Status:** alpha, phase 2 of 5. Self-hosting on this repo, instrumented end-to-end. Run `ash help` for the live verb list. Expect breaking changes.
+**Status:** alpha, phase 4 of 5. Coding-agent core and semantic layer shipped, self-hosting on this repo and instrumented end-to-end; adoption phase underway. Run `ash help` for the live verb list. Expect breaking changes.
 
 ## Why
 
@@ -188,9 +188,9 @@ These are hard rules. A change that violates one is a stop-and-discuss.
 
 - **No `cd`, no `pwd`.** Every command takes an explicit path. State-free. The path-explicit shape has a quiet second benefit: it makes per-call sanitization tractable. Because every operation arrives with its full target path in the args, the daemon can validate, normalize, and reject paths *before* the verb runs — the optional `[jail]` policy already does exactly this. Bash never sees the canonical form.
 - **No `cat`, `head`, `tail`, `wc`, `sort`, `uniq`, `cut`, `awk`, `sed`, `xargs`, `tr`, `tee`.** All of these are operations *on* the result of another verb. `find ... | head 10` becomes `find --limit 10`. Arguments live on the producer.
-- **No subshells, command substitution, backticks.** Object references will replace them once `obj` ships.
+- **No subshells, command substitution, backticks.** Object references will replace them once `obj` ships — tracked as plan-as-object (ASH-111, demand-gated).
 - **No shell globbing.** Verbs take patterns as explicit arguments.
-- **No bash/sh/zsh dispatch.** Scripts will run via `run` with an explicit interpreter once `run` ships.
+- **No bash/sh/zsh dispatch.** Scripts will run via `run` with an explicit interpreter once `run` ships — deferred and demand-gated (ASH-222).
 - **No platform variance.** `ash` is the same everywhere. If a verb works on Linux, it works identically on macOS and Windows.
 
 ## Architecture
@@ -319,11 +319,15 @@ Surface locked, wire protocol drafted, switch-criteria doc ([CLAUDE.md](CLAUDE.m
 ### Phase 1 — walking skeleton — done
 Go daemon, UDS transport, MessagePack with versioned schema dictionary, three read-side verbs (`find` / `grep` / `read`), instrumentation ledger from day one, self-hosting on this repo.
 
-### Phase 2 — coding-agent core — current
+### Phase 2 — coding-agent core — done
 
-Live: `write`, `edit`, `stat`, `diff`, `git` (status/log/diff/show/blame), `build`, `test`, `bench`, `metrics`, `report`, `hook`, `help`, `init`, `uninit`, `stop`. Plus: configuration substrate (`ash.toml`), jail policy, ledger retention, in-process go-git backend, cross-repo report aggregation, PreToolUse hook with per-verb exclusions.
+24 verbs live (run `ash help`): the read/write/edit/diff/stat file surface, `git` (status/log/diff/show/blame), `build`, `test`, `bench`, the ledger-query verbs (`metrics`, `report`, `recap`, `workspace`, `replay`, `usage`, `turn`), and lifecycle (`init`, `uninit`, `stop`, `hook`, `help`). Plus: configuration substrate (`ash.toml`), jail policy, ledger retention, in-process go-git backend, cross-repo report aggregation, the `ashmcp` MCP adapter, and the PreToolUse hook with per-verb exclusions.
 
-Upcoming for phase 2: `fmt`, `run`, `proc`, `obj`, persistent session/object store, job ledger for async operations, reference Go client library.
+The original phase-2 "upcoming" list — `fmt`, `run`, `proc`, `obj`, session/object store, job ledger, Go client library — was re-scoped against demand on 2026-05-21:
+
+- **Shipped under other names.** Session memory is the `recap` + `workspace` verbs (ASH-110); `obj` / object store is tracked as plan-as-object (ASH-111, demand-gated).
+- **Deferred.** `run` (gated, interpreter-explicit script execution) is recorded in ASH-222; a reference Go client library waits on a real third consumer (ASH-180).
+- **Dropped.** `fmt` and an async job ledger showed no demand signal; `proc` and OS-level process management stay in bash by design.
 
 ### Phase 3 — semantic layer — shipped, under evaluation
 
@@ -331,7 +335,7 @@ The `lang` verb — outline, definition, references, callers, impl — shipped
 behind a language-server broker. It is currently in a usage-validation
 freeze (ASH-197) while real demand is assessed.
 
-### Phase 4 — adoption
+### Phase 4 — adoption — current
 
 - Claude Code skill for `ash`
 - Codex CLI integration
