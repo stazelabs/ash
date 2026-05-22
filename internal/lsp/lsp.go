@@ -4,16 +4,16 @@
 //
 // Responsibilities:
 //
-//   * Spawn the language server lazily on the first Ensure call.
-//   * Drive the LSP initialize / initialized handshake.
-//   * Route textDocument/didOpen and didChange notifications fired by
+//   - Spawn the language server lazily on the first Ensure call.
+//   - Drive the LSP initialize / initialized handshake.
+//   - Route textDocument/didOpen and didChange notifications fired by
 //     ash write and ash edit (via package lsp's Notify entry point)
 //     so the server's in-memory view stays in sync with disk.
-//   * Provide a typed Request method for verbs that issue LSP requests
+//   - Provide a typed Request method for verbs that issue LSP requests
 //     (documentSymbol, definition, references, ...).
-//   * Re-spawn gopls if it dies mid-session; bail loudly after repeated
+//   - Re-spawn gopls if it dies mid-session; bail loudly after repeated
 //     failure with a stable error code instead of crashing the daemon.
-//   * Shut down cleanly when the daemon exits — no orphan gopls.
+//   - Shut down cleanly when the daemon exits — no orphan gopls.
 //
 // Wire framing follows LSP §3.1: an HTTP-like Content-Length header,
 // CRLF separator, then a JSON-RPC 2.0 body. We carry just enough of the
@@ -80,9 +80,9 @@ type Broker struct {
 	openMu sync.Mutex
 	open   map[string]int // path -> version (1 = didOpen sent; >1 = didChange'd)
 
-	failMu      sync.Mutex
-	failCount   int
-	failWindow  time.Time
+	failMu              sync.Mutex
+	failCount           int
+	failWindow          time.Time
 	permanentlyDisabled bool
 
 	onInit     func(d time.Duration, err error)
@@ -468,12 +468,12 @@ func (b *Broker) start(ctx context.Context) error {
 		Capabilities: map[string]any{
 			"textDocument": map[string]any{
 				"synchronization": map[string]any{
-					"didSave":      false,
-					"willSave":     false,
+					"didSave":             false,
+					"willSave":            false,
 					"dynamicRegistration": false,
 				},
 				"documentSymbol": map[string]any{
-					"dynamicRegistration": false,
+					"dynamicRegistration":               false,
 					"hierarchicalDocumentSymbolSupport": true,
 				},
 			},

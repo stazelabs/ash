@@ -122,10 +122,10 @@ type VerbSummary struct {
 }
 
 type Result struct {
-	Scope         Scope          `msgpack:"scope" json:"scope"`
-	Replayed      int            `msgpack:"replayed" json:"replayed"`
-	Skipped       int            `msgpack:"skipped" json:"skipped"`
-	SkipByReason  map[string]int `msgpack:"skip_by_reason,omitempty" json:"skip_by_reason,omitempty"`
+	Scope         Scope              `msgpack:"scope" json:"scope"`
+	Replayed      int                `msgpack:"replayed" json:"replayed"`
+	Skipped       int                `msgpack:"skipped" json:"skipped"`
+	SkipByReason  map[string]int     `msgpack:"skip_by_reason,omitempty" json:"skip_by_reason,omitempty"`
 	ByVerb        []VerbSummary      `msgpack:"by_verb" json:"by_verb"`
 	Overall       VerbSummary        `msgpack:"overall" json:"overall"`
 	TopRegressors []CallReplay       `msgpack:"top_regressors,omitempty" json:"top_regressors,omitempty"`

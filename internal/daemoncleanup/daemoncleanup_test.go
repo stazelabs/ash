@@ -119,9 +119,9 @@ func TestScan_ClassifiesAliveZombieUnknown(t *testing.T) {
 		{PID: 1001, Cmdline: "bin/ashd --root /alive --socket /tmp/alive.sock"},
 		{PID: 1002, Cmdline: "bin/ashd --root /deleted --socket /tmp/dead.sock"},
 		{PID: 1003, Cmdline: "bin/ashd --root=/alive --socket=/tmp/unreachable.sock"},
-		{PID: 1004, Cmdline: "bin/ashd"},                  // unknown — no flags
-		{PID: 1005, Cmdline: "tail -f /tmp/alive.sock"},    // not ashd
-		{PID: 1006, Cmdline: "/opt/myashd --socket /tmp/x"}, // suffix-only impostor
+		{PID: 1004, Cmdline: "bin/ashd"},                                  // unknown — no flags
+		{PID: 1005, Cmdline: "tail -f /tmp/alive.sock"},                   // not ashd
+		{PID: 1006, Cmdline: "/opt/myashd --socket /tmp/x"},               // suffix-only impostor
 		{PID: self, Cmdline: "bin/ashd --root /me --socket /tmp/me.sock"}, // self
 	})
 	withFakeRootExists(t, map[string]bool{"/alive": true})

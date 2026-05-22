@@ -34,9 +34,9 @@ type frameEmitter struct {
 	reqID   uint64
 	start   time.Time // request decode time; t0 for time_to_first_chunk_us
 
-	mu       sync.Mutex // protects buffer + sequence
-	buffer   []any
-	seq      uint32
+	mu        sync.Mutex // protects buffer + sequence
+	buffer    []any
+	seq       uint32
 	lastFlush time.Time
 
 	firstFlushAt atomic.Int64 // unix nanos; 0 == no flush yet

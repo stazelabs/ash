@@ -19,15 +19,15 @@ var subSets = []subSet{
 	{
 		Name: "errors_ascii", Surface: "errors",
 		Pairs: [][2]string{
-			{"path_denied", "denied"},        // 3→2
-			{"not_found", "missing"},         // 2→1
-			{"range_out_of_bounds", "oob"},   // 4→2
-			{"range_returned", "rng"},        // 3→1
-			{"build_failed", "broke"},        // 2→1
-			{"git_failed", "gitfail"},        // 2→2 (no win)
-			{"no_tests", "notests"},          // 2→2 (no win)
-			{"permission denied", "denied"},  // 2→2
-			{"no such file", "missing"},      // 3→1
+			{"path_denied", "denied"},       // 3→2
+			{"not_found", "missing"},        // 2→1
+			{"range_out_of_bounds", "oob"},  // 4→2
+			{"range_returned", "rng"},       // 3→1
+			{"build_failed", "broke"},       // 2→1
+			{"git_failed", "gitfail"},       // 2→2 (no win)
+			{"no_tests", "notests"},         // 2→2 (no win)
+			{"permission denied", "denied"}, // 2→2
+			{"no such file", "missing"},     // 3→1
 		},
 	},
 
@@ -35,15 +35,15 @@ var subSets = []subSet{
 	{
 		Name: "errors_cjk", Surface: "errors",
 		Pairs: [][2]string{
-			{"path_denied", "失"},          // 3→1
-			{"not_found", "無"},            // 2→1
-			{"range_out_of_bounds", "越"},  // 4→2 (越 is 2 toks alone — test confirms)
-			{"range_returned", "中"},       // 3→1
-			{"build_failed", "壊"},         // 2→2 (壊 is 2 toks — no win, drop?)
-			{"git_failed", "敗"},           // 2→2 (no win)
-			{"no_tests", "空"},             // 2→1
-			{"permission denied", "禁"},    // 2→2 (no win)
-			{"no such file", "無"},         // 3→1
+			{"path_denied", "失"},         // 3→1
+			{"not_found", "無"},           // 2→1
+			{"range_out_of_bounds", "越"}, // 4→2 (越 is 2 toks alone — test confirms)
+			{"range_returned", "中"},      // 3→1
+			{"build_failed", "壊"},        // 2→2 (壊 is 2 toks — no win, drop?)
+			{"git_failed", "敗"},          // 2→2 (no win)
+			{"no_tests", "空"},            // 2→1
+			{"permission denied", "禁"},   // 2→2 (no win)
+			{"no such file", "無"},        // 3→1
 		},
 	},
 
@@ -51,8 +51,8 @@ var subSets = []subSet{
 	{
 		Name: "status_cjk", Surface: "status",
 		Pairs: [][2]string{
-			{"build_failed", "壊"},  // 2→2 (no win) — kept for completeness
-			{"no_tests", "空"},      // 2→1
+			{"build_failed", "壊"}, // 2→2 (no win) — kept for completeness
+			{"no_tests", "空"},     // 2→1
 			// pass/fail/skip/timeout/ok/err are already 1-token; do not touch.
 		},
 	},
@@ -145,7 +145,7 @@ var subSets = []subSet{
 	{
 		Name: "truncation_compact", Surface: "truncation",
 		Pairs: [][2]string{
-			{"TRUNCATED", "…"},      // header sentinel
+			{"TRUNCATED", "…"},     // header sentinel
 			{"[truncation:", "[…"}, // detail-prefix
 		},
 	},

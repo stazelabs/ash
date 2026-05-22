@@ -45,7 +45,7 @@ type Args struct {
 type FileTouch struct {
 	Path     string `msgpack:"path"`
 	Reads    int    `msgpack:"reads,omitempty"`
-	Edits    int    `msgpack:"edits,omitempty"` // write+edit calls (any mutation)
+	Edits    int    `msgpack:"edits,omitempty"`    // write+edit calls (any mutation)
 	Searches int    `msgpack:"searches,omitempty"` // grep/find calls whose --path matched
 }
 
@@ -323,5 +323,3 @@ func prettyPath(p string) string {
 	}
 	return pp
 }
-
-

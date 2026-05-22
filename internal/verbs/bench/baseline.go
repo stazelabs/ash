@@ -33,9 +33,9 @@ const (
 	baselineSchemaVersion        = "ash-bench-baseline-v1"
 	latencySnapshotSchemaVersion = "ash-bench-latency-snapshot-v1"
 
-	baselineDirName        = "bench"
-	baselineJSONName       = "baseline.json"
-	baselineMDName         = "baseline.md"
+	baselineDirName         = "bench"
+	baselineJSONName        = "baseline.json"
+	baselineMDName          = "baseline.md"
 	latencySnapshotJSONName = "latency-snapshot.json"
 
 	kindRecord = "record_baseline"
@@ -75,12 +75,12 @@ type BaselineFile struct {
 
 // LatencyCase is one row in latency-snapshot.json.
 type LatencyCase struct {
-	Name        string `json:"name"`
-	Verb        string `json:"verb"`
-	AshUsP50    int64  `json:"ash_us_p50"`
-	AshUsMin    int64  `json:"ash_us_min"`
-	BashUsP50   int64  `json:"bash_us_p50"`
-	BashUsMin   int64  `json:"bash_us_min"`
+	Name      string `json:"name"`
+	Verb      string `json:"verb"`
+	AshUsP50  int64  `json:"ash_us_p50"`
+	AshUsMin  int64  `json:"ash_us_min"`
+	BashUsP50 int64  `json:"bash_us_p50"`
+	BashUsMin int64  `json:"bash_us_min"`
 }
 
 // LatencySnapshotFile is the serialized form of latency-snapshot.json.
@@ -100,12 +100,12 @@ type LatencySnapshotFile struct {
 // surfaces the file paths written + the same summary the user would
 // see from a regular bench run, so the immediate output isn't silent.
 type RecordBaselineResult struct {
-	Kind          string         `msgpack:"kind"` // always "record_baseline"
-	BaselinePath  string         `msgpack:"baseline_path"`
-	MarkdownPath  string         `msgpack:"markdown_path"`
-	LatencyPath   string         `msgpack:"latency_path"`
-	BytesWritten  int            `msgpack:"bytes_written"`
-	Run           *Result        `msgpack:"run"`
+	Kind         string  `msgpack:"kind"` // always "record_baseline"
+	BaselinePath string  `msgpack:"baseline_path"`
+	MarkdownPath string  `msgpack:"markdown_path"`
+	LatencyPath  string  `msgpack:"latency_path"`
+	BytesWritten int     `msgpack:"bytes_written"`
+	Run          *Result `msgpack:"run"`
 }
 
 // ExportMdResult is the response shape for --export-md. The Body is
@@ -394,16 +394,16 @@ func loadBaselineFile(projectRoot string) (*BaselineFile, error) {
 // baseline file is tokens-only by design.
 func baselineToRunSummary(bf *BaselineFile) (RunSummary, []ledger.BenchCaseResult) {
 	rs := RunSummary{
-		RunUUID:        "baseline",
-		AshVersion:     bf.AshVersion,
-		AshCommitSHA:   bf.AshCommitSHA,
-		CaseSetVersion: bf.CaseSetVersion,
-		RepoSHA:        bf.RepoSHA,
-		RepoDirty:      bf.RepoDirty,
-		Cases:          bf.Summary.NCases,
-		AshTokensTotal: bf.Summary.AshTokensTotal,
+		RunUUID:         "baseline",
+		AshVersion:      bf.AshVersion,
+		AshCommitSHA:    bf.AshCommitSHA,
+		CaseSetVersion:  bf.CaseSetVersion,
+		RepoSHA:         bf.RepoSHA,
+		RepoDirty:       bf.RepoDirty,
+		Cases:           bf.Summary.NCases,
+		AshTokensTotal:  bf.Summary.AshTokensTotal,
 		BashTokensTotal: bf.Summary.BashTokensTotal,
-		DeltaTokPct:    bf.Summary.DeltaTokPct,
+		DeltaTokPct:     bf.Summary.DeltaTokPct,
 	}
 	if t, err := time.Parse(time.RFC3339, bf.Timestamp); err == nil {
 		rs.Timestamp = t

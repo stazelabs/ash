@@ -59,13 +59,13 @@ func runValidate(args []string) {
 	}
 
 	type row struct {
-		Corpus, Set                  string
-		ClBefore, ClAfter            int
-		ClDelta                      int
-		ClPct                        float64
-		ClaudeBefore, ClaudeAfter    int
-		ClaudeDelta                  int
-		ClaudePct                    float64
+		Corpus, Set               string
+		ClBefore, ClAfter         int
+		ClDelta                   int
+		ClPct                     float64
+		ClaudeBefore, ClaudeAfter int
+		ClaudeDelta               int
+		ClaudePct                 float64
 	}
 	var rows []row
 	cache := map[string]int{} // body -> Claude tokens, to avoid duplicate API calls
@@ -102,10 +102,10 @@ func runValidate(args []string) {
 				die("claude (%s/%s): %v", fn, set.Name, err)
 			}
 			r := row{
-				Corpus: strings.TrimSuffix(fn, ".txt"),
-				Set:    set.Name,
+				Corpus:   strings.TrimSuffix(fn, ".txt"),
+				Set:      set.Name,
 				ClBefore: clBefore, ClAfter: clAfter,
-				ClDelta: clBefore - clAfter,
+				ClDelta:      clBefore - clAfter,
 				ClaudeBefore: claudeBefore, ClaudeAfter: claudeAfter,
 				ClaudeDelta: claudeBefore - claudeAfter,
 			}

@@ -390,4 +390,3 @@ func TestParseArgs_AbsoluteFlag_Stat(t *testing.T) {
 		t.Error("Absolute default: want false")
 	}
 }
-

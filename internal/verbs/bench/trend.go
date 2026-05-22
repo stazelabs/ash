@@ -44,20 +44,20 @@ type ListResult struct {
 
 // CaseDelta is one row in a CompareResult.
 type CaseDelta struct {
-	CaseName       string  `msgpack:"case_name"`
-	Verb           string  `msgpack:"verb"`
-	AshTokA        int     `msgpack:"ash_tok_a"`
-	AshTokB        int     `msgpack:"ash_tok_b"`
-	BashTokA       int     `msgpack:"bash_tok_a,omitempty"`
-	BashTokB       int     `msgpack:"bash_tok_b,omitempty"`
-	DeltaTokPct    float64 `msgpack:"delta_tok_pct"`
-	AshLatUsP50A   int64   `msgpack:"ash_lat_us_p50_a"`
-	AshLatUsP50B   int64   `msgpack:"ash_lat_us_p50_b"`
-	DeltaLatPct    float64 `msgpack:"delta_lat_pct"`
-	Regressed      bool    `msgpack:"regressed,omitempty"`
-	Improved       bool    `msgpack:"improved,omitempty"`
-	OnlyInA        bool    `msgpack:"only_in_a,omitempty"`
-	OnlyInB        bool    `msgpack:"only_in_b,omitempty"`
+	CaseName     string  `msgpack:"case_name"`
+	Verb         string  `msgpack:"verb"`
+	AshTokA      int     `msgpack:"ash_tok_a"`
+	AshTokB      int     `msgpack:"ash_tok_b"`
+	BashTokA     int     `msgpack:"bash_tok_a,omitempty"`
+	BashTokB     int     `msgpack:"bash_tok_b,omitempty"`
+	DeltaTokPct  float64 `msgpack:"delta_tok_pct"`
+	AshLatUsP50A int64   `msgpack:"ash_lat_us_p50_a"`
+	AshLatUsP50B int64   `msgpack:"ash_lat_us_p50_b"`
+	DeltaLatPct  float64 `msgpack:"delta_lat_pct"`
+	Regressed    bool    `msgpack:"regressed,omitempty"`
+	Improved     bool    `msgpack:"improved,omitempty"`
+	OnlyInA      bool    `msgpack:"only_in_a,omitempty"`
+	OnlyInB      bool    `msgpack:"only_in_b,omitempty"`
 }
 
 // CompareResult is the response shape for --compare and --baseline.
@@ -461,5 +461,3 @@ func min(a, b int) int {
 	}
 	return b
 }
-
-

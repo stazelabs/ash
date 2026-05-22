@@ -59,19 +59,19 @@ type Args struct {
 	Verb   string
 	Case   string
 	Limit  int
-	Repeat int     // measured iterations per case per side; default 1
-	Warmup int     // unmeasured iterations per case per side; default 1 when Repeat>1, else 0
+	Repeat int // measured iterations per case per side; default 1
+	Warmup int // unmeasured iterations per case per side; default 1 when Repeat>1, else 0
 
 	// Trend / comparison flags. When any of these is set, the verb does
 	// not run a fresh bench by itself (except --baseline, which runs a
 	// new bench then compares against the rolling baseline).
-	List       bool    // --list: list recent runs and exit
-	ListLimit  int     // --list-limit N (default 20)
-	CompareA   string  // --compare A,B → run_uuid A. Special tokens: "latest", "baseline"
-	CompareB   string  //                  run_uuid B
-	Baseline   string  // --baseline <dur>: run new bench, compare to rolling baseline window (e.g. "7d")
-	RegressTokPct int // --regress-tokens 10 (default 10, meaning Δtok > +10%)
-	RegressLatPct int // --regress-latency 20 (default 20, meaning Δlat > +20%)
+	List          bool   // --list: list recent runs and exit
+	ListLimit     int    // --list-limit N (default 20)
+	CompareA      string // --compare A,B → run_uuid A. Special tokens: "latest", "baseline"
+	CompareB      string //                  run_uuid B
+	Baseline      string // --baseline <dur>: run new bench, compare to rolling baseline window (e.g. "7d")
+	RegressTokPct int    // --regress-tokens 10 (default 10, meaning Δtok > +10%)
+	RegressLatPct int    // --regress-latency 20 (default 20, meaning Δlat > +20%)
 
 	// Publishable artifact flags.
 	RecordBaseline bool // --record-baseline: run fresh bench, write bench/baseline.json + bench/latency-snapshot.json
@@ -114,20 +114,20 @@ type CaseResult struct {
 
 // VerbSummary aggregates CaseResult rows by verb.
 type VerbSummary struct {
-	Verb              string `msgpack:"verb"`
-	Cases             int    `msgpack:"cases"`
-	AshTokensTotal    int    `msgpack:"ash_tokens_total"`
-	BashTokensTotal   int    `msgpack:"bash_tokens_total"`
-	AshLatencyUsTotal int64  `msgpack:"ash_latency_us_total"`
-	BashLatencyUsTotal int64 `msgpack:"bash_latency_us_total"`
+	Verb               string `msgpack:"verb"`
+	Cases              int    `msgpack:"cases"`
+	AshTokensTotal     int    `msgpack:"ash_tokens_total"`
+	BashTokensTotal    int    `msgpack:"bash_tokens_total"`
+	AshLatencyUsTotal  int64  `msgpack:"ash_latency_us_total"`
+	BashLatencyUsTotal int64  `msgpack:"bash_latency_us_total"`
 }
 
 type Result struct {
-	RunUUID  string        `msgpack:"run_uuid,omitempty"`
-	Cases    []CaseResult  `msgpack:"cases"`
-	ByVerb   []VerbSummary `msgpack:"by_verb"`
-	Overall  VerbSummary   `msgpack:"overall"`
-	NotRun   []string      `msgpack:"not_run,omitempty"` // case names skipped (e.g. translation gap)
+	RunUUID   string            `msgpack:"run_uuid,omitempty"`
+	Cases     []CaseResult      `msgpack:"cases"`
+	ByVerb    []VerbSummary     `msgpack:"by_verb"`
+	Overall   VerbSummary       `msgpack:"overall"`
+	NotRun    []string          `msgpack:"not_run,omitempty"` // case names skipped (e.g. translation gap)
 	NotRunWhy map[string]string `msgpack:"not_run_why,omitempty"`
 }
 
@@ -476,7 +476,6 @@ func runBashOnce(argv []string) bench.BashResult {
 	return bench.RunBash(ctx, argv)
 }
 
-
 func aggregateByVerb(rows []CaseResult) []VerbSummary {
 	byVerb := map[string]*VerbSummary{}
 	for _, r := range rows {
@@ -701,5 +700,3 @@ func minUs(samples []int64) int64 {
 	}
 	return m
 }
-
-

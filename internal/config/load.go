@@ -13,10 +13,10 @@ import (
 //
 // Layer order — last-wins:
 //
-//   1. Defaults() — compiled-in baseline.
-//   2. GlobalPath() — $XDG_CONFIG_HOME/ash/config.toml (if present).
-//   3. ProjectPath(root) — <root>/ash.toml (if present).
-//   4. $ASH_CONFIG — explicit-path override (if non-empty).
+//  1. Defaults() — compiled-in baseline.
+//  2. GlobalPath() — $XDG_CONFIG_HOME/ash/config.toml (if present).
+//  3. ProjectPath(root) — <root>/ash.toml (if present).
+//  4. $ASH_CONFIG — explicit-path override (if non-empty).
 //
 // Each successful TOML decode happens against the same *Config value,
 // so non-zero fields in higher layers override lower layers. Absent
@@ -29,10 +29,11 @@ import (
 // be surprising.
 //
 // The returned source label is one of:
-//   "defaults"       — no file applied.
-//   "<global path>"  — only the global file applied.
-//   "<project path>" — project file applied (whether or not global did).
-//   "$ASH_CONFIG=<p>" — explicit override applied.
+//
+//	"defaults"       — no file applied.
+//	"<global path>"  — only the global file applied.
+//	"<project path>" — project file applied (whether or not global did).
+//	"$ASH_CONFIG=<p>" — explicit override applied.
 func Load(root string) (*Config, string, error) {
 	cfg := Defaults()
 	source := "defaults"

@@ -46,14 +46,14 @@ import (
 // values populate different subsets. Decide tolerates missing fields per
 // tool's expected shape.
 type Args struct {
-	ToolName  string `msgpack:"tool"`
-	Pattern   string `msgpack:"pattern,omitempty"`    // Grep/Glob
-	Path      string `msgpack:"path,omitempty"`       // Grep/Glob (and harness Read in some shapes)
-	Glob      string `msgpack:"glob,omitempty"`       // Grep
-	Command   string `msgpack:"command,omitempty"`    // Bash
-	FilePath  string `msgpack:"file,omitempty"`       // Read/Edit/Write (harness key)
-	OldString string `msgpack:"old,omitempty"`        // Edit
-	NewString string `msgpack:"new,omitempty"`        // Edit
+	ToolName     string   `msgpack:"tool"`
+	Pattern      string   `msgpack:"pattern,omitempty"`       // Grep/Glob
+	Path         string   `msgpack:"path,omitempty"`          // Grep/Glob (and harness Read in some shapes)
+	Glob         string   `msgpack:"glob,omitempty"`          // Grep
+	Command      string   `msgpack:"command,omitempty"`       // Bash
+	FilePath     string   `msgpack:"file,omitempty"`          // Read/Edit/Write (harness key)
+	OldString    string   `msgpack:"old,omitempty"`           // Edit
+	NewString    string   `msgpack:"new,omitempty"`           // Edit
 	Content      string   `msgpack:"content,omitempty"`       // Write
 	ExcludeVerbs []string `msgpack:"exclude_verbs,omitempty"` // from ash.toml [hook].exclude_verbs
 }
@@ -74,12 +74,12 @@ const nudgeTail = `See CLAUDE.md "When to prefer ash over bash". If ash genuinel
 // Read is denied for source-text files but allowed for image/PDF/notebook
 // formats that ash read can't render meaningfully.
 var allowedReadExts = map[string]bool{
-	".png":  true,
-	".jpg":  true,
-	".jpeg": true,
-	".gif":  true,
-	".webp": true,
-	".pdf":  true,
+	".png":   true,
+	".jpg":   true,
+	".jpeg":  true,
+	".gif":   true,
+	".webp":  true,
+	".pdf":   true,
 	".ipynb": true,
 }
 
@@ -435,10 +435,11 @@ func suggestStat(paths []string) string {
 // since pure stream-transform sed has no ash equivalent today.
 //
 // Recognized forms:
-//   sed -i 's|X|Y|[g]?' FILE       → ash edit --old/--new [--replace_all true]
-//   sed -n 'A,Bp' FILE / 'Np'      → ash read --range A:B
-//   sed -i 'A,Bd' FILE / 'Nd'      → ash edit --range A:B --new ''
-//   anything else with a file arg  → generic ash edit/read/write fallback
+//
+//	sed -i 's|X|Y|[g]?' FILE       → ash edit --old/--new [--replace_all true]
+//	sed -n 'A,Bp' FILE / 'Np'      → ash read --range A:B
+//	sed -i 'A,Bd' FILE / 'Nd'      → ash edit --range A:B --new ''
+//	anything else with a file arg  → generic ash edit/read/write fallback
 func parseSedCommand(args []string) (file, suggestion string) {
 	args = stripRedirections(args)
 	var exprs []string
@@ -585,7 +586,7 @@ func parseSedRange(expr string, cmd byte) (start, end int, ok bool) {
 
 // looksLikeBSDBackup returns true when s plausibly is a BSD sed -i
 // backup-suffix argument rather than a sed expression. The empty-string
-// case (BSD's `-i ''` for no-backup) is handled by the caller before
+// case (BSD's `-i ”` for no-backup) is handled by the caller before
 // this function is consulted.
 func looksLikeBSDBackup(s string) bool {
 	if s == "~" {

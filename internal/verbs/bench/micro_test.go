@@ -15,10 +15,10 @@ func TestStripGOMAXPROCS(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"BenchmarkFoo-8", "BenchmarkFoo"},
 		{"BenchmarkFoo/bar-16", "BenchmarkFoo/bar"},
-		{"BenchmarkFoo", "BenchmarkFoo"},          // no suffix
+		{"BenchmarkFoo", "BenchmarkFoo"},                     // no suffix
 		{"BenchmarkFoo-not-a-num", "BenchmarkFoo-not-a-num"}, // non-numeric suffix
-		{"-8", ""},                                // edge: just the suffix
-		{"BenchmarkFoo-", "BenchmarkFoo-"},        // empty after dash
+		{"-8", ""},                         // edge: just the suffix
+		{"BenchmarkFoo-", "BenchmarkFoo-"}, // empty after dash
 	}
 	for _, c := range cases {
 		if got := stripGOMAXPROCS(c.in); got != c.want {
@@ -234,7 +234,7 @@ func TestPrettyMicro_WithRows(t *testing.T) {
 	out := prettyMicro(r)
 	for _, want := range []string{
 		"§bench --micro: 1 benchmark(s)",
-		"benchmark", // header line
+		"benchmark",    // header line
 		"BenchmarkFoo", // body
 		"cmd/ash",
 		"ERROR internal/broken",

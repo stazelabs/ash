@@ -32,8 +32,8 @@ import (
 	"github.com/stazelabs/ash/internal/verbs/replay"
 	"github.com/stazelabs/ash/internal/verbs/report"
 	"github.com/stazelabs/ash/internal/verbs/stat"
-	"github.com/stazelabs/ash/internal/verbs/test"
 	"github.com/stazelabs/ash/internal/verbs/stop"
+	"github.com/stazelabs/ash/internal/verbs/test"
 	"github.com/stazelabs/ash/internal/verbs/turn"
 	"github.com/stazelabs/ash/internal/verbs/uninit"
 	"github.com/stazelabs/ash/internal/verbs/usage"
@@ -66,30 +66,30 @@ type Runner struct {
 // the canonical pretty form).
 func PrettyHandlers() map[string]Pretty {
 	return map[string]Pretty{
-		"read":    read.PrettyResponse,
-		"find":    find.PrettyResponse,
-		"grep":    grep.PrettyResponse,
-		"git":     git.PrettyResponse,
+		"read":      read.PrettyResponse,
+		"find":      find.PrettyResponse,
+		"grep":      grep.PrettyResponse,
+		"git":       git.PrettyResponse,
 		"metrics":   metrics.PrettyResponse,
 		"report":    report.PrettyResponse,
 		"recap":     recap.PrettyResponse,
 		"workspace": workspace.PrettyResponse,
 		"replay":    replay.PrettyResponse,
 		"help":      help.PrettyResponse,
-		"hook":    hook.PrettyResponse,
-		"stat":    stat.PrettyResponse,
-		"write":   write.PrettyResponse,
-		"edit":    edit.PrettyResponse,
-		"diff":    diff.PrettyResponse,
-		"bench":   bench.PrettyResponse,
-		"build":   build.PrettyResponse,
-		"test":    test.PrettyResponse,
-		"init":    initverb.PrettyResponse,
-		"uninit":  uninit.PrettyResponse,
-		"stop":    stop.PrettyResponse,
-		"turn":    turn.PrettyResponse,
-		"usage":   usage.PrettyResponse,
-		"lang":    lang.PrettyResponse,
+		"hook":      hook.PrettyResponse,
+		"stat":      stat.PrettyResponse,
+		"write":     write.PrettyResponse,
+		"edit":      edit.PrettyResponse,
+		"diff":      diff.PrettyResponse,
+		"bench":     bench.PrettyResponse,
+		"build":     build.PrettyResponse,
+		"test":      test.PrettyResponse,
+		"init":      initverb.PrettyResponse,
+		"uninit":    uninit.PrettyResponse,
+		"stop":      stop.PrettyResponse,
+		"turn":      turn.PrettyResponse,
+		"usage":     usage.PrettyResponse,
+		"lang":      lang.PrettyResponse,
 	}
 }
 
@@ -123,31 +123,31 @@ func Runners(led *ledger.Ledger, cfg *config.Config, daemonStart time.Time, proj
 	}
 	pretty := PrettyHandlers()
 	runners := map[string]Runner{
-		"read":    wrap(read.ParseArgs, read.Run, func(r *read.Result) bool { return r.Truncated }),
-		"find":    wrap(find.ParseArgs, find.Run, func(r *find.Result) bool { return r.Truncated }),
-		"grep":    wrap(grep.ParseArgs, grep.Run, func(r *grep.Result) bool { return r.Truncated }),
-		"git":     wrap(git.ParseArgs, git.Run, nil),
+		"read":      wrap(read.ParseArgs, read.Run, func(r *read.Result) bool { return r.Truncated }),
+		"find":      wrap(find.ParseArgs, find.Run, func(r *find.Result) bool { return r.Truncated }),
+		"grep":      wrap(grep.ParseArgs, grep.Run, func(r *grep.Result) bool { return r.Truncated }),
+		"git":       wrap(git.ParseArgs, git.Run, nil),
 		"metrics":   wrapLedger(led, metrics.ParseArgs, metrics.RunWithLedger),
 		"report":    wrapLedger(led, report.ParseArgs, report.RunWithLedger),
 		"recap":     wrapLedger(led, recap.ParseArgs, recap.RunWithLedger),
 		"workspace": wrapLedger(led, workspace.ParseArgs, workspace.RunWithLedger),
-		"help":    wrap(help.ParseArgs, help.Run, nil),
-		"hook":    wrap(hook.ParseArgs, hook.Run, nil),
-		"stat":    wrap(stat.ParseArgs, stat.Run, nil),
-		"write":   wrap(write.ParseArgs, write.Run, nil),
-		"edit":    wrap(edit.ParseArgs, edit.Run, nil),
+		"help":      wrap(help.ParseArgs, help.Run, nil),
+		"hook":      wrap(hook.ParseArgs, hook.Run, nil),
+		"stat":      wrap(stat.ParseArgs, stat.Run, nil),
+		"write":     wrap(write.ParseArgs, write.Run, nil),
+		"edit":      wrap(edit.ParseArgs, edit.Run, nil),
 		"build": wrap(build.ParseArgs, func(a *build.Args, tr *proto.Tracer) (*build.Result, *proto.Error) {
 			return build.Run(a, tr, cfg.Runner.Build)
 		}, func(r *build.Result) bool { return r.Truncated }),
-		"diff":    wrap(diff.ParseArgs, diff.Run, nil),
+		"diff": wrap(diff.ParseArgs, diff.Run, nil),
 		"test": wrap(test.ParseArgs, func(a *test.Args, tr *proto.Tracer) (*test.Result, *proto.Error) {
 			return test.Run(a, tr, cfg.Runner.Test)
 		}, func(r *test.Result) bool { return r.Truncated }),
-		"init":    wrap(initverb.ParseArgs, initverb.Run, nil),
-		"uninit":  wrap(uninit.ParseArgs, uninit.Run, nil),
-		"stop":    wrap(stop.ParseArgs, stop.Run, nil),
-		"turn":    wrapLedger(led, turn.ParseArgs, turn.RunWithLedger),
-		"usage":   wrapLedger(led, usage.ParseArgs, usage.RunWithLedger),
+		"init":   wrap(initverb.ParseArgs, initverb.Run, nil),
+		"uninit": wrap(uninit.ParseArgs, uninit.Run, nil),
+		"stop":   wrap(stop.ParseArgs, stop.Run, nil),
+		"turn":   wrapLedger(led, turn.ParseArgs, turn.RunWithLedger),
+		"usage":  wrapLedger(led, usage.ParseArgs, usage.RunWithLedger),
 	}
 	runners["bench"] = Runner{
 		Run: func(args map[string]any, _ *proto.Tracer) (any, *proto.Error) {

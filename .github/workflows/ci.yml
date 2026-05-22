@@ -33,6 +33,11 @@ jobs:
       - name: vet
         run: go vet ./...
 
+      # gofmt gate (ASH-220): fail on any unformatted file so formatting
+      # drift cannot re-accumulate.
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { echo 'unformatted:'; gofmt -l .; exit 1; }
+
       - name: test
         run: go test ./...
 

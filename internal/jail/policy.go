@@ -194,12 +194,12 @@ func PathPrefixes() []string {
 //
 // The map shape is chosen to keep verb-side call sites short:
 //
-//   if perr := jail.CheckPaths(map[string]string{
-//       "path":  a.Path,
-//       "other": a.Other,
-//   }); perr != nil {
-//       return nil, perr
-//   }
+//	if perr := jail.CheckPaths(map[string]string{
+//	    "path":  a.Path,
+//	    "other": a.Other,
+//	}); perr != nil {
+//	    return nil, perr
+//	}
 //
 // Empty values in the map are skipped — verbs use empty string to mean
 // "not provided" for optional path args.

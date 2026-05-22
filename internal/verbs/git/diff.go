@@ -20,12 +20,12 @@ const (
 
 // DiffResult is the structured replacement for `git diff` text scraping.
 type DiffResult struct {
-	Files          []DiffFile `msgpack:"files,omitempty"`
-	TotalAdditions int        `msgpack:"total_additions"`
-	TotalDeletions int        `msgpack:"total_deletions"`
-	Truncated      bool       `msgpack:"truncated,omitempty"`
+	Files          []DiffFile       `msgpack:"files,omitempty"`
+	TotalAdditions int              `msgpack:"total_additions"`
+	TotalDeletions int              `msgpack:"total_deletions"`
+	Truncated      bool             `msgpack:"truncated,omitempty"`
 	TruncInfo      *proto.TruncInfo `msgpack:"truncation_hint,omitempty"`
-	StatOnly       bool       `msgpack:"stat_only,omitempty"`
+	StatOnly       bool             `msgpack:"stat_only,omitempty"`
 }
 
 // DiffFile captures one changed file from a diff. In full (non-stat) mode,
@@ -167,10 +167,10 @@ func parseDiffUnified(out []byte, limitBytes int) (*DiffResult, *proto.Error) {
 	}
 
 	var (
-		files      []DiffFile
-		current    *DiffFile
-		patchBuf   strings.Builder
-		inHunk     bool
+		files    []DiffFile
+		current  *DiffFile
+		patchBuf strings.Builder
+		inHunk   bool
 	)
 
 	finalize := func() {

@@ -93,8 +93,8 @@ type Result struct {
 	LinesTotal   int    `msgpack:"lines_total"`
 	Occurrences  int    `msgpack:"occurrences"` // replacements made; hunk count in patch mode
 	DryRun       bool   `msgpack:"dry_run,omitempty"`
-	Patch        string `msgpack:"patch,omitempty"`         // unified diff when dry_run=true
-	FuzzApplied  int    `msgpack:"fuzz_applied,omitempty"`  // ASH-152: hunks placed via fuzz scan (line-number drift > 0); 0 when every hunk matched at its authored position
+	Patch        string `msgpack:"patch,omitempty"`        // unified diff when dry_run=true
+	FuzzApplied  int    `msgpack:"fuzz_applied,omitempty"` // ASH-152: hunks placed via fuzz scan (line-number drift > 0); 0 when every hunk matched at its authored position
 }
 
 // aliasArg lets a harness-style key stand in for an ash flag: when alias
@@ -413,7 +413,7 @@ func parsePatch(patchText string) ([]patchHunk, error) {
 		hunks = append(hunks, patchHunk{
 			oldStart: oldStart, oldCount: oldCount,
 			newStart: newStart, newCount: newCount,
-			lines:    bodyLines,
+			lines: bodyLines,
 		})
 	}
 

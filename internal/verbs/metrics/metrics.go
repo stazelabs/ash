@@ -30,16 +30,16 @@ type Args struct {
 }
 
 type Row struct {
-	Timestamp     int64  `msgpack:"ts"`
-	Verb          string `msgpack:"verb"`
-	OK            bool   `msgpack:"ok"`
-	ErrCode       string `msgpack:"err_code,omitempty"`
-	TokensIn      int    `msgpack:"tokens_in"`
-	TokensOut     int    `msgpack:"tokens_out"`
-	LatencyExecUs int64  `msgpack:"latency_exec_us"`
-	BytesIn       int    `msgpack:"bytes_in"`
-	BytesOut      int    `msgpack:"bytes_out"`
-	Truncated     bool   `msgpack:"truncated,omitempty"`
+	Timestamp         int64  `msgpack:"ts"`
+	Verb              string `msgpack:"verb"`
+	OK                bool   `msgpack:"ok"`
+	ErrCode           string `msgpack:"err_code,omitempty"`
+	TokensIn          int    `msgpack:"tokens_in"`
+	TokensOut         int    `msgpack:"tokens_out"`
+	LatencyExecUs     int64  `msgpack:"latency_exec_us"`
+	BytesIn           int    `msgpack:"bytes_in"`
+	BytesOut          int    `msgpack:"bytes_out"`
+	Truncated         bool   `msgpack:"truncated,omitempty"`
 	WalkUs            int64  `msgpack:"walk_us,omitempty"`
 	IOUs              int64  `msgpack:"io_us,omitempty"`
 	RegexUs           int64  `msgpack:"regex_us,omitempty"`
@@ -89,16 +89,16 @@ func ResultFromCalls(calls []ledger.Call) *Result {
 	rows := make([]Row, 0, len(calls))
 	for _, c := range calls {
 		rows = append(rows, Row{
-			Timestamp:     c.Timestamp.UnixNano(),
-			Verb:          c.Verb,
-			OK:            c.OK,
-			ErrCode:       c.ErrCode,
-			TokensIn:      c.TokensIn,
-			TokensOut:     c.TokensOut,
-			LatencyExecUs: c.LatencyExecUs,
-			BytesIn:       c.BytesIn,
-			BytesOut:      c.BytesOut,
-			Truncated:     c.Truncated,
+			Timestamp:         c.Timestamp.UnixNano(),
+			Verb:              c.Verb,
+			OK:                c.OK,
+			ErrCode:           c.ErrCode,
+			TokensIn:          c.TokensIn,
+			TokensOut:         c.TokensOut,
+			LatencyExecUs:     c.LatencyExecUs,
+			BytesIn:           c.BytesIn,
+			BytesOut:          c.BytesOut,
+			Truncated:         c.Truncated,
 			WalkUs:            c.WalkUs,
 			IOUs:              c.IOUs,
 			RegexUs:           c.RegexUs,

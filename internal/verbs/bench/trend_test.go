@@ -52,10 +52,10 @@ func TestPctChangeInt64(t *testing.T) {
 // when latency improved (or vice versa).
 func TestClassifyDelta(t *testing.T) {
 	cases := []struct {
-		name                   string
-		dTok, dLat             float64
-		regTok, regLat         float64
-		wantRegress, wantImpr  bool
+		name                  string
+		dTok, dLat            float64
+		regTok, regLat        float64
+		wantRegress, wantImpr bool
 	}{
 		// Below thresholds → neither.
 		{name: "small_changes", dTok: 5, dLat: 10, regTok: 10, regLat: 20, wantRegress: false, wantImpr: false},

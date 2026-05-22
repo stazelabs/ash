@@ -70,8 +70,8 @@ func TestNoArgTokenBudget(t *testing.T) {
 // verb's arg schema.
 func TestGlobalFlagsFooter(t *testing.T) {
 	for _, in := range []*Args{
-		{Verb: ""},      // list-all branch
-		{Verb: "grep"},  // single-verb branch
+		{Verb: ""},     // list-all branch
+		{Verb: "grep"}, // single-verb branch
 	} {
 		result, perr := Run(in, nil)
 		if perr != nil {
@@ -138,4 +138,3 @@ func TestVerboseSurfacesLong(t *testing.T) {
 		t.Errorf("verbose=true help missing Long marker @PATH:\n%s", verbose)
 	}
 }
-

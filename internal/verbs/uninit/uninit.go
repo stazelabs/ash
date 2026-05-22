@@ -6,10 +6,10 @@
 //	no_registry bool   (optional) - skip the registry write
 //
 // uninit:
-//   1. Removes any PreToolUse entry whose hooks invoke `ash hook` from
-//      <root>/.claude/settings.json.
-//   2. Removes the `.ash/` line from <root>/.gitignore if present.
-//   3. Drops the registry entry for the absolute root.
+//  1. Removes any PreToolUse entry whose hooks invoke `ash hook` from
+//     <root>/.claude/settings.json.
+//  2. Removes the `.ash/` line from <root>/.gitignore if present.
+//  3. Drops the registry entry for the absolute root.
 //
 // Removing the only PreToolUse entry leaves the array empty (and we
 // strip an empty `hooks.PreToolUse` so the file doesn't grow stale

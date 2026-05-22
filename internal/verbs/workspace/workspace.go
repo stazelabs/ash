@@ -60,12 +60,12 @@ type SearchEntry struct {
 }
 
 type GitStatus struct {
-	Branch  string `msgpack:"branch,omitempty"`
-	Head    string `msgpack:"head,omitempty"`
-	Clean   bool   `msgpack:"clean"`
-	Staged  int    `msgpack:"staged,omitempty"`
-	Unstaged int   `msgpack:"unstaged,omitempty"`
-	Untracked int  `msgpack:"untracked,omitempty"`
+	Branch    string `msgpack:"branch,omitempty"`
+	Head      string `msgpack:"head,omitempty"`
+	Clean     bool   `msgpack:"clean"`
+	Staged    int    `msgpack:"staged,omitempty"`
+	Unstaged  int    `msgpack:"unstaged,omitempty"`
+	Untracked int    `msgpack:"untracked,omitempty"`
 	// Available is false when no git repo was detected; the rest of
 	// the struct is then meaningless and PrettyResponse skips the line.
 	Available bool   `msgpack:"available"`
@@ -73,10 +73,10 @@ type GitStatus struct {
 }
 
 type LastError struct {
-	Verb    string `msgpack:"verb"`
-	Code    string `msgpack:"code"`
-	Msg     string `msgpack:"msg,omitempty"`
-	Ts      int64  `msgpack:"ts"`
+	Verb string `msgpack:"verb"`
+	Code string `msgpack:"code"`
+	Msg  string `msgpack:"msg,omitempty"`
+	Ts   int64  `msgpack:"ts"`
 }
 
 type Result struct {
@@ -386,6 +386,3 @@ func truncate(s string, n int) string {
 	}
 	return s[:n] + "…"
 }
-
-
-

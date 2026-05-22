@@ -126,7 +126,7 @@ func TestRun_BasicLiteralCaseSensitive(t *testing.T) {
 	// app.log is gitignored, .git/ is hidden, binary.dat is skipped.
 	want := []string{
 		"a.go:2",
-		"b.go:3",     // "Foo Foo" — only one record per matching line
+		"b.go:3", // "Foo Foo" — only one record per matching line
 		"src/main.go:3",
 	}
 	if !equal(got, want) {
@@ -162,8 +162,8 @@ func TestRun_SmartCaseLowercaseGoesInsensitive(t *testing.T) {
 		"README.md:2", // "foo bar baz"
 		"README.md:3", // "FOO bar"
 		"a.go:2",
-		"b.go:2",      // "// FOO marker"
-		"b.go:3",      // "Foo Foo"
+		"b.go:2", // "// FOO marker"
+		"b.go:3", // "Foo Foo"
 		"src/main.go:3",
 		"src/util.go:2",
 	}
@@ -733,19 +733,19 @@ func equalInt(a, b []int) bool {
 func TestParseArgs_WireShape(t *testing.T) {
 	root := makeTree(t)
 	a, perr := ParseArgs(map[string]any{
-		"pattern":           "foo",
-		"path":              root,
-		"limit":     "100",
-		"mpf":      "5",
-		"cb":    "2",
-		"ca":     "3",
-		"depth":         "4",
-		"lit":      "true",
-		"word":              "false",
-		"fo":        "true",
-		"no-text":           "false",
-		"hidden":    "true",
-		"gi": "false",
+		"pattern": "foo",
+		"path":    root,
+		"limit":   "100",
+		"mpf":     "5",
+		"cb":      "2",
+		"ca":      "3",
+		"depth":   "4",
+		"lit":     "true",
+		"word":    "false",
+		"fo":      "true",
+		"no-text": "false",
+		"hidden":  "true",
+		"gi":      "false",
 	})
 	if perr != nil {
 		t.Fatalf("valid string args rejected: %v", perr)
@@ -956,7 +956,7 @@ func TestParseArgs_AbsoluteFlag(t *testing.T) {
 // prepends a @0 alias table when allow_paths is configured and rewrites paths
 // under that root as @0/<tail>.
 func TestPrettyResponse_AliasTableSingleAllowPath(t *testing.T) {
-	root    := t.TempDir()
+	root := t.TempDir()
 	scratch := t.TempDir()
 	canon := func(p string) string {
 		if r, err := filepath.EvalSymlinks(p); err == nil {
@@ -992,9 +992,9 @@ func TestPrettyResponse_AliasTableSingleAllowPath(t *testing.T) {
 // TestPrettyResponse_AliasTableTwoAllowPaths verifies the multi-root case:
 // two allow_paths entries produce @0 and @1 aliases in a single response.
 func TestPrettyResponse_AliasTableTwoAllowPaths(t *testing.T) {
-	root    := t.TempDir()
+	root := t.TempDir()
 	scratch := t.TempDir()
-	vendor  := t.TempDir()
+	vendor := t.TempDir()
 	canon := func(p string) string {
 		if r, err := filepath.EvalSymlinks(p); err == nil {
 			return r
@@ -1035,7 +1035,7 @@ func TestPrettyResponse_AliasTableTwoAllowPaths(t *testing.T) {
 
 // TestPrettyResponse_FilesOnlyAliasTable verifies alias table works in files_only mode.
 func TestPrettyResponse_FilesOnlyAliasTable(t *testing.T) {
-	root    := t.TempDir()
+	root := t.TempDir()
 	scratch := t.TempDir()
 	canon := func(p string) string {
 		if r, err := filepath.EvalSymlinks(p); err == nil {

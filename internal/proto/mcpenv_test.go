@@ -51,9 +51,9 @@ func TestMCPTruncationHint(t *testing.T) {
 	// Defensive paths must all return nil so the sentinel stays off
 	// in any error / pre-decode state.
 	for name, r := range map[string]*Response{
-		"nil response":   nil,
-		"err response":   {OK: false, Err: &Error{Code: "boom", Msg: "x"}},
-		"empty data":     {OK: true},
+		"nil response": nil,
+		"err response": {OK: false, Err: &Error{Code: "boom", Msg: "x"}},
+		"empty data":   {OK: true},
 		"non-ok with data": {
 			OK:   false,
 			Data: MustData(resWithTrunc{Count: 1, Hint: &TruncInfo{Trunc: 1, Limit: 1, Max: 1}}),

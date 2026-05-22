@@ -8,9 +8,9 @@ import (
 // GlobalPath returns the user-global config file path.
 //
 // Resolution order mirrors internal/registry/registry.go:
-//   1. $XDG_CONFIG_HOME/ash/config.toml
-//   2. ~/.config/ash/config.toml
-//   3. $TMPDIR/ash-config.toml — last-resort writable fallback
+//  1. $XDG_CONFIG_HOME/ash/config.toml
+//  2. ~/.config/ash/config.toml
+//  3. $TMPDIR/ash-config.toml — last-resort writable fallback
 //
 // The directory is not created here; Load only reads.
 func GlobalPath() string {

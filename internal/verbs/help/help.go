@@ -19,7 +19,7 @@ import (
 
 type ArgSchema struct {
 	Name        string   `msgpack:"name"`
-	Type        string   `msgpack:"type"`             // "string" | "int" | "bool"
+	Type        string   `msgpack:"type"` // "string" | "int" | "bool"
 	Required    bool     `msgpack:"required,omitempty"`
 	Default     string   `msgpack:"default,omitempty"`
 	Description string   `msgpack:"description"`
@@ -31,8 +31,8 @@ type ArgSchema struct {
 }
 
 type VerbSchema struct {
-	Verb        string      `msgpack:"verb"`
-	Description string      `msgpack:"description"`
+	Verb        string `msgpack:"verb"`
+	Description string `msgpack:"description"`
 	// Tier classifies the verb by usage pattern for optimization policy
 	// (see docs/optimization-tiers.md). One of "A" (inner-loop agent),
 	// "B" (episodic agent), "C" (bootstrap), "D" (instrumentation/meta).

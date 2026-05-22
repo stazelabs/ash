@@ -35,12 +35,12 @@ type Args struct {
 }
 
 type Result struct {
-	PathA      string `msgpack:"path_a"`
-	PathB      string `msgpack:"path_b"`
-	Additions  int    `msgpack:"additions"`
-	Deletions  int    `msgpack:"deletions"`
-	Patch      string `msgpack:"patch"`
-	Unchanged  bool   `msgpack:"unchanged,omitempty"` // true when the two sides are identical
+	PathA     string `msgpack:"path_a"`
+	PathB     string `msgpack:"path_b"`
+	Additions int    `msgpack:"additions"`
+	Deletions int    `msgpack:"deletions"`
+	Patch     string `msgpack:"patch"`
+	Unchanged bool   `msgpack:"unchanged,omitempty"` // true when the two sides are identical
 }
 
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
@@ -75,7 +75,7 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 		return nil, &proto.Error{Code: "args", Msg: "one of other or content is required"}
 	}
 	if perr := jail.CheckPaths(map[string]string{
-		"path": a.Path,
+		"path":  a.Path,
 		"other": a.Other,
 	}); perr != nil {
 		return nil, perr

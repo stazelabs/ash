@@ -12,10 +12,10 @@ import (
 // chunk grep yields so tests can compare the streamed sequence against
 // the cumulative Result.Matches and prove they agree.
 type streamCapture struct {
-	mu     sync.Mutex
-	items  []Match
-	emits  int
-	flush  int
+	mu    sync.Mutex
+	items []Match
+	emits int
+	flush int
 }
 
 func (s *streamCapture) Emit(c any) error {

@@ -25,11 +25,11 @@ func TestParseArgs_WireShape(t *testing.T) {
 // and rejects non-benchmark lines.
 func TestParseBenchLine(t *testing.T) {
 	cases := []struct {
-		line        string
-		wantOK      bool
-		wantBase    string
-		wantNs      float64
-		wantAllocs  float64
+		line       string
+		wantOK     bool
+		wantBase   string
+		wantNs     float64
+		wantAllocs float64
 	}{
 		{
 			line:       "BenchmarkHookDecide/deny_grep-8\t5614714\t213.8 ns/op\t0 B/op\t0 allocs/op",
@@ -81,11 +81,11 @@ func TestParseBenchLine(t *testing.T) {
 // accept wire-shape inputs from the CLI parseFlags path.
 func TestParseArgs_MicroFlags(t *testing.T) {
 	a, perr := ParseArgs(map[string]any{
-		"micro":          "true",
-		"record_micro":   "false",
-		"micro_count":    "3",
+		"micro":           "true",
+		"record_micro":    "false",
+		"micro_count":     "3",
 		"micro_benchtime": "2s",
-		"micro_packages": "cmd/ash,internal/walker",
+		"micro_packages":  "cmd/ash,internal/walker",
 	})
 	if perr != nil {
 		t.Fatalf("parse failed: %v", perr)

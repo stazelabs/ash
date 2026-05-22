@@ -291,13 +291,13 @@ func runDiffMicro(d Deps, a *Args) (*DiffMicroResult, *proto.Error) {
 // averaged across them.
 func parseMicroRows(pkg string, tr *testverb.Result) []MicroBenchRow {
 	type acc struct {
-		count      int
-		nsSum      float64
-		bSum       float64
-		allocsSum  float64
-		n          int64
-		name       string
-		baseName   string
+		count     int
+		nsSum     float64
+		bSum      float64
+		allocsSum float64
+		n         int64
+		name      string
+		baseName  string
 	}
 	accs := map[string]*acc{}
 	var order []string
@@ -320,13 +320,13 @@ func parseMicroRows(pkg string, tr *testverb.Result) []MicroBenchRow {
 			} else {
 				order = append(order, key)
 				accs[key] = &acc{
-					count:    1,
-					nsSum:    row.NsPerOp,
-					bSum:     row.BPerOp,
+					count:     1,
+					nsSum:     row.NsPerOp,
+					bSum:      row.BPerOp,
 					allocsSum: row.AllocsPerOp,
-					n:        row.N,
-					name:     row.Name,
-					baseName: row.BaseName,
+					n:         row.N,
+					name:      row.Name,
+					baseName:  row.BaseName,
 				}
 			}
 		}

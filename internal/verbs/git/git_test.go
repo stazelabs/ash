@@ -197,14 +197,14 @@ func TestParseArgs_DefaultsAndStatus(t *testing.T) {
 // breaking the string-coercion path.
 func TestParseArgs_WireShape(t *testing.T) {
 	a, perr := ParseArgs(map[string]any{
-		"op":          "log",
-		"limit":       "5",
-		"context":     "2",
-		"bytes": "512",
-		"untracked":   "false",
-		"ignored":     "true",
-		"staged":      "true",
-		"stat":        "true",
+		"op":        "log",
+		"limit":     "5",
+		"context":   "2",
+		"bytes":     "512",
+		"untracked": "false",
+		"ignored":   "true",
+		"staged":    "true",
+		"stat":      "true",
 	})
 	if perr != nil {
 		t.Fatalf("valid string args rejected: %v", perr)

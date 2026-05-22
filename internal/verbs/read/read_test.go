@@ -13,10 +13,10 @@ import (
 func TestApplyRange_Lines(t *testing.T) {
 	body := []byte("alpha\nbeta\ngamma\ndelta\nepsilon\n")
 	cases := []struct {
-		name           string
-		spec           string
-		want           string
-		wantRangeBack  string
+		name          string
+		spec          string
+		want          string
+		wantRangeBack string
 	}{
 		{"first line", "1:1", "alpha\n", "1:1"},
 		{"middle range", "2:3", "beta\ngamma\n", "2:3"},

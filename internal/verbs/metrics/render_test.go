@@ -51,8 +51,8 @@ func TestPickColumns_EachFlagIndependent(t *testing.T) {
 // whole table — ensures we don't only check the first row.
 func TestPickColumns_AnyRowLightsTheColumn(t *testing.T) {
 	rows := []Row{
-		{Verb: "find"},  // no sub-phases
-		{Verb: "grep"},  // no sub-phases
+		{Verb: "find"},                         // no sub-phases
+		{Verb: "grep"},                         // no sub-phases
 		{Verb: "stat", WalkUs: 123, IOUs: 456}, // these two should light up
 	}
 	cs := pickColumns(rows)
@@ -158,7 +158,7 @@ func TestPrettyResponse_FullTable(t *testing.T) {
 				TokensIn: 10, TokensOut: 100, LatencyExecUs: 500,
 				WalkUs: 200, IOUs: 150, RegexUs: 80, RegexCompileUs: 30,
 				LatencyDispatchUs: 20,
-				BytesOutEmit: 1024, TokensOutEmit: 42,
+				BytesOutEmit:      1024, TokensOutEmit: 42,
 				TokensCacheHit: 500, TokensCacheMiss: 100,
 			},
 			{
