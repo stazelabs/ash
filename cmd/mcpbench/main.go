@@ -6,18 +6,18 @@
 //
 // What this measures
 //
-//   ashmcp_env_tok: the json-serialized CallToolResult that ashmcp emits
-//                   to an MCP harness (StructuredContent + meta + the
-//                   truncation TextContent sentinel where applicable).
-//                   This is the production cost an MCP-aware harness
-//                   pays per tool call.
-//   cli_tok:        direct ash CLI cost from bench/baseline.json.
-//   harness_env_tok: a CallToolResult of the same shape a hypothetical
-//                    harness-native MCP tool (Read/Grep/Glob in
-//                    another MCP server) would return: TextContent
-//                    holding the cat-n / file:line:content / glob-paths
-//                    payload, no StructuredContent. Built from the same
-//                    simulator used by cmd/harnessbench.
+//	ashmcp_env_tok: the json-serialized CallToolResult that ashmcp emits
+//	                to an MCP harness (StructuredContent + meta + the
+//	                truncation TextContent sentinel where applicable).
+//	                This is the production cost an MCP-aware harness
+//	                pays per tool call.
+//	cli_tok:        direct ash CLI cost from bench/baseline.json.
+//	harness_env_tok: a CallToolResult of the same shape a hypothetical
+//	                 harness-native MCP tool (Read/Grep/Glob in
+//	                 another MCP server) would return: TextContent
+//	                 holding the cat-n / file:line:content / glob-paths
+//	                 payload, no StructuredContent. Built from the same
+//	                 simulator used by cmd/harnessbench.
 //
 // Three-way comparison answers: "is ashmcp's envelope tax eating the
 // per-call payload wins we have over CLI?" If ashmcp_env_tok is close

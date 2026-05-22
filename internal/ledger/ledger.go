@@ -269,11 +269,11 @@ type Call struct {
 	// Sub-phase latencies (microseconds). Optional; verbs that don't
 	// instrument leave them at 0. They overlap by design (walk_us is the
 	// wall time of walker.Walk, which contains visitor IO/regex time).
-	WalkUs             int64
-	IOUs               int64
-	RegexUs            int64
-	RegexCompileUs     int64
-	LatencyDispatchUs  int64
+	WalkUs            int64
+	IOUs              int64
+	RegexUs           int64
+	RegexCompileUs    int64
+	LatencyDispatchUs int64
 	// ASH-106 streaming surface. Streaming is true when the response went
 	// out as Chunk frames + a Final frame; the count and ttfc fields are
 	// only meaningful when Streaming is true.

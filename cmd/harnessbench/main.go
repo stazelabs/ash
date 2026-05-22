@@ -10,18 +10,18 @@
 //
 // Methodology
 //
-//   read  → harness Read returns "cat -n" format (6-char right-padded
-//           line number, tab, content). We re-run the bash equivalent,
-//           transform stdout to cat -n shape, tokenize.
-//   grep  → harness Grep wraps ripgrep; default output mode is
-//           file:line:content — byte-identical to `grep -rn`. We use
-//           the existing bash_tokens from bench/baseline.json.
-//   find  → harness Glob returns paths matching the pattern. Content
-//           is the same set of paths as `find` (just sorted by mtime
-//           rather than walk order); token count is identical. We use
-//           the existing bash_tokens from bench/baseline.json.
-//   other → no clean harness equivalent (git/stat/diff/edit/write/test).
-//           Marked n/a.
+//	read  → harness Read returns "cat -n" format (6-char right-padded
+//	        line number, tab, content). We re-run the bash equivalent,
+//	        transform stdout to cat -n shape, tokenize.
+//	grep  → harness Grep wraps ripgrep; default output mode is
+//	        file:line:content — byte-identical to `grep -rn`. We use
+//	        the existing bash_tokens from bench/baseline.json.
+//	find  → harness Glob returns paths matching the pattern. Content
+//	        is the same set of paths as `find` (just sorted by mtime
+//	        rather than walk order); token count is identical. We use
+//	        the existing bash_tokens from bench/baseline.json.
+//	other → no clean harness equivalent (git/stat/diff/edit/write/test).
+//	        Marked n/a.
 //
 // Not modeled: the tool-call envelope on the harness side (the JSON
 // framing around content blocks adds ~10–30 tokens per call). These
@@ -55,12 +55,12 @@ type baselineCase struct {
 }
 
 type row struct {
-	name      string
-	verb      string
-	ashTok    int
-	bashTok   int
+	name       string
+	verb       string
+	ashTok     int
+	bashTok    int
 	harnessTok int
-	note      string
+	note       string
 }
 
 func main() {

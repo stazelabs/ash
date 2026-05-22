@@ -416,4 +416,3 @@ func TestFindMostRecentNonUsageRow(t *testing.T) {
 		t.Errorf("verb: got %q want %q", gotVerb, "grep")
 	}
 }
-

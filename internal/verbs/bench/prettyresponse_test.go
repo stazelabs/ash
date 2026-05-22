@@ -85,8 +85,8 @@ func TestPrettyResponse_StandardResult(t *testing.T) {
 			{Verb: "find", Cases: 1, AshTokensTotal: 100, BashTokensTotal: 200, AshLatencyUsTotal: 50, BashLatencyUsTotal: 100},
 			{Verb: "grep", Cases: 1, AshTokensTotal: 50, BashTokensTotal: 50, AshLatencyUsTotal: 0, BashLatencyUsTotal: 0},
 		},
-		Overall: VerbSummary{Verb: "overall", Cases: 2, AshTokensTotal: 150, BashTokensTotal: 250, AshLatencyUsTotal: 50, BashLatencyUsTotal: 100},
-		NotRun:  []string{"skipped_case"},
+		Overall:   VerbSummary{Verb: "overall", Cases: 2, AshTokensTotal: 150, BashTokensTotal: 250, AshLatencyUsTotal: 50, BashLatencyUsTotal: 100},
+		NotRun:    []string{"skipped_case"},
 		NotRunWhy: map[string]string{"skipped_case": "translation gap"},
 	}
 	out := PrettyResponse(req(), okResponse(t, r))

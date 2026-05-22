@@ -40,15 +40,15 @@ type Args struct {
 }
 
 type Result struct {
-	Path           string `msgpack:"path"`
-	Content        string `msgpack:"content"`
-	Encoding       string `msgpack:"encoding"` // "utf-8" or "base64"
-	Size           int64  `msgpack:"size"`     // size of the file on disk
-	Mtime          int64  `msgpack:"mtime"`    // unix nanos
-	Lines          int    `msgpack:"lines,omitempty"`
-	RangeReturned  string `msgpack:"range_returned,omitempty"`
-	Truncated      bool   `msgpack:"truncated,omitempty"`
-	TruncInfo      *proto.TruncInfo `msgpack:"truncation_hint,omitempty"`
+	Path          string           `msgpack:"path"`
+	Content       string           `msgpack:"content"`
+	Encoding      string           `msgpack:"encoding"` // "utf-8" or "base64"
+	Size          int64            `msgpack:"size"`     // size of the file on disk
+	Mtime         int64            `msgpack:"mtime"`    // unix nanos
+	Lines         int              `msgpack:"lines,omitempty"`
+	RangeReturned string           `msgpack:"range_returned,omitempty"`
+	Truncated     bool             `msgpack:"truncated,omitempty"`
+	TruncInfo     *proto.TruncInfo `msgpack:"truncation_hint,omitempty"`
 }
 
 // ParseArgs validates and normalizes the loosely-typed args from the wire.
@@ -310,4 +310,5 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	}
 	return b.String()
 }
+
 // pointer or the loosely-decoded msgpack map a client receives over the wire.

@@ -6,18 +6,18 @@
 //   - flags:    flag names per verb (also from help.Registry).
 //   - enums:    flag value enums (Values field on help.ArgSchema).
 //   - errors:   error codes from &proto.Error{Code: "..."} composite
-//               literals across internal/verbs/, internal/runner/,
-//               internal/jail/ (AST walk).
+//     literals across internal/verbs/, internal/runner/,
+//     internal/jail/ (AST walk).
 //   - status:   status enum values (test/stop/git-diff status fields).
-//               Hand-curated; the ~10 values are too few to AST-walk
-//               reliably and the source-of-truth comment lives next to
-//               the assignment sites.
+//     Hand-curated; the ~10 values are too few to AST-walk
+//     reliably and the source-of-truth comment lives next to
+//     the assignment sites.
 //   - headers:  the `§<verb>: …` sentinel from pretty renderers,
-//               plus the `[ash …]`
-//               metrics footer and the `[truncation: …]` annotation.
-//               AST scan for format-string literals.
+//     plus the `[ash …]`
+//     metrics footer and the `[truncation: …]` annotation.
+//     AST scan for format-string literals.
 //   - labels:   other label-shaped substrings inside PrettyResponse
-//               format strings — best-effort heuristic extraction.
+//     format strings — best-effort heuristic extraction.
 //
 // Output: Inventory.Markdown() and Inventory.JSON().
 package vocab

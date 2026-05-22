@@ -153,9 +153,9 @@ func TestReplayOne_DeltaMath(t *testing.T) {
 		},
 	}
 	c := ledger.Call{
-		Verb:       "grep",
-		OK:         true,
-		TokensOut:  10,
+		Verb:      "grep",
+		OK:        true,
+		TokensOut: 10,
 	}
 	row, _, skip := replayOne(deps, c, map[string]any{"pattern": "x", "path": "."}, 10)
 	if skip != "" {

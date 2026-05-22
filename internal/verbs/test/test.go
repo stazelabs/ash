@@ -444,7 +444,7 @@ func scanEvents(r io.Reader, cap int, onPackage func(testEvent)) ([]testEvent, e
 
 // fileLineRe matches the conventional Go test failure prefix:
 //
-//	    foo_test.go:42: error message
+//	foo_test.go:42: error message
 //
 // The path may include a leading directory (subtest output sometimes
 // has it). Anchored to start-of-line (multiline) so we pick the first

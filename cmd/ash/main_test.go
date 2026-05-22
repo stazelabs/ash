@@ -8,7 +8,6 @@ import (
 	"testing"
 )
 
-
 func TestParseFlags_FlagOnly(t *testing.T) {
 	got, err := parseFlags("read", []string{"--path", "foo.go", "--range", "10:20"})
 	if err != nil {
@@ -491,4 +490,3 @@ func TestResolveAtFile_CoexistsWithStdin(t *testing.T) {
 		t.Errorf("new: got %q, want \"from-stdin\"", args["new"])
 	}
 }
-

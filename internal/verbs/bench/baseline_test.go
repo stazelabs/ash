@@ -227,9 +227,9 @@ func TestRenderBaselineMarkdown_ContainsAllFields(t *testing.T) {
 		"repo: `11223344`",
 		"(dirty)",
 		"| `c1` | find | 100 | 200 |",
-		"bash", // truncation column for c1
+		"bash",                     // truncation column for c1
 		"| `c2` | grep | 50 | 0 |", // zero-bash row stays in table
-		"+0%",                       // c2's dpct should be the +0% inline guard
+		"+0%",                      // c2's dpct should be the +0% inline guard
 		"3 cases, ash 225 tok, bash 250 tok",
 		"-10.0%",
 		"darwin/arm64",

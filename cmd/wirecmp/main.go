@@ -109,10 +109,10 @@ func main() {
 	}
 
 	type row struct {
-		Name                                                 string
-		CLIBytes, CLITokens, MCPBytes, MCPTokens             int
-		CLITokensClaude, MCPTokensClaude                     int
-		CLILatencyUs, MCPLatencyUs                           int64
+		Name                                     string
+		CLIBytes, CLITokens, MCPBytes, MCPTokens int
+		CLITokensClaude, MCPTokensClaude         int
+		CLILatencyUs, MCPLatencyUs               int64
 	}
 	var rows []row
 
@@ -182,7 +182,7 @@ func main() {
 		mcpLat := medianRoundtripUs(sock, f.Verb, f.Args, proto.TransportMCP, *repeat)
 
 		r := row{
-			Name: f.Name,
+			Name:     f.Name,
 			CLIBytes: cliBytes, CLITokens: cliTokens,
 			MCPBytes: mcpBytes, MCPTokens: mcpTokens,
 			CLILatencyUs: cliLat, MCPLatencyUs: mcpLat,

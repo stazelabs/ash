@@ -308,10 +308,10 @@ var errorLineRe = regexp.MustCompile(`^([^\s:][^:]*):(\d+)(?::(\d+))?:\s*(.+)$`)
 // determinism). Empty stderr yields nil.
 func parseStderr(stderr string) []Package {
 	type acc struct {
-		path     string
-		outBuf   strings.Builder
-		errs     []BuildError
-		order    int
+		path   string
+		outBuf strings.Builder
+		errs   []BuildError
+		order  int
 	}
 	pkgs := map[string]*acc{}
 	order := []string{}

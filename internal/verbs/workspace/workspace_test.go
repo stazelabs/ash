@@ -114,7 +114,7 @@ func TestRecent_Caps(t *testing.T) {
 	var calls []ledger.Call
 	for i := 0; i < 10; i++ {
 		calls = append(calls, ledger.Call{
-			Verb: "read",
+			Verb:        "read",
 			ArgsMsgpack: mkArgs(t, map[string]any{"path": "f" + string(rune('a'+i)) + ".go"}),
 			Timestamp:   now.Add(time.Duration(-i) * time.Second),
 		})

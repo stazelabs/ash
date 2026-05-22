@@ -39,10 +39,10 @@ const (
 
 // LogResult is the structured replacement for `git log` text scraping.
 type LogResult struct {
-	Commits        []Commit `msgpack:"commits,omitempty"`
-	Count          int      `msgpack:"count"`
-	Truncated      bool     `msgpack:"truncated,omitempty"`
-	TruncInfo      *proto.TruncInfo `msgpack:"truncation_hint,omitempty"`
+	Commits   []Commit         `msgpack:"commits,omitempty"`
+	Count     int              `msgpack:"count"`
+	Truncated bool             `msgpack:"truncated,omitempty"`
+	TruncInfo *proto.TruncInfo `msgpack:"truncation_hint,omitempty"`
 }
 
 // Commit captures one revision. Times are unix nanoseconds (consistent

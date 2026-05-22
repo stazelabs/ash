@@ -261,6 +261,7 @@ func main() {
 func printUsage() {
 	fmt.Fprint(os.Stderr, help.RenderUsage(0))
 }
+
 // extractFormat pulls --format out of argv before verb flag parsing so it
 // doesn't get forwarded to the daemon as an unknown arg. specified is true
 // when the caller explicitly passed --format; false means it defaulted to
@@ -554,7 +555,6 @@ func resolvePatchFile(args map[string]any) error {
 	args["patch"] = string(data)
 	return nil
 }
-
 
 func dialOrStart(root, sock string) (net.Conn, error) {
 	killStaleIfNeeded(root, sock)

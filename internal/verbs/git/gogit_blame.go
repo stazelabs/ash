@@ -176,4 +176,3 @@ func blameError(path, rev string, err error) *proto.Error {
 	}
 	return &proto.Error{Code: "git_failed", Msg: msg}
 }
-

@@ -46,8 +46,8 @@ func TestPercentile(t *testing.T) {
 		{[]int64{100}, 0.5, 100},
 		{[]int64{100}, 0.95, 100},
 		{[]int64{10, 20, 30, 40, 50}, 0.50, 30},
-		{[]int64{10, 20, 30, 40, 50}, 0.95, 40}, // floor(0.95*4)=3 → sorted[3]=40
-		{[]int64{50, 10, 30, 20, 40}, 0.50, 30}, // unsorted input
+		{[]int64{10, 20, 30, 40, 50}, 0.95, 40},           // floor(0.95*4)=3 → sorted[3]=40
+		{[]int64{50, 10, 30, 20, 40}, 0.50, 30},           // unsorted input
 		{[]int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, 0.90, 9}, // floor(0.90*9)=8 → sorted[8]=9
 	}
 	for _, tt := range tests {
@@ -192,7 +192,10 @@ func TestAggregate_MultiVerb(t *testing.T) {
 }
 
 func TestFmtUs(t *testing.T) {
-	tests := []struct{ us int64; want string }{
+	tests := []struct {
+		us   int64
+		want string
+	}{
 		{0, "0us"},
 		{142, "142us"},
 		{999, "999us"},
@@ -235,7 +238,10 @@ func TestAggregate_SubPhases_FindLike(t *testing.T) {
 		t.Fatal("expected SubPhases to be populated")
 	}
 
-	cases := []struct{ name string; want float64 }{
+	cases := []struct {
+		name string
+		want float64
+	}{
 		{"walk", 62},
 		{"io", 21},
 		{"regex", 0},
@@ -256,7 +262,10 @@ func TestAggregate_SubPhases_GrepLike(t *testing.T) {
 	r := aggregate(calls, Scope{Session: "current"})
 
 	vs := r.ByVerb[0]
-	cases := []struct{ name string; want float64 }{
+	cases := []struct {
+		name string
+		want float64
+	}{
 		{"walk", 38},
 		{"io", 44},
 		{"regex", 8},
@@ -384,8 +393,8 @@ func TestAggregate_ErrHistogram_NoErrCode(t *testing.T) {
 }
 
 func TestAggregate_TruncHotspots(t *testing.T) {
-	calls := makeCalls("find", 3, 1000, true, true)       // 3 truncated
-	calls = append(calls, makeCalls("grep", 2, 500, true, true)...) // 2 truncated
+	calls := makeCalls("find", 3, 1000, true, true)                  // 3 truncated
+	calls = append(calls, makeCalls("grep", 2, 500, true, true)...)  // 2 truncated
 	calls = append(calls, makeCalls("read", 4, 200, true, false)...) // 0 truncated
 
 	r := aggregate(calls, Scope{Session: "current"})
@@ -836,12 +845,12 @@ func TestComputeHookDenials_EmptyAndAllowsOnly(t *testing.T) {
 
 func TestSuggestedAshVerb(t *testing.T) {
 	cases := map[string]string{
-		"ash grep --path . --pattern foo":        "grep",
-		"ash read --path README.md":              "read",
+		"ash grep --path . --pattern foo":         "grep",
+		"ash read --path README.md":               "read",
 		"ash write --path x --content - << 'EOF'": "write",
-		"":                                        "",
-		"grep --path .":                           "",
-		"echo ash":                                "",
+		"":              "",
+		"grep --path .": "",
+		"echo ash":      "",
 	}
 	for in, want := range cases {
 		if got := suggestedAshVerb(in); got != want {

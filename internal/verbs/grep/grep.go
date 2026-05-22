@@ -92,15 +92,15 @@ type Match struct {
 }
 
 type Result struct {
-	Matches            []Match  `msgpack:"matches,omitempty"`
-	Files              []string `msgpack:"files,omitempty"` // populated only when FilesOnly
-	Count              int      `msgpack:"count"`           // number of records (matches+context, or files)
-	MatchCount         int      `msgpack:"match_count"`     // number of "match" records (excludes context)
-	FileCount          int      `msgpack:"file_count"`      // distinct files with at least one match
-	FilesScanned       int      `msgpack:"files_scanned"`   // files actually opened and content-searched
-	FilesSkippedBinary int      `msgpack:"files_skipped_binary,omitempty"`
-	FilesSkippedLarge  int      `msgpack:"files_skipped_large,omitempty"`
-	Truncated          bool     `msgpack:"truncated,omitempty"`
+	Matches            []Match          `msgpack:"matches,omitempty"`
+	Files              []string         `msgpack:"files,omitempty"` // populated only when FilesOnly
+	Count              int              `msgpack:"count"`           // number of records (matches+context, or files)
+	MatchCount         int              `msgpack:"match_count"`     // number of "match" records (excludes context)
+	FileCount          int              `msgpack:"file_count"`      // distinct files with at least one match
+	FilesScanned       int              `msgpack:"files_scanned"`   // files actually opened and content-searched
+	FilesSkippedBinary int              `msgpack:"files_skipped_binary,omitempty"`
+	FilesSkippedLarge  int              `msgpack:"files_skipped_large,omitempty"`
+	Truncated          bool             `msgpack:"truncated,omitempty"`
 	TruncInfo          *proto.TruncInfo `msgpack:"truncation_hint,omitempty"`
 }
 
@@ -411,7 +411,7 @@ func (s *state) searchBody(path string, body []byte) bool {
 
 	lines := splitLines(body)
 
-	pendingAfter := 0   // remaining after-context lines to emit
+	pendingAfter := 0 // remaining after-context lines to emit
 	lastEmittedLine := -1
 
 	// appendRec appends a record and reports whether the global cap was hit.

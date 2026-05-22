@@ -35,9 +35,9 @@ type customFile struct {
 	path string
 }
 
-func (f *customFile) Hash() plumbing.Hash      { return f.hash }
-func (f *customFile) Mode() filemode.FileMode  { return f.mode }
-func (f *customFile) Path() string             { return f.path }
+func (f *customFile) Hash() plumbing.Hash     { return f.hash }
+func (f *customFile) Mode() filemode.FileMode { return f.mode }
+func (f *customFile) Path() string            { return f.path }
 
 // customChunk implements diff.Chunk: one Equal / Add / Delete span of
 // the unified-diff transform.
@@ -46,8 +46,8 @@ type customChunk struct {
 	op      diff.Operation
 }
 
-func (c *customChunk) Content() string        { return c.content }
-func (c *customChunk) Type() diff.Operation   { return c.op }
+func (c *customChunk) Content() string      { return c.content }
+func (c *customChunk) Type() diff.Operation { return c.op }
 
 // customFilePatch implements diff.FilePatch for a single (before, after)
 // pair. New files set from=nil; deleted files set to=nil; modified
@@ -58,7 +58,7 @@ type customFilePatch struct {
 	isBinary bool
 }
 
-func (p *customFilePatch) IsBinary() bool { return p.isBinary }
+func (p *customFilePatch) IsBinary() bool       { return p.isBinary }
 func (p *customFilePatch) Chunks() []diff.Chunk { return p.chunks }
 func (p *customFilePatch) Files() (diff.File, diff.File) {
 	// Returning typed-nil through the interface is correct here: the

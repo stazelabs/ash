@@ -37,8 +37,8 @@ import (
 // function. Memoization turns the hot per-walk regex loop into a map lookup
 // — see ASH-38.
 type Matcher struct {
-	rules   *ignore.GitIgnore
-	root    string
+	rules    *ignore.GitIgnore
+	root     string
 	resCache sync.Map // key = normalized rel path (trailing "/" iff isDir); val = bool
 }
 

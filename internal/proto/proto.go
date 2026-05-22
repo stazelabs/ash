@@ -88,7 +88,6 @@ type Request struct {
 	Env []string `msgpack:"env,omitempty" json:"env,omitempty"`
 }
 
-
 // Chunk is one batch of intermediate results emitted during a streaming
 // response. Data is the msgpack-encoded verb-specific chunk payload (e.g.
 // []grep.Match, []find.Record, test.Package). Seq numbers chunks from 1
@@ -264,7 +263,7 @@ func ReadKinded(r io.Reader) (byte, []byte, error) {
 	return buf[0], buf[1:], nil
 }
 
-func EncodeChunk(c *Chunk) ([]byte, error) { return msgpack.Marshal(c) }
+func EncodeChunk(c *Chunk) ([]byte, error)   { return msgpack.Marshal(c) }
 func EncodeCancel(c *Cancel) ([]byte, error) { return msgpack.Marshal(c) }
 
 func DecodeChunk(buf []byte) (*Chunk, error) {

@@ -76,10 +76,10 @@ func TestParseArgs_StringModeDefaults(t *testing.T) {
 // values (the wire shape from CLI parseFlags) and rejects garbage.
 func TestParseArgs_WireShape(t *testing.T) {
 	a, perr := ParseArgs(map[string]any{
-		"path":        "f.go",
+		"path": "f.go",
 		"old":  "old",
-		"all": "true",
-		"dry":     "true",
+		"all":  "true",
+		"dry":  "true",
 	})
 	if perr != nil {
 		t.Fatalf("valid string args rejected: %v", perr)
@@ -96,9 +96,9 @@ func TestParseArgs_WireShape(t *testing.T) {
 		{"dry", "maybe"},
 	} {
 		_, perr := ParseArgs(map[string]any{
-			"path":       "f.go",
-			"old": "old",
-			bad.key:      bad.val,
+			"path":  "f.go",
+			"old":   "old",
+			bad.key: bad.val,
 		})
 		if perr == nil {
 			t.Errorf("expected error for %s=%q", bad.key, bad.val)

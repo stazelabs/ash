@@ -11,11 +11,11 @@ import (
 // Representative PreToolUse payloads. Three cases pin down the hot path:
 //
 //   - allowGrep:    a Grep call (no exclude_verbs) — deny path through the
-//                   read/grep/write/edit switch, the most common branch.
+//     read/grep/write/edit switch, the most common branch.
 //   - allowBashLs:  a Bash `ls -la` — passes the bash parser without
-//                   matching any redirect rule, exits via the allow fallthrough.
+//     matching any redirect rule, exits via the allow fallthrough.
 //   - denyHeredoc:  a bash heredoc redirecting into a file — exercises the
-//                   heaviest path through segments() + detectOutputRedirect().
+//     heaviest path through segments() + detectOutputRedirect().
 var hookBenchPayloads = map[string][]byte{
 	"deny_grep":    []byte(`{"tool_name":"Grep","tool_input":{"pattern":"foo","path":"internal/"}}`),
 	"allow_bash":   []byte(`{"tool_name":"Bash","tool_input":{"command":"ls -la"}}`),

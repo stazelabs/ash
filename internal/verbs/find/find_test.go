@@ -33,15 +33,15 @@ func makeTree(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
 	files := map[string]string{
-		"a.go":              "package a",
-		"b.go":              "package b",
-		"README.md":         "# r",
-		".gitignore":        "ignore",
-		"src/main.go":       "package main",
-		"src/util.go":       "package main",
-		"src/deep/x.go":     "package deep",
-		".git/HEAD":         "ref: refs/heads/main",
-		"vendor/pkg/v.go":   "package pkg",
+		"a.go":            "package a",
+		"b.go":            "package b",
+		"README.md":       "# r",
+		".gitignore":      "ignore",
+		"src/main.go":     "package main",
+		"src/util.go":     "package main",
+		"src/deep/x.go":   "package deep",
+		".git/HEAD":       "ref: refs/heads/main",
+		"vendor/pkg/v.go": "package pkg",
 	}
 	for rel, body := range files {
 		full := filepath.Join(root, rel)
@@ -416,12 +416,12 @@ func equalSlices(a, b []string) bool {
 // breaking the string-coercion path.
 func TestParseArgs_WireShape(t *testing.T) {
 	a, perr := ParseArgs(map[string]any{
-		"path":              ".",
-		"limit":             "10",
-		"depth":         "3",
-		"hidden":    "true",
-		"gi": "false",
-		"meta":         "true",
+		"path":   ".",
+		"limit":  "10",
+		"depth":  "3",
+		"hidden": "true",
+		"gi":     "false",
+		"meta":   "true",
 	})
 	if perr != nil {
 		t.Fatalf("valid string args rejected: %v", perr)
@@ -653,7 +653,7 @@ func TestPrettyResponse_AliasTableSingleAllowPath(t *testing.T) {
 		Data: proto.MustData(&Result{
 			Count: 2,
 			Records: []Record{
-				{Path: "internal/foo.go", Type: "file"}, // inside project root (bare)
+				{Path: "internal/foo.go", Type: "file"},     // inside project root (bare)
 				{Path: scratch + "/notes.md", Type: "file"}, // outside project root (absolute)
 			},
 		}),
@@ -675,9 +675,9 @@ func TestPrettyResponse_AliasTableSingleAllowPath(t *testing.T) {
 // TestPrettyResponse_AliasTableTwoAllowPaths verifies the multi-prefix case:
 // two allow_paths entries produce @0 and @1 aliases in the same response.
 func TestPrettyResponse_AliasTableTwoAllowPaths(t *testing.T) {
-	root    := t.TempDir()
+	root := t.TempDir()
 	scratch := t.TempDir()
-	vendor  := t.TempDir()
+	vendor := t.TempDir()
 	canon := func(p string) string {
 		if r, err := filepath.EvalSymlinks(p); err == nil {
 			return r
@@ -724,7 +724,7 @@ func TestPrettyResponse_NoAliasTableWithoutAllowPaths(t *testing.T) {
 	rsp := &proto.Response{
 		OK: true,
 		Data: proto.MustData(&Result{
-			Count: 1,
+			Count:   1,
 			Records: []Record{{Path: "internal/foo.go", Type: "file"}},
 		}),
 	}
@@ -739,7 +739,7 @@ func TestPrettyResponse_NoAliasTableWithoutAllowPaths(t *testing.T) {
 // TestPrettyResponse_AbsoluteFlagSkipsAliasTable confirms --absolute suppresses
 // the alias table even when allow_paths entries exist.
 func TestPrettyResponse_AbsoluteFlagSkipsAliasTable(t *testing.T) {
-	root    := t.TempDir()
+	root := t.TempDir()
 	scratch := t.TempDir()
 	jail.SetPolicy(jail.FromConfig(false, root, []string{scratch}, nil))
 	defer jail.SetPolicy(nil)
@@ -747,7 +747,7 @@ func TestPrettyResponse_AbsoluteFlagSkipsAliasTable(t *testing.T) {
 	rsp := &proto.Response{
 		OK: true,
 		Data: proto.MustData(&Result{
-			Count: 1,
+			Count:   1,
 			Records: []Record{{Path: scratch + "/notes.md", Type: "file"}},
 		}),
 	}

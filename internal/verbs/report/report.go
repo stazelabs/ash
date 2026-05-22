@@ -70,12 +70,12 @@ type Scope struct {
 // Calls counts the rows that matched the scope filters; CallsTotal is
 // the unfiltered ledger size for context.
 type RootStats struct {
-	Root        string `msgpack:"root"`
-	Calls       int    `msgpack:"calls"`
-	OK          int    `msgpack:"ok"`
-	TokensOut   int64  `msgpack:"tokens_out"`
-	ExecSumUs   int64  `msgpack:"exec_sum_us"`
-	OpenError   string `msgpack:"open_error,omitempty"`
+	Root      string `msgpack:"root"`
+	Calls     int    `msgpack:"calls"`
+	OK        int    `msgpack:"ok"`
+	TokensOut int64  `msgpack:"tokens_out"`
+	ExecSumUs int64  `msgpack:"exec_sum_us"`
+	OpenError string `msgpack:"open_error,omitempty"`
 }
 
 type Totals struct {
@@ -104,7 +104,7 @@ type Totals struct {
 	TokensCacheHit  int64 `msgpack:"tokens_cache_hit,omitempty"`
 	TokensCacheMiss int64 `msgpack:"tokens_cache_miss,omitempty"`
 	CacheCalls      int   `msgpack:"cache_calls,omitempty"`
-	ExecSumUs int64 `msgpack:"exec_sum_us"`
+	ExecSumUs       int64 `msgpack:"exec_sum_us"`
 }
 
 // VerbSubPhase holds the percentage of exec_us attributed to one named phase.
@@ -134,7 +134,7 @@ type VerbArgDist struct {
 }
 
 type VerbStats struct {
-	Verb              string         `msgpack:"verb"`
+	Verb string `msgpack:"verb"`
 	// Tier mirrors help.VerbSchema.Tier — "A" (inner-loop agent), "B"
 	// (episodic agent), "C" (bootstrap), or "D" (instrumentation/meta).
 	// Populated at aggregate time from the help registry; empty for

@@ -27,13 +27,13 @@ func TestParseDuration_GoUnits(t *testing.T) {
 
 func TestParseDuration_CustomUnits(t *testing.T) {
 	cases := map[string]time.Duration{
-		"1d":   24 * time.Hour,
-		"7d":   7 * 24 * time.Hour,
-		"1w":   7 * 24 * time.Hour,
-		"2w":   2 * 7 * 24 * time.Hour,
-		"1mo":  30 * 24 * time.Hour,
-		"3mo":  3 * 30 * 24 * time.Hour,
-		"30d":  30 * 24 * time.Hour, // d=24h, so 30d == 1mo (the calendar approximation)
+		"1d":  24 * time.Hour,
+		"7d":  7 * 24 * time.Hour,
+		"1w":  7 * 24 * time.Hour,
+		"2w":  2 * 7 * 24 * time.Hour,
+		"1mo": 30 * 24 * time.Hour,
+		"3mo": 3 * 30 * 24 * time.Hour,
+		"30d": 30 * 24 * time.Hour, // d=24h, so 30d == 1mo (the calendar approximation)
 	}
 	for in, want := range cases {
 		got, err := ParseDuration(in)
@@ -69,14 +69,14 @@ func TestParseDuration_MoBeforeM(t *testing.T) {
 
 func TestParseDuration_Errors(t *testing.T) {
 	cases := []string{
-		"",        // empty
-		"banana",  // no unit, no integer prefix
-		"0d",      // zero rejected (preserves prior per-verb behavior)
-		"-1d",     // negative rejected
-		"1.5d",    // decimal rejected by strconv.Atoi
-		"d",       // no integer
-		"mow",     // not a known suffix in any branch (mo matches, prefix "" Atoi fails)
-		"abc7d",   // garbage prefix on a real suffix
+		"",       // empty
+		"banana", // no unit, no integer prefix
+		"0d",     // zero rejected (preserves prior per-verb behavior)
+		"-1d",    // negative rejected
+		"1.5d",   // decimal rejected by strconv.Atoi
+		"d",      // no integer
+		"mow",    // not a known suffix in any branch (mo matches, prefix "" Atoi fails)
+		"abc7d",  // garbage prefix on a real suffix
 	}
 	for _, in := range cases {
 		if _, err := ParseDuration(in); err == nil {

@@ -40,16 +40,16 @@ func TestExcludes_BasicPatterns(t *testing.T) {
 		isDir   bool
 		exclude bool
 	}{
-		{"bin/ash", false, true},                    // file inside ignored dir
-		{"bin", true, true},                         // the dir itself, with isDir=true
-		{"bin", false, false},                       // a file literally named "bin" should not match "bin/"
-		{"foo.log", false, true},                    // glob pattern
-		{"deep/sub/foo.log", false, true},           // glob recurses
-		{"important.log", false, false},             // negation pattern
-		{"node_modules", true, true},                // dir-only pattern fires on dir
-		{"node_modules/pkg/index.js", false, true},  // children of ignored dir
-		{"src/main.go", false, false},               // not matched
-		{"README.md", false, false},                 // not matched
+		{"bin/ash", false, true},                   // file inside ignored dir
+		{"bin", true, true},                        // the dir itself, with isDir=true
+		{"bin", false, false},                      // a file literally named "bin" should not match "bin/"
+		{"foo.log", false, true},                   // glob pattern
+		{"deep/sub/foo.log", false, true},          // glob recurses
+		{"important.log", false, false},            // negation pattern
+		{"node_modules", true, true},               // dir-only pattern fires on dir
+		{"node_modules/pkg/index.js", false, true}, // children of ignored dir
+		{"src/main.go", false, false},              // not matched
+		{"README.md", false, false},                // not matched
 	}
 	for _, c := range cases {
 		if got := m.Excludes(c.path, c.isDir); got != c.exclude {
@@ -147,7 +147,7 @@ func TestExcludes_MemoizesSamePath(t *testing.T) {
 		exclude bool
 	}{
 		{"bin", true, true},
-		{"bin", false, false},  // distinct cache key from "bin" with isDir=true
+		{"bin", false, false}, // distinct cache key from "bin" with isDir=true
 		{"foo.log", false, true},
 		{"src/main.go", false, false},
 	}

@@ -180,7 +180,6 @@ var Cases = []Case{
 	},
 }
 
-
 // ExpandArgs returns a copy of args with the literal placeholder
 // "{root}" replaced by root in every string-valued entry. Used by the
 // bench runner to express absolute-path cases without baking a
@@ -220,17 +219,17 @@ var MeasuredVerbs = []string{
 // ExemptVerbs are verbs the harness deliberately does not measure.
 // Each entry has a one-line justification that survives in code review.
 var ExemptVerbs = map[string]string{
-	"metrics": "reads ledger; size depends on session, no honest bash equivalent",
-	"report":  "reads ledger; size depends on session",
-	"help":    "no honest bash equivalent; token budget enforced by TestNoArgTokenBudget in internal/verbs/help",
-	"init":    "one-shot setup; mutates files",
-	"uninit":  "one-shot teardown; mutates files",
-	"stop":    "kills daemon",
-	"hook":    "the redirector under test; circular",
-	"bench":   "recursive",
-	"test":    "no honest bash equivalent at the verb level",
-	"build":   "wraps go build; verb output is the parsed error stream, not measurable against a bash equivalent",
-	"replay":  "reads ledger and re-dispatches verbs; no honest bash equivalent",
+	"metrics":   "reads ledger; size depends on session, no honest bash equivalent",
+	"report":    "reads ledger; size depends on session",
+	"help":      "no honest bash equivalent; token budget enforced by TestNoArgTokenBudget in internal/verbs/help",
+	"init":      "one-shot setup; mutates files",
+	"uninit":    "one-shot teardown; mutates files",
+	"stop":      "kills daemon",
+	"hook":      "the redirector under test; circular",
+	"bench":     "recursive",
+	"test":      "no honest bash equivalent at the verb level",
+	"build":     "wraps go build; verb output is the parsed error stream, not measurable against a bash equivalent",
+	"replay":    "reads ledger and re-dispatches verbs; no honest bash equivalent",
 	"recap":     "reads ledger; session-graph summary, no honest bash equivalent",
 	"workspace": "reads ledger + git status; re-orientation snapshot, no honest bash equivalent",
 	"usage":     "annotates the ledger row of a prior call; no bash equivalent, and the call is trivial (one UPDATE)",

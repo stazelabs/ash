@@ -45,8 +45,8 @@ func TestParseArgs_InvalidEncoding(t *testing.T) {
 // values (the wire shape from CLI parseFlags) and rejects garbage.
 func TestParseArgs_WireShape(t *testing.T) {
 	a, perr := ParseArgs(map[string]any{
-		"path":        "f.go",
-		"mkdir":       "false",
+		"path":       "f.go",
+		"mkdir":      "false",
 		"no-clobber": "true",
 	})
 	if perr != nil {

@@ -60,17 +60,17 @@ type Args struct {
 
 type Record struct {
 	Path  string `msgpack:"path"`
-	Type  string `msgpack:"type"`                       // "file" | "dir" | "symlink"
-	Size  int64  `msgpack:"size,omitempty"`             // bytes; omitted for dirs/symlinks and when --meta=false (ASH-187)
-	Mtime int64  `msgpack:"mtime,omitempty"`            // unix nanos; omitted when --meta=false (ASH-187)
+	Type  string `msgpack:"type"`            // "file" | "dir" | "symlink"
+	Size  int64  `msgpack:"size,omitempty"`  // bytes; omitted for dirs/symlinks and when --meta=false (ASH-187)
+	Mtime int64  `msgpack:"mtime,omitempty"` // unix nanos; omitted when --meta=false (ASH-187)
 }
 
 type Result struct {
-	Records   []Record         `msgpack:"records"`
-	Count     int              `msgpack:"count"`
-	FilesScanned int           `msgpack:"files_scanned"`
-	Truncated bool             `msgpack:"truncated,omitempty"`
-	TruncInfo *proto.TruncInfo `msgpack:"truncation_hint,omitempty"`
+	Records      []Record         `msgpack:"records"`
+	Count        int              `msgpack:"count"`
+	FilesScanned int              `msgpack:"files_scanned"`
+	Truncated    bool             `msgpack:"truncated,omitempty"`
+	TruncInfo    *proto.TruncInfo `msgpack:"truncation_hint,omitempty"`
 	// WithMeta echoes the request's --meta flag so downstream shapers
 	// (CompactResponse, MCP JSON envelope) can decide whether to emit
 	// the size/mtime columns. Without it, CompactResponse would have

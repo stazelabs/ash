@@ -8,17 +8,17 @@
 //
 // `ash init` bootstraps a target repo for use with ash:
 //
-//   1. Ensures a PreToolUse entry in <root>/.claude/settings.json that
-//      runs `ash hook` (PATH form, so a single `make install` covers
-//      every target repo at once).
-//   2. Appends `.ash/` to <root>/.gitignore if a .gitignore exists.
-//   3. Writes (or merges into) <root>/CLAUDE.md the embedded
-//      agent-guidance section, bracketed by <!-- ash:begin --> /
-//      <!-- ash:end --> markers so future updates are atomic. If the
-//      target repo already uses AGENTS.md and lacks a CLAUDE.md, the
-//      section is written there instead.
-//   4. Records the absolute root in the global installed-repos registry
-//      so `ash report --all-roots` can find it.
+//  1. Ensures a PreToolUse entry in <root>/.claude/settings.json that
+//     runs `ash hook` (PATH form, so a single `make install` covers
+//     every target repo at once).
+//  2. Appends `.ash/` to <root>/.gitignore if a .gitignore exists.
+//  3. Writes (or merges into) <root>/CLAUDE.md the embedded
+//     agent-guidance section, bracketed by <!-- ash:begin --> /
+//     <!-- ash:end --> markers so future updates are atomic. If the
+//     target repo already uses AGENTS.md and lacks a CLAUDE.md, the
+//     section is written there instead.
+//  4. Records the absolute root in the global installed-repos registry
+//     so `ash report --all-roots` can find it.
 //
 // Idempotent: re-running on an already-installed repo is a no-op and
 // reports already_installed=true. A pre-existing settings.json entry
@@ -70,6 +70,7 @@ type Result struct {
 	AlreadyInstalled bool     `msgpack:"already_installed,omitempty"`
 	Warnings         []string `msgpack:"warnings,omitempty"`
 }
+
 func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	a := &Args{}
 	var perr *proto.Error

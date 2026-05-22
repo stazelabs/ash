@@ -94,9 +94,9 @@ type Args struct {
 	Rev   string
 	Lines string
 	// diff-op flags
-	Staged    bool
-	Context   int
-	StatOnly  bool
+	Staged     bool
+	Context    int
+	StatOnly   bool
 	LimitBytes int
 }
 
@@ -331,11 +331,11 @@ func compactDiffResult(op string, d *DiffResult) any {
 		cd.R[i] = []any{f.Path, f.OldPath, f.Status, f.Binary, f.Additions, f.Deletions, f.Patch}
 	}
 	return map[string]any{
-		"op":               op,
-		"k":                cd.K,
-		"r":                cd.R,
-		"total_additions":  d.TotalAdditions,
-		"total_deletions":  d.TotalDeletions,
-		"stat_only":        d.StatOnly,
+		"op":              op,
+		"k":               cd.K,
+		"r":               cd.R,
+		"total_additions": d.TotalAdditions,
+		"total_deletions": d.TotalDeletions,
+		"stat_only":       d.StatOnly,
 	}
 }

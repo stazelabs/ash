@@ -57,11 +57,11 @@ type Args struct {
 
 // VerbStats is one row of the per-verb breakdown.
 type VerbStats struct {
-	Verb        string `msgpack:"verb"`
-	Calls       int    `msgpack:"calls"`
-	UniqueArgs  int    `msgpack:"unique_args"`
-	CachePairs  int    `msgpack:"cache_pairs"`  // consecutive (same verb, same args, within CacheTTL)
-	CacheRatio  int    `msgpack:"cache_ratio"`  // percent — CachePairs / max(Calls-1, 1) * 100
+	Verb       string `msgpack:"verb"`
+	Calls      int    `msgpack:"calls"`
+	UniqueArgs int    `msgpack:"unique_args"`
+	CachePairs int    `msgpack:"cache_pairs"` // consecutive (same verb, same args, within CacheTTL)
+	CacheRatio int    `msgpack:"cache_ratio"` // percent — CachePairs / max(Calls-1, 1) * 100
 }
 
 // TurnsSummary is the harness-reported Anthropic cache accounting for

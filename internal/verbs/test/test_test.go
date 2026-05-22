@@ -592,4 +592,3 @@ func TestExtractBenchLines(t *testing.T) {
 		t.Errorf("lines[1]: %q", lines[1])
 	}
 }
-
