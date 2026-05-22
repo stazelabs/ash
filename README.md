@@ -86,7 +86,7 @@ Agents in repos that ran `ash init` get a CLAUDE.md section with the switch crit
 ## The verb surface
 
 
-The verb surface as of phase 2 ship 14 is below. Every verb returns a structured response over a MessagePack-with-schema-dictionary protocol; the same data renders as a token-lean pretty form for human (or LLM) consumption. Run `ash help` for the full schema of every verb, or `ash help --verb <name>` for one.
+The verb surface as of phase 2 is below. Every verb returns a structured response over a MessagePack-with-schema-dictionary protocol; the same data renders as a token-lean pretty form for human (or LLM) consumption. Run `ash help` for the full schema of every verb, or `ash help --verb <name>` for one.
 
 ### File system
 
@@ -104,13 +104,20 @@ The verb surface as of phase 2 ship 14 is below. Every verb returns a structured
 
 | Verb | Purpose |
 |---|---|
-| `git --op status\|log\|diff\|show` | Git as structured calls — not text-scraped. Default backend is in-process go-git; `shellout` opt-in for `--staged` / unstaged patch text. |
+| `git --op status\|log\|diff\|show\|blame` | Git as structured calls — not text-scraped. Default backend is in-process go-git; `shellout` opt-in for `--staged` / unstaged patch text. |
 
 ### Build / test
 
 | Verb | Purpose |
 |---|---|
+| `build` | Run `go build`; structured per-package errors with `file:line:col`. |
 | `test` | Run Go tests via `go test -json`. Structured per-package/per-test results; build failures land as records, not raw stderr. |
+
+### Semantic
+
+| Verb | Purpose |
+|---|---|
+| `lang` | Outline / definition / references / callers / impl via a language-server broker. Currently in a usage-validation freeze (ASH-197). |
 
 ### Observability
 
@@ -118,7 +125,12 @@ The verb surface as of phase 2 ship 14 is below. Every verb returns a structured
 |---|---|
 | `metrics` | Raw recent ledger rows. |
 | `report` | Aggregated per-verb summary: n, ok%, p50/p95 latency, p50/p95 tokens_out, truncation rate, top error histograms, top truncation hotspots. Cross-repo via `--root` / `--all_roots`. |
+| `recap` | Compact session summary — files touched, patterns searched, edits made. |
+| `workspace` | Re-orientation snapshot — relevant files, recent searches, branch + status, last error. |
+| `replay` | Re-run prior ledger calls and report per-verb token deltas vs the originals. |
 | `bench` | Run canonical cases against ash and the bash equivalent the agent would otherwise have used; tokenize both with the same encoder; report Δtokens / Δlatency per case. |
+| `usage` | Estimate cache-friendliness of recent calls from arg-repetition counts. |
+| `turn` | Record an Anthropic API turn's usage/cache numbers; fed by the Stop hook. |
 
 ### Lifecycle
 
@@ -160,7 +172,7 @@ Full reference: [docs/configuration.md](docs/configuration.md).
 5. **Token-aware.** Every response reports its real token cost. The agent can self-budget.
 6. **Platform-uniform.** `ash grep` behaves identically on macOS, Linux, and Windows. No GNU-vs-BSD divergence, no missing utilities, no per-platform conditionals in agent prompts.
 7. **Persistent context.** The shell is a daemon, not a per-command process. Sessions, objects, and jobs survive across invocations.
-8. **Semantic when possible.** The forthcoming `lang` verb gives agents callers/definitions/references via tree-sitter, not regex approximations.
+8. **Semantic when possible.** The `lang` verb answers outline / definition / references / callers / impl queries through a language-server broker, not regex approximations.
 9. **Instrumented by default.** Every verb call records latency, token cost, output size, truncation events, error class, and sanitized args to a session-scoped ledger. Performance and ergonomics claims are evaluated against the ledger, not against intuition.
 
 ## Constraints
@@ -190,10 +202,10 @@ These are hard rules. A change that violates one is a stop-and-discuss.
                                           ┌──────────┴──────────┐
                                           │                     │
                                   ┌───────▼───────┐    ┌────────▼────────┐
-                                  │  builtins     │    │  registered     │
-                                  │  (find, grep, │    │  tools          │
-                                  │   read, ...)  │    │  (cargo, npm,   │
-                                  └───────────────┘    │   pytest, ...)  │
+                                  │  builtins     │    │  tool registry  │
+                                  │  (find, grep, │    │  (Phase 5 —     │
+                                  │   read, ...)  │    │   not yet       │
+                                  └───────────────┘    │   shipped)      │
                                                        └─────────────────┘
 ```
 
@@ -305,17 +317,17 @@ Surface locked, wire protocol drafted, switch-criteria doc ([CLAUDE.md](CLAUDE.m
 ### Phase 1 — walking skeleton — done
 Go daemon, UDS transport, MessagePack with versioned schema dictionary, three read-side verbs (`find` / `grep` / `read`), instrumentation ledger from day one, self-hosting on this repo.
 
-### Phase 2 — coding-agent core — current (ship 14)
+### Phase 2 — coding-agent core — current
 
 Live: `write`, `edit`, `stat`, `diff`, `git` (status/log/diff/show/blame), `build`, `test`, `bench`, `metrics`, `report`, `hook`, `help`, `init`, `uninit`, `stop`. Plus: configuration substrate (`ash.toml`), jail policy, ledger retention, in-process go-git backend, cross-repo report aggregation, PreToolUse hook with per-verb exclusions.
 
 Upcoming for phase 2: `fmt`, `run`, `proc`, `obj`, persistent session/object store, job ledger for async operations, reference Go client library.
 
-### Phase 3 — semantic layer
+### Phase 3 — semantic layer — shipped, under evaluation
 
-- `lang` verb backed by tree-sitter
-- Symbol search, callers, definitions, references
-- File outlines without bodies (token-efficient orientation)
+The `lang` verb — outline, definition, references, callers, impl — shipped
+behind a language-server broker. It is currently in a usage-validation
+freeze (ASH-197) while real demand is assessed.
 
 ### Phase 4 — adoption
 
