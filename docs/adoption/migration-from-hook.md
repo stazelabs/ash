@@ -65,7 +65,7 @@ After removing the hook and registering `ashmcp`:
 
 ## Why we don't auto-remove the hook
 
-`ash init`'s job is to make the repo work for *any* agent that walks in, not to assume MCP is wired up. Auto-removing on `ashmcp` registration would surprise the next teammate whose harness doesn't speak MCP yet (Codex CLI, Cursor's older versions, a custom internal harness). The migration is one explicit command (`ash uninit`) when you're ready.
+`ash init`'s job is to make the repo work for *any* agent that walks in, not to assume MCP is wired up. Auto-removing on `ashmcp` registration would surprise the next teammate whose harness doesn't speak MCP, or who simply hasn't registered `ashmcp` yet — a custom internal harness, a CI agent, a fresh checkout. The migration is one explicit command (`ash uninit`) when you're ready.
 
 ## Recursive-development implication
 
