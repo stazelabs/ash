@@ -1,5 +1,9 @@
 # Revolutionary directions for ash
 
+> **Status: speculative.** An ideas document — not a commitment or roadmap.
+> Some parts have since shipped (e.g. the MCP server, ASH-104..107); others
+> remain unevaluated. The Linear backlog is the source of truth for plans.
+
 ## Context
 
 ash today is well-shaped for *evolutionary* improvement: the ledger captures every call, the vocab inventory ([ASH-102](https://linear.app/stazelabs/issue/ASH-102)) will close the static-protocol surface, Tier 1/2 token wins from [cli-tokens.md](cli-tokens.md) are queued. The encoding-substitution measurement on 2026-05-13 proved non-ASCII glyphs are a dead end and refocused effort on structural changes.
