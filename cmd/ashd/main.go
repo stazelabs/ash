@@ -503,7 +503,7 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 			RequestID:          req.ID,
 			Timestamp:          time.Now(),
 			Verb:               req.Verb,
-			ArgsMsgpack:        argsBlob(reqBuf),
+			ArgsMsgpack:        argsBlob(req),
 			OK:                 rsp.OK,
 			ErrCode:            errCode,
 			ErrMsg:             errMsg,
@@ -655,10 +655,9 @@ const argsMaxStrBytes = 1024
 // String values longer than argsMaxStrBytes are replaced with "<truncated:N>".
 // Env is intentionally excluded — secrets in req.Env (forwarded to test
 // subprocesses, ASH-132) must not leak into args_msgpack.
-// Returns nil when the request has no args or cannot be decoded.
-func argsBlob(reqBuf []byte) []byte {
-	req, err := proto.DecodeRequest(reqBuf)
-	if err != nil || len(req.Args) == 0 {
+// Returns nil when the request has no args.
+func argsBlob(req *proto.Request) []byte {
+	if req == nil || len(req.Args) == 0 {
 		return nil
 	}
 	sanitized := make(map[string]any, len(req.Args))

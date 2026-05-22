@@ -3,7 +3,6 @@ package jail
 import (
 	"fmt"
 	"path/filepath"
-	"sort"
 	"strings"
 )
 
@@ -103,12 +102,9 @@ func PrettyPath(p string) string {
 			return "."
 		}
 	}
-	// PathPrefixes is already longest-first; iterate in order and stop at
-	// the first hit so we strip the longest matching prefix.
-	sorted := make([]string, len(prefixes))
-	copy(sorted, prefixes)
-	sort.Slice(sorted, func(i, j int) bool { return len(sorted[i]) > len(sorted[j]) })
-	for _, pref := range sorted {
+	// PathPrefixes is already longest-first (its contract), so the first
+	// prefix that matches is the longest — strip it and return.
+	for _, pref := range prefixes {
 		if strings.HasPrefix(p, pref+"/") {
 			return p[len(pref)+1:]
 		}
