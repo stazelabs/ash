@@ -115,8 +115,9 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	if a.Ignored, perr = argutil.OptionalBool(in, "ignored", false); perr != nil {
 		return nil, perr
 	}
-	// log-op flags. Strings pass through to git unmodified; git itself is
-	// the validator for date formats, refspecs, and pathspecs.
+	// log-op flags. String values pass through to git, which validates
+	// their content (date formats, refspecs, pathspecs); ParseArgs
+	// rejects only a leading '-' — see the ASH-211 guard below.
 	if a.Limit, perr = argutil.OptionalPosInt(in, "limit", LogDefaultLimit, LogMaxLimit); perr != nil {
 		return nil, perr
 	}
@@ -159,6 +160,30 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 	}
 	if a.LimitBytes, perr = argutil.OptionalPosInt(in, "bytes", DiffDefaultLimitBytes, DiffMaxLimitBytes); perr != nil {
 		return nil, perr
+	}
+	// Security (ASH-211): reject revision/pathspec args whose value
+	// begins with "-". The shellout backend splices these straight into
+	// the git argv, and git would read e.g. --range '--output=/path' as
+	// an option — `git log --output=FILE` writes attacker-chosen files.
+	// A legitimate ref, range, date, author, or pathspec never starts
+	// with "-", so rejection breaks no real call and closes the hole
+	// for both the shellout and go-git backends.
+	for _, f := range []struct{ name, val string }{
+		{"range", a.Range},
+		{"author", a.Author},
+		{"since", a.Since},
+		{"until", a.Until},
+		{"pathspec", a.Pathspec},
+		{"ref", a.Ref},
+		{"rev", a.Rev},
+	} {
+		if strings.HasPrefix(f.val, "-") {
+			return nil, &proto.Error{
+				Code: "args",
+				Msg:  f.name + " may not begin with '-'",
+				Hint: "a git revision, date, author, or pathspec never starts with '-'",
+			}
+		}
 	}
 	if perr := jail.CheckPaths(map[string]string{
 		"path": a.Path,
