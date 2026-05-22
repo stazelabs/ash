@@ -37,10 +37,10 @@ import (
 // one-shot startup config (ledger cleanup, daemon concurrency cap)
 // stay restart-required — see CLAUDE.md gotcha #1.
 //
-// jail.SetPolicy is a package-global pointer swap and is goroutine-safe;
-// concurrent handler goroutines either see the old or the new policy
-// for any given verb call, matching the "next request sees new config"
-// semantic the hot-reload contract promises.
+// jail.SetPolicy swaps a package-global policy pointer under an RWMutex
+// and is goroutine-safe; concurrent handler goroutines see either the
+// old or the new policy for any given verb call, matching the "next
+// request sees new config" semantic the hot-reload contract promises.
 func applyEnforcementConfig(rootFlag string, cfg *config.Config) {
 	jail.SetPolicy(jail.FromConfig(cfg.Jail.Enabled, rootFlag, cfg.Jail.AllowPaths, cfg.Jail.DenyPaths))
 }
@@ -169,7 +169,13 @@ func main() {
 		log.Fatalf("ashd: %v", err)
 	}
 	_ = os.Remove(sockFlag)
+	// Create the socket 0600 from the start: net.Listen otherwise
+	// applies the process umask, leaving a brief window where the
+	// socket is world-connectable before the Chmod below. Umask is
+	// process-global but daemon startup here is single-threaded.
+	oldMask := syscall.Umask(0o177)
 	listener, err := net.Listen("unix", sockFlag)
+	syscall.Umask(oldMask)
 	if err != nil {
 		log.Fatalf("ashd: listen %s: %v", sockFlag, err)
 	}
