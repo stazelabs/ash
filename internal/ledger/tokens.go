@@ -36,7 +36,10 @@ func (c *Counter) Count(s string) int {
 	if c == nil || c.enc == nil {
 		return 0
 	}
-	return len(c.enc.Encode(s, nil, nil))
+	// EncodeOrdinary skips the special-token scan — ash responses never
+	// contain <|endoftext|>-style tokens, so counts are identical and
+	// the path is cheaper (one fewer full []rune pass).
+	return len(c.enc.EncodeOrdinary(s))
 }
 
 // StripPrefixes returns s with every occurrence of "<prefix>/" replaced
