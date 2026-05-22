@@ -295,13 +295,25 @@ func queryLastCall(t *testing.T, dbPath string, reqID uint64) ledgerRow {
 		t.Fatalf("open ledger: %v", err)
 	}
 	defer db.Close()
+	// ASH-214 moved the ledger Record after the response frame write, so
+	// a completed roundtrip no longer guarantees the row is on disk yet.
+	// Poll a bounded window for it to land.
 	var row ledgerRow
-	err = db.QueryRow(
-		`SELECT streaming, chunks_out, time_to_first_chunk_us FROM calls WHERE request_id = ?`,
-		int64(reqID),
-	).Scan(&row.streaming, &row.chunksOut, &row.ttfcUs)
-	if err != nil {
-		t.Fatalf("query ledger row for req %d: %v", reqID, err)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		err = db.QueryRow(
+			`SELECT streaming, chunks_out, time_to_first_chunk_us FROM calls WHERE request_id = ?`,
+			int64(reqID),
+		).Scan(&row.streaming, &row.chunksOut, &row.ttfcUs)
+		if err == nil {
+			return row
+		}
+		if err != sql.ErrNoRows {
+			t.Fatalf("query ledger row for req %d: %v", reqID, err)
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("ledger row for req %d never appeared within 2s", reqID)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
-	return row
 }

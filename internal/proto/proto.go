@@ -164,11 +164,12 @@ type Metrics struct {
 	BytesIn            int    `msgpack:"bi,omitempty" json:"bi,omitempty"`
 	BytesOut           int    `msgpack:"bo,omitempty" json:"bo,omitempty"`
 	Truncated          bool   `msgpack:"tr,omitempty" json:"tr,omitempty"`
-	// LedgerError is set by the daemon when persisting the call to the
-	// instrumentation ledger failed. The verb itself may have succeeded; the
-	// ledger row did not. Empty in the normal case (omitempty drops it from
-	// the wire). This is the project's main "loud failure" signal: a quiet
-	// ledger failure undermines every claim ash makes about itself.
+	// LedgerError is retained for wire compatibility but is no longer
+	// populated. Before ASH-214 the daemon recorded each call before
+	// encoding the response, so a ledger-persist failure could ride the
+	// wire here. ASH-214 moved the ledger write after the frame write to
+	// take it off the client's latency path; a Record failure is now
+	// logged to ashd.log instead. Always empty (omitempty drops it).
 	LedgerError string `msgpack:"ledger_error,omitempty" json:"ledger_error,omitempty"`
 	// Phases is the sub-execution latency breakdown reported by the verb's
 	// Tracer. Optional; a verb that doesn't instrument anything leaves it

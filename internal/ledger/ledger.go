@@ -153,6 +153,11 @@ func Open(path, projectRoot, clientInfo string) (*Ledger, error) {
 	if err != nil {
 		return nil, err
 	}
+	// ASH-214: cap the ledger at one writer connection. The DB is a
+	// WAL-mode call log written by every request handler; the default
+	// unbounded pool lets handler goroutines collide on SQLITE_BUSY and
+	// burn the 5s busy_timeout. One connection serializes writers.
+	db.SetMaxOpenConns(1)
 	if _, err := db.Exec(schemaSQL); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("ledger: schema: %w", err)
@@ -393,7 +398,7 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 	)
 	if verbFilter != "" {
 		rows, err = l.db.Query(`
-			SELECT id, ts, verb, ok, err_code, err_msg,
+			SELECT id, request_id, ts, verb, ok, err_code, err_msg,
 			       latency_parse_us, latency_exec_us, latency_serialize_us,
 			       tokens_in, tokens_out, tokens_out_no_prefix, tokens_method,
 			       bytes_in, bytes_out, truncated,
@@ -404,7 +409,7 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 			ORDER BY id DESC LIMIT ?`, verbFilter, n)
 	} else {
 		rows, err = l.db.Query(`
-			SELECT id, ts, verb, ok, err_code, err_msg,
+			SELECT id, request_id, ts, verb, ok, err_code, err_msg,
 			       latency_parse_us, latency_exec_us, latency_serialize_us,
 			       tokens_in, tokens_out, tokens_out_no_prefix, tokens_method,
 			       bytes_in, bytes_out, truncated,
@@ -421,10 +426,10 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 	var calls []Call
 	for rows.Next() {
 		var c Call
-		var ts int64
+		var ts, reqID int64
 		var okInt, truncInt int
 		if err := rows.Scan(
-			&c.RowID, &ts, &c.Verb, &okInt, &c.ErrCode, &c.ErrMsg,
+			&c.RowID, &reqID, &ts, &c.Verb, &okInt, &c.ErrCode, &c.ErrMsg,
 			&c.LatencyParseUs, &c.LatencyExecUs, &c.LatencySerializeUs,
 			&c.TokensIn, &c.TokensOut, &c.TokensOutNoPrefix, &c.TokensMethod,
 			&c.BytesIn, &c.BytesOut, &truncInt,
@@ -435,6 +440,7 @@ func (l *Ledger) QueryRecent(n int, verbFilter string) ([]Call, error) {
 			return nil, err
 		}
 		c.Timestamp = time.Unix(0, ts)
+		c.RequestID = uint64(reqID)
 		c.OK = okInt != 0
 		c.Truncated = truncInt != 0
 		calls = append(calls, c)
@@ -535,14 +541,6 @@ func (l *Ledger) Cleanup(cfg CleanupCfg) (*CleanupResult, error) {
 	}
 
 	return res, nil
-}
-
-func (l *Ledger) UpdateSerializeStats(rowID int64, bytesOut int, serializeUs int64) error {
-	_, err := l.db.Exec(
-		`UPDATE calls SET bytes_out = ?, latency_serialize_us = ? WHERE id = ?`,
-		bytesOut, serializeUs, rowID,
-	)
-	return err
 }
 
 // UpdateMCPEmit patches the MCP-envelope emit accounting onto a row that

@@ -468,12 +468,11 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 			tokensOutNoPrefix = led.Counter().Count(ledger.StripPrefixes(prettyRsp, prefixes))
 		}
 
-		// BytesOut and LatencySerializeUs cannot be known until after the wire
-		// encode (circular dependency: both values are in the metrics envelope
-		// that is itself encoded). We insert placeholder zeros here, then patch
-		// the ledger row with accurate values via UpdateSerializeStats once the
-		// encode is done. The record-before-encode ordering is preserved so a
-		// ledger failure is still visible in rsp.Metrics.LedgerError.
+		// metrics is the per-call instrumentation envelope. BytesOut and
+		// LatencySerializeUs are circular — both values live inside the
+		// metrics envelope that is itself encoded — so they ride the wire
+		// as zero, exactly as before ASH-214. The ledger row, written
+		// after the encode below, gets the exact values directly.
 		metrics := &proto.Metrics{
 			LatencyParseUs:    parseUs,
 			LatencyExecUs:     execUs,
@@ -502,6 +501,41 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 			chunksOut = emitter.ChunkCount()
 			ttfcUs = emitter.FirstChunkLatency().Microseconds()
 		}
+
+		rsp.Metrics = metrics
+		serStart := time.Now()
+		final, err := proto.EncodeResponse(rsp)
+		if err != nil {
+			log.Printf("ashd: encode: %v", err)
+			return
+		}
+		serUs := time.Since(serStart).Microseconds()
+
+		// ASH-214: write the response frame before any ledger I/O. The
+		// client gets its bytes without waiting on fsync-gated SQLite
+		// writes; instrumentation follows below, on this same goroutine
+		// but off the client's critical path. Streaming runs write Final
+		// under the kind-tag scheme so the client knows the stream is
+		// over; legacy runs write a plain frame, byte-identical to v1.
+		var werr error
+		if streaming {
+			writeMu.Lock()
+			werr = proto.WriteKinded(conn, proto.KindFinal, final)
+			writeMu.Unlock()
+		} else {
+			werr = proto.WriteFrame(conn, final)
+		}
+		if werr != nil {
+			log.Printf("ashd: write: %v", werr)
+			return
+		}
+
+		// Ledger instrumentation, now off the response path. Record runs
+		// after the encode, so bytes_out and latency_serialize_us are
+		// exact — the row is written once, with no placeholder-then-patch
+		// update. A ledger failure can no longer surface on the wire (the
+		// frame is already gone); it is logged to ashd.log instead — the
+		// trade-off ASH-214 accepts for the latency win.
 		rowID, recordErr := led.Record(&ledger.Call{
 			RequestID:          req.ID,
 			Timestamp:          time.Now(),
@@ -512,13 +546,13 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 			ErrMsg:             errMsg,
 			LatencyParseUs:     parseUs,
 			LatencyExecUs:      execUs,
-			LatencySerializeUs: 0,
+			LatencySerializeUs: serUs,
 			TokensIn:           tokensIn,
 			TokensOut:          tokensOut,
 			TokensOutNoPrefix:  tokensOutNoPrefix,
 			TokensMethod:       ledger.TokensMethod,
 			BytesIn:            len(reqBuf),
-			BytesOut:           0,
+			BytesOut:           len(final),
 			Truncated:          metrics.Truncated,
 			WalkUs:             phases.WalkUs,
 			IOUs:               phases.IOUs,
@@ -536,32 +570,17 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 		})
 		if recordErr != nil {
 			log.Printf("ashd: ledger record: %v", recordErr)
-			metrics.LedgerError = recordErr.Error()
 		}
 
-		// ASH-110 session-graph linking. Best-effort: a failed link
-		// insert does not propagate back to the client (the verb
-		// itself succeeded). The link write is sub-millisecond on
-		// typical sessions because Link bounds the lookback to the
-		// last 16 calls within a 5-minute window.
+		// ASH-110 session-graph linking, then ASH-123/156 MCP emit
+		// accounting. Both run after the frame write and are best-effort:
+		// a failure cannot reach the client (the verb succeeded and the
+		// response is already gone). Link bounds its lookback to the last
+		// 16 calls within a 5-minute window, so the write stays
+		// sub-millisecond on typical sessions.
 		if recordErr == nil && rowID > 0 {
 			if err := led.Link(rowID, req.Args); err != nil {
 				log.Printf("ashd: ledger link: %v", err)
-			}
-		}
-
-		rsp.Metrics = metrics
-		serStart := time.Now()
-		final, err := proto.EncodeResponse(rsp)
-		if err != nil {
-			log.Printf("ashd: encode: %v", err)
-			return
-		}
-		serUs := time.Since(serStart).Microseconds()
-
-		if recordErr == nil {
-			if err := led.UpdateSerializeStats(rowID, len(final), serUs); err != nil {
-				log.Printf("ashd: ledger update serialize: %v", err)
 			}
 			// ASH-123 / ASH-156: MCP-transport emit accounting. For
 			// requests that arrived via ashmcp, the bytes the harness
@@ -621,22 +640,6 @@ func handle(conn net.Conn, led *ledger.Ledger, runners map[string]verbs.Runner, 
 					log.Printf("ashd: mcp envelope: %v", emitErr)
 				}
 			}
-		}
-
-		// Streaming runs write Final under the kind-tag scheme so the
-		// client knows the stream is over; legacy runs write a plain
-		// frame, byte-identical to v1.
-		var werr error
-		if streaming {
-			writeMu.Lock()
-			werr = proto.WriteKinded(conn, proto.KindFinal, final)
-			writeMu.Unlock()
-		} else {
-			werr = proto.WriteFrame(conn, final)
-		}
-		if werr != nil {
-			log.Printf("ashd: write: %v", werr)
-			return
 		}
 	}
 }
