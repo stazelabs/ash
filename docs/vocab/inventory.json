@@ -1045,7 +1045,7 @@
         "sites": [
           {
             "file": "internal/verbs/git/git.go",
-            "line": 206
+            "line": 231
           }
         ],
         "hints": [
@@ -1198,6 +1198,10 @@
           {
             "file": "internal/verbs/git/blame.go",
             "line": 89
+          },
+          {
+            "file": "internal/verbs/git/git.go",
+            "line": 181
           },
           {
             "file": "internal/verbs/git/gogit_blame.go",
@@ -1361,6 +1365,10 @@
           }
         ],
         "hints": [
+          {
+            "text": "a git revision, date, author, or pathspec never starts with '-'",
+            "cl100k_tokens": 15
+          },
           {
             "text": "valid ops: outline, def, refs, callers, impl",
             "cl100k_tokens": 12

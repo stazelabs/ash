@@ -71,5 +71,4 @@ a fresh daemon. Don't `pkill ashd` — it bypasses graceful shutdown.
 - `ash help` — authoritative verb list.
 - `ash help --verb <name>` — per-verb arg schema.
 - `.ash/ledger.db` — SQLite ledger of every call (one row per invocation).
-- The upstream ash project's `CLAUDE.md` and `docs/` for design depth and
-  the per-ship session notes that drove these gotchas.
+- The upstream ash project's `CLAUDE.md` and `docs/` for design depth.

@@ -223,7 +223,7 @@ max_concurrent_handlers = 32
 backend = "go-git"
 EOF
 bin/ash stop && bin/ash git --op status
-# git --op status returns not_implemented because go-git path is stubbed.
+# git --op status returns a structured StatusResult; go-git is the default backend.
 # daemon log line shows config=ash.toml.
 
 rm ash.toml hosts-link                  # restore clean state
