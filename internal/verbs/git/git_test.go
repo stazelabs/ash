@@ -247,6 +247,22 @@ func TestParseArgs_WireShape(t *testing.T) {
 	}
 }
 
+// TestParseArgs_RejectsDashPrefixedRevArgs covers the ASH-211 guard: a
+// rev/pathspec value beginning with "-" is rejected before it can reach
+// the git argv. git would otherwise read --range '--output=X' as an
+// option, and `git log --output=FILE` writes attacker-chosen files.
+func TestParseArgs_RejectsDashPrefixedRevArgs(t *testing.T) {
+	for _, arg := range []string{"range", "author", "since", "until", "pathspec", "ref", "rev"} {
+		_, perr := ParseArgs(map[string]any{"op": "log", arg: "--output=/tmp/pwned"})
+		if perr == nil || perr.Code != "args" {
+			t.Errorf("%s='--output=...': expected args error, got %+v", arg, perr)
+		}
+	}
+	if _, perr := ParseArgs(map[string]any{"op": "log", "range": "HEAD~3..HEAD"}); perr != nil {
+		t.Fatalf("legit range rejected: %+v", perr)
+	}
+}
+
 // -- integration smoke test ----------------------------------------------
 //
 // Builds a real repo via `git init`, exercises Run, and asserts the
