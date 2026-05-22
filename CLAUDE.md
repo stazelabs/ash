@@ -22,7 +22,7 @@ See [README §Configuration](README.md#configuration) and [`ash.toml.example`](a
 ### Error codes touching this
 
 - `path_denied` — verb path arg fell outside the active jail policy.
-- `not_implemented` — reserved for future ops a backend genuinely cannot perform. No live verb returns this today.
+- `not_implemented` — a backend cannot perform an op. `git --op blame` returns it under `[git].backend = "shellout"` (blame requires the go-git backend).
 
 ## When to prefer ash over bash
 

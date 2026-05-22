@@ -69,7 +69,7 @@ type Result struct {
 	Reason      string `msgpack:"reason,omitempty"`       // human-readable deny reason (matches what Claude shows)
 }
 
-const nudgeTail = `See CLAUDE.md "When to prefer ash over bash". If ash genuinely falls short, run it anyway and write a session note in docs/session-notes/.`
+const nudgeTail = `See CLAUDE.md "When to prefer ash over bash". If ash genuinely falls short, run it anyway — that is a finding worth recording (see CLAUDE.md "Session feedback ritual").`
 
 // Read is denied for source-text files but allowed for image/PDF/notebook
 // formats that ash read can't render meaningfully.

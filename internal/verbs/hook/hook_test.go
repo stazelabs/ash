@@ -360,7 +360,7 @@ func TestDecide_bash(t *testing.T) {
 			if tc.wantSugg != "" && !strings.Contains(r.Suggested, tc.wantSugg) {
 				t.Errorf("suggested: want substring %q, got %q", tc.wantSugg, r.Suggested)
 			}
-			if r.Decision == "deny" && !strings.Contains(r.Reason, "session-notes") {
+			if r.Decision == "deny" && !strings.Contains(r.Reason, nudgeTail) {
 				t.Errorf("deny reason should include nudge tail: %q", r.Reason)
 			}
 			// ASH-69 regression: a redirection operator must never end up as
@@ -506,7 +506,7 @@ func TestEncodeClaudeDecision(t *testing.T) {
 		t.Errorf("permissionDecision: %v", hso["permissionDecision"])
 	}
 	reason, _ := hso["permissionDecisionReason"].(string)
-	if !strings.Contains(reason, "ash grep") || !strings.Contains(reason, "session-notes") {
+	if !strings.Contains(reason, "ash grep") || !strings.Contains(reason, nudgeTail) {
 		t.Errorf("reason: %q", reason)
 	}
 }
