@@ -118,9 +118,13 @@ func Open(opts Options) (*Cache, error) {
 	return &Cache{db: db, ttl: opts.TTL}, nil
 }
 
-// Close releases the database handle. Safe to call multiple times; only
-// the first call performs work.
+// Close releases the database handle. Safe to call multiple times, and
+// on a nil receiver — ashd leaves langCache nil when [lsp] is disabled
+// (the default) yet still defers Close.
 func (c *Cache) Close() error {
+	if c == nil {
+		return nil
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.db == nil {

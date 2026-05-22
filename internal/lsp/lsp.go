@@ -435,6 +435,9 @@ func (b *Broker) start(ctx context.Context) error {
 		return &Error{Code: "lsp_spawn", Msg: err.Error()}
 	}
 	if err := cmd.Start(); err != nil {
+		stdin.Close()
+		stdout.Close()
+		stderr.Close()
 		return &Error{Code: "lsp_spawn", Msg: err.Error()}
 	}
 

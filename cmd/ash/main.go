@@ -40,17 +40,17 @@ func main() {
 
 	verb := os.Args[1]
 
+	if verb == "--version" || verb == "-V" {
+		fmt.Printf("ash %s — use 'ash help' for the verb list\n", version)
+		return
+	}
+
 	// `ash hook` is a client-only fast path for the Claude Code PreToolUse
 	// hook. It reads the harness payload from stdin, computes the decision
 	// in-process, writes the Claude-format response to stdout, and best-
 	// effort fires a normal ash request to the daemon for ledger
 	// instrumentation. It never auto-starts the daemon — hook latency is
 	// on the agent's critical path.
-	if verb == "--version" || verb == "-V" {
-		fmt.Printf("ash %s — use 'ash help' for the verb list\n", version)
-		return
-	}
-
 	if verb == "hook" {
 		runHook()
 		return

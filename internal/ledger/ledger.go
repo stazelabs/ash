@@ -157,6 +157,9 @@ func Open(path, projectRoot, clientInfo string) (*Ledger, error) {
 		db.Close()
 		return nil, fmt.Errorf("ledger: schema: %w", err)
 	}
+	// The ledger holds file paths and result fragments — keep it
+	// owner-only, not the 0644 SQLite creates by default.
+	_ = os.Chmod(path, 0o600)
 	if _, err := db.Exec(`INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', ?)`, schemaVersion); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("ledger: schema version: %w", err)
