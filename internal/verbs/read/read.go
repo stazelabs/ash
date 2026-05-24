@@ -161,7 +161,7 @@ func countLines(b []byte) int {
 func applyRange(body []byte, spec, kind string) ([]byte, string, *proto.Error) {
 	parts := strings.SplitN(spec, ":", 2)
 	if len(parts) != 2 {
-		return nil, "", &proto.Error{Code: "args", Msg: "range must be \"start:end\""}
+		return nil, "", &proto.Error{Code: "args", Msg: "range must be \"start:end\" (e.g. --range 100:200)"}
 	}
 	start, err1 := strconv.Atoi(parts[0])
 	end, err2 := strconv.Atoi(parts[1])
