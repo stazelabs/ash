@@ -235,7 +235,7 @@ func Run(a *Args, tr *proto.Tracer) (*Result, *proto.Error) {
 		}
 		return &Result{Op: "blame", Blame: b}, nil
 	default:
-		return nil, &proto.Error{Code: "unknown_op", Msg: "unknown op: " + a.Op, Hint: "live ops: status, log, diff, show, blame"}
+		return nil, &proto.Error{Code: "unknown_op", Msg: "unknown op: " + a.Op + " — use: git " + a.Op + " <args>", Hint: "ash git supports: status, log, diff, show, blame"}
 	}
 }
 
