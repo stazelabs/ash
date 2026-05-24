@@ -389,8 +389,8 @@
         ],
         "hints": [
           {
-            "text": "set [lsp].enabled=true in ash.toml and run `ash stop`",
-            "cl100k_tokens": 17
+            "text": "create or edit ash.toml in your project root:\n\n[lsp]\nenabled = true\n\nthen run `ash stop`",
+            "cl100k_tokens": 24
           }
         ]
       },

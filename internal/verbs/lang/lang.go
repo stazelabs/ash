@@ -185,7 +185,7 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 // so the caller learns the operational state without crashing.
 func RunWithDeps(d Deps, a *Args) (*Result, *proto.Error) {
 	if d.Broker == nil || !d.Broker.Enabled() {
-		return nil, &proto.Error{Code: "lsp_disabled", Msg: "lsp broker is disabled", Hint: "set [lsp].enabled=true in ash.toml and run `ash stop`"}
+		return nil, &proto.Error{Code: "lsp_disabled", Msg: "lsp broker is disabled", Hint: "create or edit ash.toml in your project root:\n\n[lsp]\nenabled = true\n\nthen run `ash stop`"}
 	}
 	switch a.Op {
 	case "outline":

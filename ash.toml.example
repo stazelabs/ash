@@ -105,15 +105,12 @@
 # build = ""
 
 # [lsp]
-# # ASH-136: Language Server Protocol broker. When enabled, ashd spawns a
+# # ASH-136: Language Server Protocol broker. Required for `ash lang`
+# # (outline, def, refs, callers, impl). When enabled, ashd spawns a
 # # gopls subprocess on the first write/edit and routes textDocument
-# # notifications so gopls's in-memory view stays in sync with disk. This
-# # is infrastructure for future `ash lang ...` verbs — no current verb
-# # consumes it, so leaving the broker disabled has zero behavioral
-# # impact.
+# # notifications so gopls's in-memory view stays in sync with disk.
 # #
-# # Default false: the broker performs no work and write/edit emit no
-# # notifications.
+# # Default false: broker is off, `ash lang` returns lsp_disabled.
 # enabled = false
 #
 # # Executable used for the gopls subprocess. Default "gopls" — relies
