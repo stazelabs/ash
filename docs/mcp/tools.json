@@ -4063,6 +4063,40 @@
         ],
         "additionalProperties": false
       }
+    },
+    {
+      "name": "ash_config",
+      "description": "Print the embedded ash.toml.example — annotated config reference available from any install. [experimental: arg schema may change in a point release]",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string",
+            "description": "Response shape: \"json\" (default) ships structured data as named per-record maps; \"pretty\" ships the daemon-pretty text matching CLI token cost; \"compact\" (ASH-153) ships a cols/rows hybrid where field names are listed once per call instead of once per record — only meaningful for row-shaped verbs (find, grep, metrics, report, git log/diff/show, stat, test). MCP-only knob; ignored on the CLI.",
+            "enum": [
+              "json",
+              "pretty",
+              "compact"
+            ],
+            "default": "json"
+          }
+        },
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "additionalProperties": false
+      }
     }
   ]
 }

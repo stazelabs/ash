@@ -679,6 +679,12 @@ var registry = []VerbSchema{
 				Long:        "[refs/callers/impl] include the trimmed source line at each match as context_line on the wire and after the position in pretty output. Cheap (one file read per matched file via mmap-like sequential scan)."},
 		},
 	},
+	{
+		Verb:        "config",
+		Tier:        "D",
+		Description: "Print the embedded ash.toml.example — annotated config reference available from any install.",
+		Args:        []ArgSchema{},
+	},
 }
 
 // Registry returns the full verb schema registry (read-only view for tests and tooling).
@@ -696,6 +702,7 @@ var experimentalVerbs = map[string]bool{
 	"workspace": true,
 	"init":      true,
 	"uninit":    true,
+	"config":    true,
 }
 
 // Registry returns the live verb registry with Stability populated
@@ -881,6 +888,7 @@ var verbDisplayOrder = []string{
 	"lang",
 	"metrics", "report", "recap", "workspace", "replay", "stat", "bench", "build", "test",
 	"help", "hook", "init", "uninit", "stop", "usage", "turn",
+	"config",
 }
 
 // RenderUsage produces the full usage string printed when `ash` is invoked

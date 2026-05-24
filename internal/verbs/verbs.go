@@ -31,6 +31,7 @@ import (
 	"github.com/stazelabs/ash/internal/verbs/recap"
 	"github.com/stazelabs/ash/internal/verbs/replay"
 	"github.com/stazelabs/ash/internal/verbs/report"
+	configverb "github.com/stazelabs/ash/internal/verbs/config"
 	"github.com/stazelabs/ash/internal/verbs/stat"
 	"github.com/stazelabs/ash/internal/verbs/stop"
 	"github.com/stazelabs/ash/internal/verbs/test"
@@ -90,6 +91,7 @@ func PrettyHandlers() map[string]Pretty {
 		"turn":      turn.PrettyResponse,
 		"usage":     usage.PrettyResponse,
 		"lang":      lang.PrettyResponse,
+		"config":    configverb.PrettyResponse,
 	}
 }
 
@@ -179,6 +181,7 @@ func Runners(led *ledger.Ledger, cfg *config.Config, daemonStart time.Time, proj
 			return bench.RunWithDeps(deps, a)
 		},
 	}
+	runners["config"] = wrap(configverb.ParseArgs, configverb.Run, nil)
 	// ASH-138: lang verb closes over the LSP broker + cache. Both are
 	// nil-safe in lang.RunWithDeps — when the broker is disabled, the
 	// runner returns lsp_disabled rather than crashing.

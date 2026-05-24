@@ -389,8 +389,8 @@
         ],
         "hints": [
           {
-            "text": "create or edit ash.toml in your project root:\n\n[lsp]\nenabled = true\n\nthen run `ash stop`",
-            "cl100k_tokens": 24
+            "text": "create or edit ash.toml in your project root:\n\n[lsp]\nenabled = true\n\nthen run `ash stop` — run `ash config` to see the full annotated ash.toml",
+            "cl100k_tokens": 38
           }
         ]
       },
@@ -544,11 +544,11 @@
         "sites": [
           {
             "file": "internal/verbs/verbs.go",
-            "line": 163
+            "line": 165
           },
           {
             "file": "internal/verbs/verbs.go",
-            "line": 210
+            "line": 213
           }
         ]
       },
@@ -958,7 +958,7 @@
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 758
+            "line": 765
           },
           {
             "file": "internal/verbs/initverb/initverb.go",
@@ -2288,6 +2288,16 @@
         ]
       },
       {
+        "literal": "§config: ash.toml.example",
+        "cl100k_tokens": 7,
+        "sites": [
+          {
+            "file": "internal/verbs/config/config.go",
+            "line": 47
+          }
+        ]
+      },
+      {
         "literal": "§bench --record-baseline",
         "cl100k_tokens": 6,
         "sites": [
@@ -2519,11 +2529,11 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 811
+            "line": 818
           },
           {
             "file": "internal/verbs/help/help.go",
-            "line": 818
+            "line": 825
           }
         ]
       },
@@ -2767,7 +2777,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 847
+            "line": 854
           }
         ]
       },
@@ -2893,7 +2903,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 1107
+            "line": 1115
           }
         ]
       },
@@ -3019,7 +3029,7 @@
         "sites": [
           {
             "file": "internal/verbs/help/help.go",
-            "line": 831
+            "line": 838
           }
         ]
       },
@@ -3174,6 +3184,10 @@
       },
       {
         "literal": "build",
+        "cl100k_tokens": 1
+      },
+      {
+        "literal": "config",
         "cl100k_tokens": 1
       },
       {

@@ -1,0 +1,130 @@
+# ash.toml — project-level configuration for ashd. Copy to ash.toml and
+# uncomment the sections you want to set.
+#
+# This file is loaded at daemon startup. Restart the daemon (`ash kill`,
+# then any ash invocation auto-restarts it) for changes to take effect —
+# hot reload is deliberately deferred.
+#
+# Layering (last wins):
+#   1. compiled defaults
+#   2. $XDG_CONFIG_HOME/ash/config.toml  (user-global, if present)
+#   3. <root>/ash.toml                   (this file)
+#   4. $ASH_CONFIG=<path>                (explicit override)
+#
+# See docs/configuration.md for the full design.
+
+# [daemon]
+# # Cap concurrent verb dispatches in flight. 0 (default) = unlimited;
+# # the accept loop blocks before spawning a handler once the cap is
+# # in flight, so backpressure manifests as queued connections at the
+# # OS layer rather than runaway goroutine growth.
+# max_concurrent_handlers = 0
+#
+# # Per-frame socket read timeout. Default "30s". A connection that
+# # opens but never sends — or stays silent between frames — is timed
+# # out and the goroutine returns. The deadline is reset on every
+# # successful read, so a long-lived client making regular requests
+# # is unaffected. Set to "0s" to disable.
+# read_deadline = "30s"
+#
+# # Bounded wait for in-flight handlers after SIGTERM closes the
+# # listener. Default "5s". Long enough for any verb in the current
+# # surface to commit its ledger row before exit; long-running ones
+# # (test, bench) are best killed with SIGKILL.
+# shutdown_grace = "5s"
+
+# [jail]
+# # Master switch. Default false: every path-taking verb works as today.
+# # When true, every verb path arg must resolve under the project root
+# # or one of allow_paths, and must not match deny_paths. Symlinks
+# # whose target escapes the allowed roots are denied.
+# enabled = false
+#
+# # Additional canonical roots paths may sit under. Useful for legitimate
+# # scratch dirs or build outputs that live outside the project tree.
+# allow_paths = ["/tmp/scratch"]
+#
+# # Canonical paths to deny even inside an allowed root. Useful for
+# # secrets directories or other should-never-be-touched paths.
+# deny_paths = [".env", "secrets/"]
+
+# [git]
+# # Backend for the `ash git` verb. Three states:
+# #   unset (default) — log/show/blame run in-process via go-git; the two
+# #     worktree-walking ops, status and diff, use system git when it is
+# #     on PATH and fall back to go-git otherwise. go-git's worktree walk
+# #     is ~25x slower than system git on large trees such as a JS repo's
+# #     node_modules (ASH-203), so the default delegates those two ops.
+# #   "go-git" — every op runs in-process; no system git required, even
+# #     where it is slower (hermetic environments, or when go-git's
+# #     semantics are specifically wanted).
+# #   "shellout" — every op forks system git, including its native
+# #     rename-detection thresholds and relative date forms in
+# #     log --since "1 week ago". blame is not supported on this backend.
+# backend = ""
+
+# [ledger]
+# # How long to retain call rows in .ash/ledger.db. Default "720h" (30 days).
+# # Cleanup runs once at daemon startup before accepting connections.
+# # Set to "0s" to disable age-based cleanup entirely (unbounded growth).
+# max_age = "720h"
+#
+# # Cap total rows kept after age-based cleanup. 0 (default) = no row limit.
+# # Applied after max_age, so it bounds growth on high-frequency repos.
+# max_rows = 0
+#
+# # Run PRAGMA VACUUM after cleanup. This rewrites the DB file and reclaims
+# # disk space but is slow on large ledgers. Default false — PRAGMA optimize
+# # runs instead, which is cheap and sufficient for routine maintenance.
+# vacuum = false
+
+# [hook]
+# # Verbs to exclude from PreToolUse hook enforcement. When a verb is listed
+# # here, the hook allows the corresponding harness tool calls and bash
+# # equivalents rather than denying them with an ash suggestion.
+# #
+# # Useful for: temporarily sidestepping a buggy verb, running isolated
+# # tests against specific tools, or configuration-specific exemptions.
+# # Excluded denies are recorded in the ledger with a ":excluded" suffix on
+# # matched_rule, so they remain queryable via `ash report --verb hook`.
+# #
+# # Valid values: "grep", "find", "read", "edit", "write", "stat", "git", "test"
+# exclude_verbs = []
+
+# [runner]
+# # Commands for non-Go projects (ASH-202). When set, ash test and ash build
+# # shell out to these commands instead of invoking the Go toolchain.
+# # Thin pass-through: combined stdout+stderr is captured, OK/fail is determined
+# # by exit code. Go-specific args (packages, race, run, cover) are ignored.
+# # Requires daemon restart after editing.
+# #
+# # Examples:
+# #   test = "npm run typecheck"   # tsc --noEmit via package.json script
+# #   build = "npm run build"      # next build
+# test = ""
+# build = ""
+
+# [lsp]
+# # ASH-136: Language Server Protocol broker. Required for `ash lang`
+# # (outline, def, refs, callers, impl). When enabled, ashd spawns a
+# # gopls subprocess on the first write/edit and routes textDocument
+# # notifications so gopls's in-memory view stays in sync with disk.
+# #
+# # Default false: broker is off, `ash lang` returns lsp_disabled.
+# enabled = false
+#
+# # Executable used for the gopls subprocess. Default "gopls" — relies
+# # on $PATH at daemon startup. Set to an absolute path to pin a
+# # specific build (e.g. "/usr/local/bin/gopls" or a per-project
+# # toolchain). When enabled is true but the binary is not found, the
+# # broker fails with code gopls_not_found and write/edit continue to
+# # succeed without the LSP sync.
+# gopls_path = "gopls"
+#
+# # Soft expiry for cached LSP responses in .ash/lang-cache.db
+# # (ASH-137). mtime-keying is the canonical correctness story; this
+# # TTL is a safety net for cases the mtime path can't see — clock
+# # skew, files written by tools outside ash. Default "0s" disables
+# # it; rows are then retired only by mtime mismatch or by the
+# # write/edit invalidation hook.
+# cache_ttl = "0s"

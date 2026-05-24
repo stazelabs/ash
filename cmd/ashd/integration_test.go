@@ -174,6 +174,7 @@ func TestIntegration_AllVerbs(t *testing.T) {
 		// (broker-off) daemon. The real LSP integration is covered by
 		// internal/verbs/lang/lang_test.go.
 		{"lang", map[string]any{"op": "outline", "path": goMod}, "lsp_disabled"},
+		{"config", map[string]any{}, ""},
 	}
 
 	// Fail loudly if a new verb is added to Runners without a corresponding

@@ -1,4 +1,4 @@
-.PHONY: all clean restart install uninstall bench bench-baseline vocab vocab-check schema schema-check validate validate-check
+.PHONY: all clean restart install uninstall bench bench-baseline vocab vocab-check schema schema-check validate validate-check config-sync config-check
 
 PREFIX ?= $(HOME)/.local/bin
 
@@ -113,6 +113,19 @@ validate: bin/encexplore
 		exit 1; \
 	fi; \
 	./bin/encexplore validate --model claude-sonnet-4-5 --out testdata/validate_results.md
+
+# config-sync: copy ash.toml.example → internal/verbs/config/ash.toml.example
+# so the //go:embed in the config verb always mirrors the canonical root copy.
+# Run after editing ash.toml.example. config-check is the CI drift gate.
+config-sync:
+	cp ash.toml.example internal/verbs/config/ash.toml.example
+
+config-check:
+	@if ! diff -q ash.toml.example internal/verbs/config/ash.toml.example > /dev/null 2>&1; then \
+		echo "config-check: internal/verbs/config/ash.toml.example differs from ash.toml.example. Run \`make config-sync\`." >&2; \
+		exit 1; \
+	fi
+	@echo "config-check: ok"
 
 # validate-check: gate the checked-in cross-validation artifact. Fails if any
 # rule's cl100k Δ disagrees with its Claude Δ in sign (the `✗` marker in
