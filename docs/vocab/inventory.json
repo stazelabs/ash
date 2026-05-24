@@ -272,11 +272,11 @@
         "sites": [
           {
             "file": "internal/verbs/initverb/initverb.go",
-            "line": 305
+            "line": 363
           },
           {
             "file": "internal/verbs/uninit/uninit.go",
-            "line": 214
+            "line": 242
           }
         ]
       },
@@ -286,11 +286,11 @@
         "sites": [
           {
             "file": "internal/verbs/initverb/initverb.go",
-            "line": 318
+            "line": 376
           },
           {
             "file": "internal/verbs/uninit/uninit.go",
-            "line": 231
+            "line": 259
           }
         ]
       },
@@ -530,11 +530,11 @@
         "sites": [
           {
             "file": "internal/verbs/initverb/initverb.go",
-            "line": 214
+            "line": 245
           },
           {
             "file": "internal/verbs/uninit/uninit.go",
-            "line": 164
+            "line": 192
           }
         ]
       },
@@ -1020,7 +1020,7 @@
         "sites": [
           {
             "file": "internal/verbs/initverb/initverb.go",
-            "line": 175
+            "line": 182
           },
           {
             "file": "internal/verbs/uninit/uninit.go",
@@ -1034,7 +1034,7 @@
         "sites": [
           {
             "file": "internal/verbs/initverb/initverb.go",
-            "line": 178
+            "line": 185
           },
           {
             "file": "internal/verbs/uninit/uninit.go",
@@ -1048,15 +1048,15 @@
         "sites": [
           {
             "file": "internal/verbs/initverb/initverb.go",
-            "line": 210
+            "line": 241
           },
           {
             "file": "internal/verbs/initverb/initverb.go",
-            "line": 218
+            "line": 249
           },
           {
             "file": "internal/verbs/uninit/uninit.go",
-            "line": 168
+            "line": 196
           }
         ]
       },
@@ -2443,11 +2443,11 @@
         "sites": [
           {
             "file": "internal/verbs/uninit/uninit.go",
-            "line": 245
+            "line": 273
           },
           {
             "file": "internal/verbs/uninit/uninit.go",
-            "line": 247
+            "line": 275
           }
         ]
       },
@@ -2543,11 +2543,11 @@
         "sites": [
           {
             "file": "internal/verbs/initverb/initverb.go",
-            "line": 333
+            "line": 391
           },
           {
             "file": "internal/verbs/initverb/initverb.go",
-            "line": 335
+            "line": 393
           }
         ]
       },
@@ -2763,11 +2763,11 @@
         "sites": [
           {
             "file": "internal/verbs/initverb/initverb.go",
-            "line": 338
+            "line": 396
           },
           {
             "file": "internal/verbs/uninit/uninit.go",
-            "line": 252
+            "line": 280
           }
         ]
       },
@@ -2787,11 +2787,11 @@
         "sites": [
           {
             "file": "internal/verbs/initverb/initverb.go",
-            "line": 342
+            "line": 400
           },
           {
             "file": "internal/verbs/uninit/uninit.go",
-            "line": 256
+            "line": 284
           }
         ]
       },
@@ -2967,11 +2967,11 @@
         "sites": [
           {
             "file": "internal/verbs/initverb/initverb.go",
-            "line": 344
+            "line": 402
           },
           {
             "file": "internal/verbs/uninit/uninit.go",
-            "line": 258
+            "line": 286
           }
         ]
       },
@@ -2995,11 +2995,11 @@
         "sites": [
           {
             "file": "internal/verbs/initverb/initverb.go",
-            "line": 337
+            "line": 395
           },
           {
             "file": "internal/verbs/uninit/uninit.go",
-            "line": 251
+            "line": 279
           }
         ]
       },
@@ -3059,11 +3059,11 @@
         "sites": [
           {
             "file": "internal/verbs/initverb/initverb.go",
-            "line": 346
+            "line": 404
           },
           {
             "file": "internal/verbs/uninit/uninit.go",
-            "line": 260
+            "line": 288
           }
         ]
       }

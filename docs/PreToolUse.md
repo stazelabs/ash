@@ -72,6 +72,12 @@ The bash command splitter is **literal** (no shell quoting awareness): a `;` ins
 
 Within a segment, positional args are scanned with shell redirection operators (`>`, `>>`, `<`, `<<`, `&>`, `2>&1`, `[N]>...`, etc.) stripped before they reach the suggestion builders. A stray `2>&1` or `> /tmp/list` no longer pollutes the suggested `--path` value, and `cat`/`echo`/`printf`/`tee` invocations with an output redirect are routed to `ash write` rather than `ash read` (ASH-69).
 
+## Subagent constraint
+
+Subagents spawned by Claude Code do not inherit the parent session's MCP servers. That means `mcp__ash__ash_grep`, `mcp__ash__ash_read`, etc. are unavailable inside a subagent. The hook still fires (it runs via a Bash command, not MCP), so every built-in tool call is redirected to `ash *` — but if `Bash(ash *)` is not pre-approved in the project's `permissions.allow`, the subagent blocks on a per-call human approval prompt. With no human watching, this is a deadlock.
+
+`ash init` adds `"Bash(ash *)"` to `permissions.allow` as part of its settings merge, so newly initialized repos are covered automatically. For repos initialized before ASH-228, run `ash init` again — it is idempotent and will add the missing entry without touching anything else. `ash uninit` removes it symmetrically.
+
 ## Known escapes
 
 The hook steers via canonical bash idioms — it tokenizes the top-level command and routes on the first program word. Wrapping the inner command in a shell-of-a-shell sidesteps that introspection:

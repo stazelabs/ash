@@ -22,6 +22,7 @@ func TestRegistry_StabilityClassification(t *testing.T) {
 		"bench":     true,
 		"recap":     true,
 		"workspace": true,
+		"config":    true,
 		"init":      true,
 		"uninit":    true,
 	}

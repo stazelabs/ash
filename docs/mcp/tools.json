@@ -2549,7 +2549,7 @@
     },
     {
       "name": "ash_hook",
-      "description": "PreToolUse decision engine; steers harness tools to ash equivalents.",
+      "description": "PreToolUse decision engine; steers harness tools to ash equivalents. Subagents don't inherit the parent MCP session — ensure Bash(ash *) is in permissions.allow (ash init adds this automatically).",
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",

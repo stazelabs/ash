@@ -160,12 +160,19 @@ func Run(a *Args, _ *proto.Tracer) (*Result, *proto.Error) {
 	return res, nil
 }
 
+// BashAshAllowRule is the permissions.allow entry that pre-approves all ash
+// Bash invocations. It is exported so uninit can strip it symmetrically.
+// Without this entry, subagents (which don't inherit the parent session's
+// MCP servers and have a fresh permission profile) cannot freely call ash
+// commands — every call blocks on per-call human approval.
+const BashAshAllowRule = "Bash(ash *)"
+
 // updateSettings reads <root>/.claude/settings.json (if any), merges in a
-// PreToolUse entry that runs `ash hook`, and writes it back. Returns
-// (changed, alreadyInstalled, warning, error). alreadyInstalled is set
-// when an existing entry already invokes `ash hook` (PATH form). A
-// pre-existing entry that uses a different ash command produces a warning
-// unless force is true, in which case it is replaced.
+// PreToolUse entry that runs `ash hook` and ensures "Bash(ash *)" is in
+// permissions.allow, then writes it back. Returns (changed, alreadyInstalled,
+// warning, error). alreadyInstalled is set when both entries are already
+// present. A pre-existing hook entry that uses a different ash command
+// produces a warning unless force is true, in which case it is replaced.
 func updateSettings(root string, force bool) (bool, bool, string, *proto.Error) {
 	path := filepath.Join(root, SettingsRelPath)
 
@@ -187,24 +194,48 @@ func updateSettings(root string, force bool) (bool, bool, string, *proto.Error) 
 	}
 	preToolUse, _ := hooks["PreToolUse"].([]any)
 
-	already, conflictIdx := scanForAshHook(preToolUse)
-	if already {
+	hookAlready, conflictIdx := scanForAshHook(preToolUse)
+	permAlready := hasBashAshAllow(settings)
+
+	if hookAlready && permAlready {
 		return false, true, "", nil
 	}
 
 	warning := ""
-	if conflictIdx >= 0 {
-		if !force {
-			warning = fmt.Sprintf("existing PreToolUse entry invokes ash with a different command (%s); pass --force to replace", path)
-			return false, false, warning, nil
+	changed := false
+	blocked := false // hook conflict blocked by !force
+
+	if !hookAlready {
+		if conflictIdx >= 0 {
+			if !force {
+				warning = fmt.Sprintf("existing PreToolUse entry invokes ash with a different command (%s); pass --force to replace", path)
+				blocked = true
+			} else {
+				// Replace the conflicting entry in place.
+				preToolUse = append(preToolUse[:conflictIdx], preToolUse[conflictIdx+1:]...)
+				preToolUse = append(preToolUse, ashHookEntry())
+				hooks["PreToolUse"] = preToolUse
+				settings["hooks"] = hooks
+				changed = true
+			}
+		} else {
+			preToolUse = append(preToolUse, ashHookEntry())
+			hooks["PreToolUse"] = preToolUse
+			settings["hooks"] = hooks
+			changed = true
 		}
-		// Replace the conflicting entry in place.
-		preToolUse = append(preToolUse[:conflictIdx], preToolUse[conflictIdx+1:]...)
 	}
 
-	preToolUse = append(preToolUse, ashHookEntry())
-	hooks["PreToolUse"] = preToolUse
-	settings["hooks"] = hooks
+	// Only add the permissions entry if the hook is installed (or was already
+	// installed). If a conflict blocked the hook update, leave settings alone.
+	if !permAlready && !blocked {
+		addBashAshAllow(settings)
+		changed = true
+	}
+
+	if !changed {
+		return false, false, warning, nil
+	}
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return false, false, warning, &proto.Error{Code: "settings_write", Msg: err.Error()}
@@ -218,6 +249,33 @@ func updateSettings(root string, force bool) (bool, bool, string, *proto.Error) 
 		return false, false, warning, &proto.Error{Code: "settings_write", Msg: err.Error()}
 	}
 	return true, false, warning, nil
+}
+
+// hasBashAshAllow reports whether BashAshAllowRule is already present in
+// settings["permissions"]["allow"].
+func hasBashAshAllow(settings map[string]any) bool {
+	perms, _ := settings["permissions"].(map[string]any)
+	if perms == nil {
+		return false
+	}
+	allow, _ := perms["allow"].([]any)
+	for _, v := range allow {
+		if s, ok := v.(string); ok && s == BashAshAllowRule {
+			return true
+		}
+	}
+	return false
+}
+
+// addBashAshAllow appends BashAshAllowRule to settings["permissions"]["allow"].
+func addBashAshAllow(settings map[string]any) {
+	perms, _ := settings["permissions"].(map[string]any)
+	if perms == nil {
+		perms = map[string]any{}
+	}
+	allow, _ := perms["allow"].([]any)
+	perms["allow"] = append(allow, BashAshAllowRule)
+	settings["permissions"] = perms
 }
 
 func ashHookEntry() map[string]any {

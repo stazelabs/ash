@@ -57,6 +57,7 @@ verbs (phase 2):
   turn    --turn_id <msg-id> [--harness_session_id <sid>] [--model <m>] [--input_tokens N]
           [--output_tokens N] [--cache_read_tokens N] [--cache_creation_tokens N]
           [--timestamp_nanos N]
+  config  
 
 positional args (most verbs accept their dominant arg positionally):
   ash read foo.go              (== ash read --path foo.go)

@@ -360,7 +360,7 @@ var registry = []VerbSchema{
 	{
 		Verb:        "hook",
 		Tier:        "A",
-		Description: "PreToolUse decision engine; steers harness tools to ash equivalents.",
+		Description: "PreToolUse decision engine; steers harness tools to ash equivalents. Subagents don't inherit the parent MCP session — ensure Bash(ash *) is in permissions.allow (ash init adds this automatically).",
 		Args: []ArgSchema{
 			{Name: "tool", Type: "string",
 				Description: "Harness tool the agent attempted.",

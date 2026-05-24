@@ -129,35 +129,63 @@ func stripSettings(root string) (bool, *proto.Error) {
 	if err := json.Unmarshal(data, &settings); err != nil {
 		return false, &proto.Error{Code: "settings_parse", Msg: path + ": " + err.Error()}
 	}
-	hooks, _ := settings["hooks"].(map[string]any)
-	if hooks == nil {
-		return false, nil
-	}
-	preToolUse, _ := hooks["PreToolUse"].([]any)
-	if len(preToolUse) == 0 {
-		return false, nil
-	}
-	kept := make([]any, 0, len(preToolUse))
+
 	changed := false
-	for _, e := range preToolUse {
-		if entryInvokesAshHook(e) {
-			changed = true
-			continue
+
+	// Strip the PreToolUse hook entry.
+	hooks, _ := settings["hooks"].(map[string]any)
+	if hooks != nil {
+		preToolUse, _ := hooks["PreToolUse"].([]any)
+		if len(preToolUse) > 0 {
+			kept := make([]any, 0, len(preToolUse))
+			for _, e := range preToolUse {
+				if entryInvokesAshHook(e) {
+					changed = true
+					continue
+				}
+				kept = append(kept, e)
+			}
+			if changed {
+				if len(kept) == 0 {
+					delete(hooks, "PreToolUse")
+				} else {
+					hooks["PreToolUse"] = kept
+				}
+				if len(hooks) == 0 {
+					delete(settings, "hooks")
+				} else {
+					settings["hooks"] = hooks
+				}
+			}
 		}
-		kept = append(kept, e)
 	}
+
+	// Strip the Bash(ash *) permissions.allow entry.
+	if perms, ok := settings["permissions"].(map[string]any); ok {
+		if allow, ok := perms["allow"].([]any); ok {
+			kept := allow[:0]
+			for _, v := range allow {
+				if s, ok := v.(string); ok && s == initverb.BashAshAllowRule {
+					changed = true
+					continue
+				}
+				kept = append(kept, v)
+			}
+			if len(kept) == 0 {
+				delete(perms, "allow")
+			} else {
+				perms["allow"] = kept
+			}
+			if len(perms) == 0 {
+				delete(settings, "permissions")
+			} else {
+				settings["permissions"] = perms
+			}
+		}
+	}
+
 	if !changed {
 		return false, nil
-	}
-	if len(kept) == 0 {
-		delete(hooks, "PreToolUse")
-	} else {
-		hooks["PreToolUse"] = kept
-	}
-	if len(hooks) == 0 {
-		delete(settings, "hooks")
-	} else {
-		settings["hooks"] = hooks
 	}
 	out, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
