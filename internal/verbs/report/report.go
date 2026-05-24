@@ -755,7 +755,7 @@ func PrettyResponse(req *proto.Request, rsp *proto.Response) string {
 	if r.Totals.TokensOutNoPrefix > 0 && r.Totals.TokensOutNoPrefix < r.Totals.TokensOut {
 		tax := r.Totals.TokensOut - r.Totals.TokensOutNoPrefix
 		taxPct := float64(tax) / float64(r.Totals.TokensOut) * 100
-		fmt.Fprintf(&b, "path-prefix tax: %d tokens (%.0f%% of out)\n", tax, taxPct)
+		fmt.Fprintf(&b, "path-prefix tax: %d tokens (%.0f%% of tokens_out)\n", tax, taxPct)
 	}
 
 	// ASH-123: MCP-transport emit accounting. tokens_out above counts

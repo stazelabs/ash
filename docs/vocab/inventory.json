@@ -1081,8 +1081,8 @@
         ],
         "hints": [
           {
-            "text": "live ops: status, log, diff, show, blame",
-            "cl100k_tokens": 12
+            "text": "ash git supports: status, log, diff, show, blame",
+            "cl100k_tokens": 13
           }
         ]
       },
