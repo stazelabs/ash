@@ -23,12 +23,12 @@ Any `ash` invocation auto-starts the daemon. Subsequent calls reuse it over
 a per-project Unix domain socket.
 
 1. **Path or filename lookup across more than one directory** — `ash find --path <p> --glob '<pat>' --type file|dir|symlink`. Hidden directories and `.gitignore`d paths are skipped by default.
-2. **Pattern search across files** — `ash grep --pattern '<re>' --path <p> --glob '<pat>'`. Smart-case by default; add `--fixed_string true` for literal matches, `--files_only true` for path-only output, `--no_text true` for `path:line:col` rows without excerpts.
+2. **Pattern search across files** — `ash grep --pattern '<re>' --path <p> --glob '<pat>'`. RE2 regex, so `--pattern 'foo|bar|baz'` works — prefer one alternation over multiple greps. Smart-case by default; add `--lit true` for literal matches, `--fo true` for path-only output, `--no-text true` for `path:line:col` rows without excerpts.
 3. **Read a file** — `ash read --path <p> [--range start:end]`. Default cap 256 KiB; UTF-8 returned as-is, binary base64-encoded.
 4. **Stat paths** — `ash stat --paths a,b,c`. Uses `lstat`. Per-entry errors keep bulk calls alive when some paths are missing.
 5. **Diff two files or contents** — `ash diff --path a --other b` or `ash diff --path f --content - < new`. Both inputs capped at 4000 lines.
 6. **Write a file** — `ash write --path <p> --content - << 'EOF' … EOF`. Atomic via temp-file + rename.
-7. **Edit a file** — `ash edit` with one of: `--old_string`/`--new_string`, `--range start:end --new_content`, or `--patch`. **Default to stdin** for any non-trivial content.
+7. **Edit a file** — `ash edit` with one of: `--old`/`--new`, `--range start:end --new`, or `--patch`. **Default to stdin** for any non-trivial content.
 8. **Git status, log, diff, show** — `ash git --op status|log|diff|show`. Other git ops (commit, push, blame, rebase, checkout, etc.) stay in bash.
 9. **Run Go tests** — `ash test [--packages <p>] [--run <name>] [--race true] [--short true]`. Failures arrive as a structured slice with `file:line` extracted; build failures land as `Status=build_failed`.
 10. **Inspect the ledger** — `ash report` for synthesis, `ash metrics` for raw rows. `ash report --since 1h` is the most common form when a session feels heavy.
@@ -41,10 +41,10 @@ sequences, and multiline blocks. **Default to stdin** for any non-trivial
 content, in this order:
 
 - Whole-file rewrite: `ash write --path <p> --content - << 'EOF' … EOF`
-- Line-range edit: `ash edit --path <p> --range 5:10 --new_content - << 'EOF' … EOF`
+- Line-range edit: `ash edit --path <p> --range 5:10 --new - << 'EOF' … EOF`
 - Cross-cutting or multi-region: `ash edit --path <p> --patch - << 'EOF' … EOF`
 
-Inline `--new_content='…'` is for short ASCII-only swaps with no quoting
+Inline `--new='…'` is for short ASCII-only swaps with no quoting
 hazards. For hostile content (heredoc-with-EOF, mixed quotes), write a
 Python fixer to `/tmp` via `ash write` and execute it — Python string
 concat sidesteps all shell quoting.
