@@ -48,3 +48,10 @@ Thumbs.db
 # (Claude Code does not expand env vars in `.mcp.json`), so the file is
 # inherently per-checkout-machine. See docs/adoption/claude-code.md.
 .mcp.json
+
+# ash project config — may contain absolute paths (jail allow_paths/deny_paths,
+# gopls_path) that are per-checkout-machine. Developer-global settings belong
+# in $XDG_CONFIG_HOME/ash/config.toml instead. Teams that use only ${root}-
+# relative jail paths (ASH-229) and the default gopls_path can safely
+# un-ignore this file to share project-level policy as code.
+ash.toml

@@ -105,6 +105,42 @@ func TestPolicy_NewFileViaEscape(t *testing.T) {
 	}
 }
 
+func TestFromConfig_RootExpansionInDenyPaths(t *testing.T) {
+	root := t.TempDir()
+	secretDir := filepath.Join(root, "secrets")
+	if err := os.MkdirAll(secretDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	p := FromConfig(true, root, nil, []string{"${root}/secrets"})
+	if err := p.Check(filepath.Join(secretDir, "key.txt")); err == nil {
+		t.Errorf("${root}/secrets deny path should deny secrets/key.txt")
+	}
+	if err := p.Check(filepath.Join(root, "ok.go")); err != nil {
+		t.Errorf("sibling path should remain allowed: %v", err)
+	}
+}
+
+func TestFromConfig_RootExpansionInAllowPaths(t *testing.T) {
+	root := t.TempDir()
+	// Build a sibling directory next to root so it sits outside the jail.
+	sibling := filepath.Join(filepath.Dir(root), "sibling-"+filepath.Base(root))
+	if err := os.MkdirAll(sibling, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(sibling)
+	// Reference sibling via "${root}/../<name>" — this is the committed form
+	// that avoids embedding the checkout-local absolute path.
+	relSibling := "${root}/../" + filepath.Base(sibling)
+	p := FromConfig(true, root, []string{relSibling}, nil)
+	if err := p.Check(filepath.Join(sibling, "x.txt")); err != nil {
+		t.Errorf("${root}-relative allow path should permit sibling dir: %v", err)
+	}
+	other := t.TempDir()
+	if err := p.Check(filepath.Join(other, "x.txt")); err == nil {
+		t.Errorf("unrelated dir should still be denied")
+	}
+}
+
 func TestCheckPaths_NoActivePolicy(t *testing.T) {
 	SetPolicy(nil)
 	if perr := CheckPaths(map[string]string{"path": "/etc/hosts"}); perr != nil {

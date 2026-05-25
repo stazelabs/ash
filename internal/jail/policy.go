@@ -65,17 +65,24 @@ func FromConfig(enabled bool, root string, allowPaths, denyPaths []string) *Poli
 	canonRoot := canonicalize(root)
 	roots := []string{canonRoot}
 	for _, p := range allowPaths {
-		if c := canonicalize(p); c != "" {
+		if c := canonicalize(expandRoot(p, canonRoot)); c != "" {
 			roots = append(roots, c)
 		}
 	}
 	denies := make([]string, 0, len(denyPaths))
 	for _, p := range denyPaths {
-		if c := canonicalize(p); c != "" {
+		if c := canonicalize(expandRoot(p, canonRoot)); c != "" {
 			denies = append(denies, c)
 		}
 	}
 	return &Policy{Enabled: enabled, AllowedRoots: roots, DenyPaths: denies}
+}
+
+// expandRoot replaces ${root} in path with canonRoot, allowing jail paths
+// like "${root}/scratch" that are safe to commit without embedding local
+// checkout paths. See ASH-229.
+func expandRoot(path, canonRoot string) string {
+	return strings.ReplaceAll(path, "${root}", canonRoot)
 }
 
 // Check returns nil if path is allowed under the policy. A nil or

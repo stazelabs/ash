@@ -42,11 +42,14 @@
 #
 # # Additional canonical roots paths may sit under. Useful for legitimate
 # # scratch dirs or build outputs that live outside the project tree.
-# allow_paths = ["/tmp/scratch"]
+# # Use ${root} to reference the project root without embedding your local
+# # checkout path — safe to commit (ASH-229). Absolute paths also work.
+# allow_paths = ["${root}/scratch", "/tmp/shared-scratch"]
 #
 # # Canonical paths to deny even inside an allowed root. Useful for
 # # secrets directories or other should-never-be-touched paths.
-# deny_paths = [".env", "secrets/"]
+# # ${root} is expanded here too.
+# deny_paths = ["${root}/.env", "${root}/secrets/"]
 
 # [git]
 # # Backend for the `ash git` verb. Three states:
