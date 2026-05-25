@@ -12,6 +12,12 @@ on:
 env:
   CGO_ENABLED: "0"
 
+# Least-privilege GITHUB_TOKEN: CI only reads the repo (checkout, build,
+# test, drift gates) — no write paths. Set explicitly so CodeQL's
+# missing-workflow-permissions check is satisfied (ASH-209 follow-up).
+permissions:
+  contents: read
+
 jobs:
   gates:
     runs-on: ubuntu-latest
