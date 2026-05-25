@@ -3545,6 +3545,11 @@
             "type": "string",
             "description": "Target repo root; default '.' is the daemon's project root.",
             "default": "."
+          },
+          "refresh": {
+            "type": "boolean",
+            "description": "Narrowly refresh only the ash-managed CLAUDE.md section.",
+            "default": false
           }
         },
         "additionalProperties": false
@@ -3568,7 +3573,13 @@
           "path": {
             "type": "string"
           },
+          "refresh_available": {
+            "type": "boolean"
+          },
           "registry_updated": {
+            "type": "boolean"
+          },
+          "settings_conflict": {
             "type": "boolean"
           },
           "settings_written": {

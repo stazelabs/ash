@@ -50,7 +50,7 @@ verbs (phase 2):
   help    [--verb <verb>] [--verbose true|false]
   hook    [--tool <tool>] [--command <command>] [--pattern <re>] [--path <p>] [--glob <pattern>]
           [--file <file>] [--old <text>] [--new <text>] [--content <text|->]
-  init    [--path <p>] [--force true|false] [--no-registry true|false]
+  init    [--path <p>] [--force true|false] [--refresh true|false] [--no-registry true|false]
   uninit  [--path <p>] [--no-registry true|false]
   stop    
   usage   [--since <dur>] [--session <session>]

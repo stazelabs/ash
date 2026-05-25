@@ -4,6 +4,7 @@
 //
 //	path        string (optional) - target repo root; default "."
 //	force       bool   (optional) - overwrite an existing different ash hook entry or guidance section
+//	refresh     bool   (optional) - narrowly refresh only the ash-managed CLAUDE.md section; skip settings/gitignore/registry
 //	no_registry bool   (optional) - skip writing to the global installed-repos registry
 //
 // `ash init` bootstraps a target repo for use with ash:
@@ -20,11 +21,22 @@
 //  4. Records the absolute root in the global installed-repos registry
 //     so `ash report --all-roots` can find it.
 //
-// Idempotent: re-running on an already-installed repo is a no-op and
-// reports already_installed=true. A pre-existing settings.json entry
-// that uses a different ash hook command, or a pre-existing guidance
-// section whose content differs from the current template, is left in
-// place with a warning unless --force is set.
+// Three modes (ASH-231):
+//
+//   - Default (no flags): change nothing if everything is already canonical.
+//     Reports already_installed=true. If the guidance section exists but its
+//     content has drifted from the current template, reports
+//     refresh_available=true and emits a warning suggesting `ash init
+//     --refresh`. If settings.json has a non-canonical ash hook entry,
+//     reports settings_conflict=true and emits a warning suggesting `ash
+//     init --force`.
+//   - --refresh: narrow update. Only touches the marker-bracketed guidance
+//     section. Skips settings.json, .gitignore, and the registry. No-op if
+//     the section already matches; warns (no write) if the file is missing
+//     or has no ash markers. Safe to run unattended.
+//   - --force: replaces a non-canonical settings.json hook entry and
+//     overwrites a drifted guidance section. The escape hatch for genuine
+//     conflicts that --refresh can't address.
 package initverb
 
 import (
@@ -57,6 +69,7 @@ var SettingsRelPath = filepath.Join(".claude", "settings.json")
 type Args struct {
 	Path       string
 	Force      bool
+	Refresh    bool
 	NoRegistry bool
 }
 
@@ -68,6 +81,8 @@ type Result struct {
 	GuidancePath     string   `msgpack:"guidance_path,omitempty"`
 	RegistryUpdated  bool     `msgpack:"registry_updated"`
 	AlreadyInstalled bool     `msgpack:"already_installed,omitempty"`
+	RefreshAvailable bool     `msgpack:"refresh_available,omitempty"`
+	SettingsConflict bool     `msgpack:"settings_conflict,omitempty"`
 	Warnings         []string `msgpack:"warnings,omitempty"`
 }
 
@@ -78,6 +93,9 @@ func ParseArgs(in map[string]any) (*Args, *proto.Error) {
 		return nil, perr
 	}
 	if a.Force, perr = argutil.OptionalBool(in, "force", false); perr != nil {
+		return nil, perr
+	}
+	if a.Refresh, perr = argutil.OptionalBool(in, "refresh", false); perr != nil {
 		return nil, perr
 	}
 	if a.NoRegistry, perr = argutil.OptionalBool(in, "no-registry", false); perr != nil {
@@ -111,33 +129,54 @@ func Run(a *Args, _ *proto.Tracer) (*Result, *proto.Error) {
 
 	res := &Result{Path: abs}
 
-	settingsChanged, alreadyInstalled, warning, perr := updateSettings(abs, a.Force)
-	if perr != nil {
-		return nil, perr
-	}
-	res.SettingsWritten = settingsChanged
-	res.AlreadyInstalled = alreadyInstalled
-	if warning != "" {
-		res.Warnings = append(res.Warnings, warning)
+	mode := guidanceInstall
+	switch {
+	case a.Refresh:
+		mode = guidanceRefresh
+	case a.Force:
+		mode = guidanceForce
 	}
 
-	gitChanged, perr := updateGitignore(abs)
-	if perr != nil {
-		return nil, perr
-	}
-	res.GitignoreUpdated = gitChanged
+	settingsAlready := true // assumed-canonical when refresh skips the check
+	if !a.Refresh {
+		settingsChanged, alreadyInstalled, conflict, warning, perr := updateSettings(abs, a.Force)
+		if perr != nil {
+			return nil, perr
+		}
+		res.SettingsWritten = settingsChanged
+		res.SettingsConflict = conflict
+		settingsAlready = alreadyInstalled
+		if warning != "" {
+			res.Warnings = append(res.Warnings, warning)
+		}
 
-	guidanceChanged, _, guidancePath, guidanceWarning, perr := updateGuidance(abs, a.Force)
+		gitChanged, perr := updateGitignore(abs)
+		if perr != nil {
+			return nil, perr
+		}
+		res.GitignoreUpdated = gitChanged
+	}
+
+	guidanceChanged, guidanceAlready, refreshAvailable, guidancePath, guidanceWarning, perr := updateGuidance(abs, mode)
 	if perr != nil {
 		return nil, perr
 	}
 	res.GuidanceWritten = guidanceChanged
 	res.GuidancePath = guidancePath
+	res.RefreshAvailable = refreshAvailable
 	if guidanceWarning != "" {
 		res.Warnings = append(res.Warnings, guidanceWarning)
 	}
+	// AlreadyInstalled reflects "everything this invocation checked is in
+	// canonical state." In install/force mode that's settings+guidance; in
+	// refresh mode it's guidance only (settings wasn't checked).
+	if a.Refresh {
+		res.AlreadyInstalled = guidanceAlready
+	} else {
+		res.AlreadyInstalled = settingsAlready && guidanceAlready
+	}
 
-	if !a.NoRegistry {
+	if !a.NoRegistry && !a.Refresh {
 		regChanged, err := registry.Add(abs)
 		if err != nil {
 			res.Warnings = append(res.Warnings, "registry: "+err.Error())
@@ -170,19 +209,20 @@ const BashAshAllowRule = "Bash(ash *)"
 // updateSettings reads <root>/.claude/settings.json (if any), merges in a
 // PreToolUse entry that runs `ash hook` and ensures "Bash(ash *)" is in
 // permissions.allow, then writes it back. Returns (changed, alreadyInstalled,
-// warning, error). alreadyInstalled is set when both entries are already
-// present. A pre-existing hook entry that uses a different ash command
-// produces a warning unless force is true, in which case it is replaced.
-func updateSettings(root string, force bool) (bool, bool, string, *proto.Error) {
+// conflict, warning, error). alreadyInstalled is set when both entries are
+// already present. conflict is set when a pre-existing hook entry invokes
+// ash with a different command and --force was not passed (the call left
+// settings untouched and a warning was produced).
+func updateSettings(root string, force bool) (bool, bool, bool, string, *proto.Error) {
 	path := filepath.Join(root, SettingsRelPath)
 
 	var settings map[string]any
 	if data, err := os.ReadFile(path); err == nil {
 		if err := json.Unmarshal(data, &settings); err != nil {
-			return false, false, "", &proto.Error{Code: "settings_parse", Msg: path + ": " + err.Error()}
+			return false, false, false, "", &proto.Error{Code: "settings_parse", Msg: path + ": " + err.Error()}
 		}
 	} else if !os.IsNotExist(err) {
-		return false, false, "", &proto.Error{Code: "settings_read", Msg: err.Error()}
+		return false, false, false, "", &proto.Error{Code: "settings_read", Msg: err.Error()}
 	}
 	if settings == nil {
 		settings = map[string]any{}
@@ -198,7 +238,7 @@ func updateSettings(root string, force bool) (bool, bool, string, *proto.Error) 
 	permAlready := hasBashAshAllow(settings)
 
 	if hookAlready && permAlready {
-		return false, true, "", nil
+		return false, true, false, "", nil
 	}
 
 	warning := ""
@@ -234,21 +274,21 @@ func updateSettings(root string, force bool) (bool, bool, string, *proto.Error) 
 	}
 
 	if !changed {
-		return false, false, warning, nil
+		return false, false, blocked, warning, nil
 	}
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return false, false, warning, &proto.Error{Code: "settings_write", Msg: err.Error()}
+		return false, false, false, warning, &proto.Error{Code: "settings_write", Msg: err.Error()}
 	}
 	out, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
-		return false, false, warning, &proto.Error{Code: "settings_marshal", Msg: err.Error()}
+		return false, false, false, warning, &proto.Error{Code: "settings_marshal", Msg: err.Error()}
 	}
 	out = append(out, '\n')
 	if err := atomicwrite.Write(path, out, atomicwrite.Options{TmpPrefix: ".ash-init-"}); err != nil {
-		return false, false, warning, &proto.Error{Code: "settings_write", Msg: err.Error()}
+		return false, false, false, warning, &proto.Error{Code: "settings_write", Msg: err.Error()}
 	}
-	return true, false, warning, nil
+	return true, false, false, warning, nil
 }
 
 // hasBashAshAllow reports whether BashAshAllowRule is already present in
@@ -378,7 +418,7 @@ func updateGitignore(root string) (bool, *proto.Error) {
 	return true, nil
 }
 
-func PrettyResponse(_ *proto.Request, rsp *proto.Response) string {
+func PrettyResponse(rq *proto.Request, rsp *proto.Response) string {
 	if !rsp.OK {
 		return proto.PrettyResponseHeader(rsp)
 	}
@@ -386,24 +426,63 @@ func PrettyResponse(_ *proto.Request, rsp *proto.Response) string {
 	if err := proto.UnmarshalData(rsp, &r); err != nil {
 		return "ok\n<unrecognized init result>"
 	}
+	refresh := false
+	if rq != nil {
+		if v, ok := argutil.ToBool(rq.Args["refresh"]); ok {
+			refresh = v
+		}
+	}
+
 	var b strings.Builder
-	if r.AlreadyInstalled {
-		fmt.Fprintf(&b, "§init: %s — already installed\n", r.Path)
+	fmt.Fprintf(&b, "§init: %s\n", r.Path)
+
+	if refresh {
+		if r.GuidancePath != "" {
+			fmt.Fprintf(&b, "guidance: %s (%s)\n", yesNo(r.GuidanceWritten), filepath.Base(r.GuidancePath))
+		} else {
+			fmt.Fprintf(&b, "guidance: %s\n", yesNo(r.GuidanceWritten))
+		}
 	} else {
-		fmt.Fprintf(&b, "§init: %s\n", r.Path)
+		fmt.Fprintf(&b, "settings:  %s\n", yesNo(r.SettingsWritten))
+		fmt.Fprintf(&b, "gitignore: %s\n", yesNo(r.GitignoreUpdated))
+		if r.GuidancePath != "" {
+			fmt.Fprintf(&b, "guidance:  %s (%s)\n", yesNo(r.GuidanceWritten), filepath.Base(r.GuidancePath))
+		} else {
+			fmt.Fprintf(&b, "guidance:  %s\n", yesNo(r.GuidanceWritten))
+		}
+		fmt.Fprintf(&b, "registry:  %s\n", yesNo(r.RegistryUpdated))
 	}
-	fmt.Fprintf(&b, "settings:  %s\n", yesNo(r.SettingsWritten))
-	fmt.Fprintf(&b, "gitignore: %s\n", yesNo(r.GitignoreUpdated))
-	if r.GuidancePath != "" {
-		fmt.Fprintf(&b, "guidance:  %s (%s)\n", yesNo(r.GuidanceWritten), filepath.Base(r.GuidancePath))
-	} else {
-		fmt.Fprintf(&b, "guidance:  %s\n", yesNo(r.GuidanceWritten))
+
+	if status := initStatusLine(refresh, &r); status != "" {
+		fmt.Fprintf(&b, "%s\n", status)
 	}
-	fmt.Fprintf(&b, "registry:  %s\n", yesNo(r.RegistryUpdated))
 	for _, w := range r.Warnings {
 		fmt.Fprintf(&b, "warning: %s\n", w)
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// initStatusLine returns the one-line summary that tells the agent what to
+// do next (or that nothing is left to do). Empty when the per-component
+// status rows are self-explanatory (a fresh install with no edge cases).
+func initStatusLine(refresh bool, r *Result) string {
+	switch {
+	case refresh && r.GuidanceWritten:
+		return "refresh applied"
+	case refresh && r.AlreadyInstalled:
+		return "nothing to refresh — guidance section already matches current template"
+	case refresh:
+		// Refresh requested but no write and not already-canonical: file
+		// missing or no markers. The accompanying warning carries the detail.
+		return ""
+	case r.SettingsConflict:
+		return "conflict — pass --force to override"
+	case r.RefreshAvailable:
+		return "refresh available — run: ash init --refresh"
+	case r.AlreadyInstalled && len(r.Warnings) == 0:
+		return "nothing to do"
+	}
+	return ""
 }
 
 func yesNo(b bool) string {
